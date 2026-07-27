@@ -5,11 +5,11 @@ export const runtime = "nodejs";
 
 export async function PATCH(req: NextRequest, { params }: { params: { id: string } }) {
   const patch = await req.json();
-  const rule = updateCreditRule(params.id, patch);
+  const rule = await updateCreditRule(params.id, patch);
   if (!rule) return NextResponse.json({ error: "Not found." }, { status: 404 });
   return NextResponse.json({ rule });
 }
 
 export async function DELETE(_req: NextRequest, { params }: { params: { id: string } }) {
-  return NextResponse.json({ ok: deleteCreditRule(params.id) });
+  return NextResponse.json({ ok: await deleteCreditRule(params.id) });
 }

@@ -5,5 +5,5 @@ export const runtime = "nodejs";
 
 export async function GET(req: NextRequest) {
   const q = new URL(req.url).searchParams.get("q") || undefined;
-  return NextResponse.json({ items: listMasterItems(q) });
+  return NextResponse.json({ items: await listMasterItems(q) });
 }

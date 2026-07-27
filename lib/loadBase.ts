@@ -1,7 +1,6 @@
 import type { VatCategory, CreditRule } from "@/lib/types";
 import { hasSupabaseConfig, getServerSupabase } from "@/lib/supabase";
-import { FALLBACK_CATEGORIES } from "@/lib/fallbackBase";
-import { listCreditRules } from "@/lib/store";
+import { FALLBACK_CATEGORIES, FALLBACK_CREDIT_RULES } from "@/lib/fallbackBase";
 
 // Returns the live base from Supabase when configured, otherwise the bundled
 // seed so the app is usable immediately with just a Gemini key.
@@ -11,7 +10,7 @@ export async function loadBase(): Promise<{
   source: "supabase" | "bundled";
 }> {
   if (!hasSupabaseConfig()) {
-    return { categories: FALLBACK_CATEGORIES, rules: listCreditRules(), source: "bundled" };
+    return { categories: FALLBACK_CATEGORIES, rules: FALLBACK_CREDIT_RULES, source: "bundled" };
   }
   try {
     const sb = getServerSupabase();
@@ -20,14 +19,14 @@ export async function loadBase(): Promise<{
       sb.from("credit_rules").select("*").eq("active", true),
     ]);
     if (cats.error || rules.error || !cats.data?.length) {
-      return { categories: FALLBACK_CATEGORIES, rules: listCreditRules(), source: "bundled" };
+      return { categories: FALLBACK_CATEGORIES, rules: FALLBACK_CREDIT_RULES, source: "bundled" };
     }
     return {
       categories: cats.data as VatCategory[],
-      rules: (rules.data?.length ? (rules.data as CreditRule[]) : listCreditRules()),
+      rules: (rules.data?.length ? (rules.data as CreditRule[]) : FALLBACK_CREDIT_RULES),
       source: "supabase",
     };
   } catch {
-    return { categories: FALLBACK_CATEGORIES, rules: listCreditRules(), source: "bundled" };
+    return { categories: FALLBACK_CATEGORIES, rules: FALLBACK_CREDIT_RULES, source: "bundled" };
   }
 }

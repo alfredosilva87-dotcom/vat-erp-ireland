@@ -7,7 +7,7 @@ export async function GET(req: NextRequest, { params }: { params: { id: string }
   const sp = new URL(req.url).searchParams;
   const year = Number(sp.get("year")) || new Date().getFullYear();
   const obligations = sp.get("refresh") === "1"
-    ? refreshObligations(params.id, year)
-    : getObligations(params.id, year);
-  return NextResponse.json({ obligations, series: monthlySeries(params.id, year), year });
+    ? await refreshObligations(params.id, year)
+    : await getObligations(params.id, year);
+  return NextResponse.json({ obligations, series: await monthlySeries(params.id, year), year });
 }

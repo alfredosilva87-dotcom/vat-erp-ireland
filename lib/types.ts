@@ -185,3 +185,14 @@ export interface SalesEntry {
   notes: string | null;
   created_at: string;
 }
+
+export interface AppUser {
+  id: string;
+  email: string;
+  name: string | null;
+  password_hash: string;
+  role: string;          // 'admin' | 'user'
+  active: boolean;
+  must_change: boolean;
+  created_at: string;
+}

@@ -4,7 +4,7 @@ import { getInvoice, updateInvoiceCredits, updateInvoice, deleteInvoice } from "
 export const runtime = "nodejs";
 
 export async function GET(_req: NextRequest, { params }: { params: { id: string } }) {
-  const data = getInvoice(params.id);
+  const data = await getInvoice(params.id);
   if (!data) return NextResponse.json({ error: "Not found." }, { status: 404 });
   return NextResponse.json(data);
 }
@@ -14,13 +14,13 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
   // credits-only payload (legacy) vs general header/items edit
   const data =
     body?.credits && !body?.header && !body?.items
-      ? updateInvoiceCredits(params.id, body.credits as Record<string, boolean>)
-      : updateInvoice(params.id, { header: body?.header, items: body?.items });
+      ? await updateInvoiceCredits(params.id, body.credits as Record<string, boolean>)
+      : await updateInvoice(params.id, { header: body?.header, items: body?.items });
   if (!data) return NextResponse.json({ error: "Not found." }, { status: 404 });
   return NextResponse.json(data);
 }
 
 export async function DELETE(_req: NextRequest, { params }: { params: { id: string } }) {
-  const ok = deleteInvoice(params.id);
+  const ok = await deleteInvoice(params.id);
   return NextResponse.json({ ok });
 }

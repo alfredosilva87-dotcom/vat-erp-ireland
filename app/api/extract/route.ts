@@ -51,7 +51,7 @@ export async function POST(req: NextRequest) {
     {
       const idxs = unmatched();
       if (idxs.length) {
-        const learned = lookupMasterCategories(idxs.map((i) => items[i].description));
+        const learned = await lookupMasterCategories(idxs.map((i) => items[i].description));
         idxs.forEach((idx, k) => {
           const code = learned[k];
           const cat = code ? byRef.get(code) : undefined;

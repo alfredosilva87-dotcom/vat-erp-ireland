@@ -10,9 +10,9 @@ export async function GET(req: NextRequest) {
   const clientId = searchParams.get("client") || undefined;
   const view = searchParams.get("view"); // "items" for de-para master
   if (view === "items") {
-    return NextResponse.json({ items: listMasterItems(q), stats: stats(clientId) });
+    return NextResponse.json({ items: await listMasterItems(q), stats: await stats(clientId) });
   }
-  return NextResponse.json({ invoices: listInvoices(q, clientId), stats: stats(clientId) });
+  return NextResponse.json({ invoices: await listInvoices(q, clientId), stats: await stats(clientId) });
 }
 
 export async function POST(req: NextRequest) {
@@ -36,7 +36,7 @@ export async function POST(req: NextRequest) {
       ext = name.includes(".") ? name.split(".").pop()! : (file.type.split("/")[1] || "bin");
     }
 
-    const invoice = saveInvoice(payload, buffer, ext);
+    const invoice = await saveInvoice(payload, buffer, ext);
     return NextResponse.json({ ok: true, invoice });
   } catch (err: any) {
     return NextResponse.json({ error: err?.message || "Save failed." }, { status: 500 });

@@ -1,6 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import fs from "fs";
-import { getDocumentAbsolutePath } from "@/lib/store";
+import { getDocumentDownload } from "@/lib/store";
 
 export const runtime = "nodejs";
 
@@ -13,17 +12,15 @@ const MIME: Record<string, string> = {
 };
 
 export async function GET(_req: NextRequest, { params }: { params: { id: string } }) {
-  const abs = getDocumentAbsolutePath(params.id);
-  if (!abs || !fs.existsSync(abs)) {
+  const doc = await getDocumentDownload(params.id);
+  if (!doc) {
     return NextResponse.json({ error: "Document not found." }, { status: 404 });
   }
-  const ext = abs.split(".").pop()?.toLowerCase() || "bin";
-  const data = fs.readFileSync(abs);
-  return new NextResponse(data, {
+  return new NextResponse(new Uint8Array(doc.bytes), {
     status: 200,
     headers: {
-      "Content-Type": MIME[ext] || "application/octet-stream",
-      "Content-Disposition": `inline; filename="document.${ext}"`,
+      "Content-Type": MIME[doc.ext] || "application/octet-stream",
+      "Content-Disposition": `inline; filename="document.${doc.ext}"`,
     },
   });
 }

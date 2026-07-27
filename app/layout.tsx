@@ -1,8 +1,7 @@
 import type { Metadata } from "next";
 import { Fraunces, IBM_Plex_Sans, IBM_Plex_Mono } from "next/font/google";
 import "./globals.css";
-import Link from "next/link";
-import Sidebar from "@/components/Sidebar";
+import AppFrame from "@/components/AppFrame";
 
 const display = Fraunces({ subsets: ["latin"], weight: ["400", "500", "600"], variable: "--font-display" });
 const sans = IBM_Plex_Sans({ subsets: ["latin"], weight: ["400", "500", "600"], variable: "--font-sans" });
@@ -17,39 +16,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
   return (
     <html lang="en" className={`${display.variable} ${sans.variable} ${mono.variable}`}>
       <body className="min-h-dvh font-sans antialiased">
-        <div className="flex min-h-dvh">
-          <Sidebar />
-          <div className="flex min-w-0 flex-1 flex-col">
-            {/* Top bar */}
-            <header className="sticky top-0 z-30 border-b border-line bg-paper/85 backdrop-blur">
-              <div className="flex h-16 items-center gap-3 px-5">
-                <Link
-                  href="/records"
-                  className="flex h-10 flex-1 items-center gap-2 rounded-xl border border-line bg-surface px-3 text-sm text-muted shadow-raised"
-                >
-                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" aria-hidden="true">
-                    <circle cx="11" cy="11" r="7" stroke="currentColor" strokeWidth="1.8" />
-                    <path d="M20 20l-3.2-3.2" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" />
-                  </svg>
-                  Search invoices, items, clients…
-                </Link>
-                <Link href="/analyze" className="btn-primary hidden sm:inline-flex">
-                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" aria-hidden="true">
-                    <path d="M12 5v14M5 12h14" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
-                  </svg>
-                  New analysis
-                </Link>
-              </div>
-            </header>
-
-            <main className="mx-auto w-full max-w-6xl flex-1 px-5 py-8">{children}</main>
-
-            <footer className="mx-auto w-full max-w-6xl px-5 py-6 text-xs text-muted">
-              Support tool — item classification is <strong>suggested and editable</strong>. It does not
-              replace an accountant. VAT rates: Revenue Ireland. Data stored locally on this machine.
-            </footer>
-          </div>
-        </div>
+        <AppFrame>{children}</AppFrame>
       </body>
     </html>
   );

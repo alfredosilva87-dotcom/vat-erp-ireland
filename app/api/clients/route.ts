@@ -7,9 +7,9 @@ export async function GET(req: NextRequest) {
   const { searchParams } = new URL(req.url);
   const q = searchParams.get("q") || undefined;
   if (searchParams.get("stats") === "1") {
-    return NextResponse.json({ clients: clientsWithStats(q) });
+    return NextResponse.json({ clients: await clientsWithStats(q) });
   }
-  return NextResponse.json({ clients: listClients(q) });
+  return NextResponse.json({ clients: await listClients(q) });
 }
 
 export async function POST(req: NextRequest) {
@@ -18,7 +18,7 @@ export async function POST(req: NextRequest) {
     if (!body?.name?.trim()) {
       return NextResponse.json({ error: "Client name is required." }, { status: 400 });
     }
-    const client = createClient(body);
+    const client = await createClient(body);
     return NextResponse.json({ client });
   } catch (err: any) {
     return NextResponse.json({ error: err?.message || "Create failed." }, { status: 500 });

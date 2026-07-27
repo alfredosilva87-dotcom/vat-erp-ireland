@@ -5,7 +5,7 @@ export const runtime = "nodejs";
 
 export async function PATCH(req: NextRequest, { params }: { params: { id: string } }) {
   const patch = await req.json();
-  const o = updateObligation(params.id, patch);
+  const o = await updateObligation(params.id, patch);
   if (!o) return NextResponse.json({ error: "Not found." }, { status: 404 });
   return NextResponse.json({ obligation: o });
 }

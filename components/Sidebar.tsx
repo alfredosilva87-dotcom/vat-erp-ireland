@@ -78,6 +78,18 @@ export default function Sidebar() {
           <span className="block text-[11px] text-night-muted">Switch company ⇄</span>
         </span>
       </Link>
+
+      <button
+        onClick={async () => {
+          await fetch("/api/auth/logout", { method: "POST" });
+          window.location.href = "/login";
+        }}
+        className="mt-2 flex items-center gap-3 rounded-xl px-3 h-10 text-sm font-medium text-night-muted transition-colors hover:bg-white/5 hover:text-white"
+        title="Sign out"
+      >
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" className="shrink-0" aria-hidden="true"><path d="M15 12H4m0 0l4-4m-4 4l4 4M14 4h4a2 2 0 0 1 2 2v12a2 2 0 0 1-2 2h-4" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"/></svg>
+        <span className="hidden lg:block">Sign out</span>
+      </button>
     </aside>
   );
 }
