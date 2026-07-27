@@ -94,6 +94,7 @@ export interface StoredInvoice {
   invoice_number: string | null;
   barcode: string | null;
   invoice_date: string | null;
+  posting_date: string | null;
   invoice_time: string | null;
   doc_type: string;
   currency: string;

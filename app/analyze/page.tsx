@@ -33,6 +33,7 @@ const engineLabel = (e?: string) => e === "pdf-native" ? "PDF" : e === "gemini-v
 export default function Analyze() {
   const [clients, setClients] = useState<{ id: string; name: string; client_code: string; activity_code: string; activity_label: string }[]>([]);
   const [clientId, setClientId] = useState("");
+  const [postingDate, setPostingDate] = useState(() => new Date().toISOString().slice(0, 10));
   const [rows, setRows] = useState<Row[]>([]);
   const [busy, setBusy] = useState(false);
   const [phase, setPhase] = useState<"idle" | "reading" | "saving">("idle");
@@ -90,6 +91,7 @@ export default function Analyze() {
           header: {
             supplier_name: h.supplier_name, store_name: h.store_name ?? null, supplier_vat: h.supplier_vat,
             invoice_number: h.invoice_number, barcode: h.barcode ?? null, invoice_date: h.invoice_date,
+            posting_date: postingDate || null,
             invoice_time: h.invoice_time ?? null, doc_type: h.doc_type,
             total_net: h.total_net, total_vat: h.total_vat, total_gross: h.total_gross,
           },
@@ -141,6 +143,18 @@ export default function Analyze() {
               ))}
             </select>
             <p className="mt-2 text-xs text-muted">Every document imported goes to this client.</p>
+
+            <label className="label mt-4" htmlFor="posting">Posting date (data de lançamento)</label>
+            <input
+              id="posting"
+              type="date"
+              className="input"
+              value={postingDate}
+              onChange={(e) => setPostingDate(e.target.value)}
+            />
+            <p className="mt-2 text-xs text-muted">
+              Period used for VAT3/RTD. Defaults to today; independent of the document&apos;s issue date. Applied to every document in this batch.
+            </p>
           </div>
           <div>
             <label className="label">Documents</label>
@@ -186,7 +200,8 @@ export default function Analyze() {
                 <tr className="border-b border-line bg-paper text-left text-xs uppercase tracking-wide text-muted">
                   <th className="px-4 py-3 font-medium">Document</th>
                   <th className="px-4 py-3 font-medium">Supplier</th>
-                  <th className="px-4 py-3 font-medium">Date</th>
+                  <th className="px-4 py-3 font-medium">Issued</th>
+                  <th className="px-4 py-3 font-medium">Posting</th>
                   <th className="px-4 py-3 font-medium text-right">Gross €</th>
                   <th className="px-4 py-3 font-medium text-right">Credit €</th>
                   <th className="px-4 py-3 font-medium text-center">Read by</th>
@@ -199,6 +214,7 @@ export default function Analyze() {
                     <td className="px-4 py-3 max-w-[220px] truncate" title={r.file.name}>{r.file.name}</td>
                     <td className="px-4 py-3">{r.result?.header.supplier_name || "—"}</td>
                     <td className="px-4 py-3 tnum">{r.result?.header.invoice_date || "—"}</td>
+                    <td className="px-4 py-3 tnum text-muted">{postingDate || "—"}</td>
                     <td className="px-4 py-3 text-right tnum">{money(r.result?.header.total_gross)}</td>
                     <td className="px-4 py-3 text-right tnum font-semibold text-brand-700">{r.status === "read" || r.status === "saved" ? money(docCredit(r)) : "—"}</td>
                     <td className="px-4 py-3 text-center">

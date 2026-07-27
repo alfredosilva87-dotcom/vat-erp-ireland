@@ -131,7 +131,7 @@ export default function Records() {
               <thead>
                 <tr className="border-b border-line bg-paper text-left text-xs uppercase tracking-wide text-muted">
                   <th className="px-4 py-3 font-medium">Supplier</th>
-                  <th className="px-4 py-3 font-medium">Date · time</th>
+                  <th className="px-4 py-3 font-medium">Issued · posting</th>
                   <th className="px-4 py-3 font-medium">Doc no.</th>
                   <th className="px-4 py-3 font-medium text-right">Items</th>
                   <th className="px-4 py-3 font-medium text-right">Gross €</th>
@@ -151,6 +151,9 @@ export default function Records() {
                     <td className="px-4 py-3 tnum">
                       {inv.invoice_date || "—"}
                       {inv.invoice_time ? ` · ${inv.invoice_time}` : ""}
+                      {inv.posting_date && inv.posting_date !== inv.invoice_date && (
+                        <div className="text-xs text-muted">lçto: {inv.posting_date}</div>
+                      )}
                     </td>
                     <td className="px-4 py-3 font-mono text-xs">{inv.invoice_number || "—"}</td>
                     <td className="px-4 py-3 text-right tnum">{inv.item_count}</td>

@@ -165,7 +165,7 @@ export interface SavePayload {
   header: {
     supplier_name: string | null; store_name: string | null; supplier_vat: string | null;
     invoice_number: string | null; barcode: string | null; invoice_date: string | null;
-    invoice_time: string | null; doc_type: string;
+    posting_date: string | null; invoice_time: string | null; doc_type: string;
     total_net: number | null; total_vat: number | null; total_gross: number | null;
   };
   items: SaveItem[];
@@ -208,7 +208,8 @@ export async function saveInvoice(payload: SavePayload, fileBuffer: Buffer | nul
     id, client_id: client?.id ?? null, client_code: client?.client_code ?? null, client_name: client?.name ?? null,
     activity_code: payload.activity_code, supplier_name: payload.header.supplier_name, store_name: payload.header.store_name,
     supplier_vat: payload.header.supplier_vat, invoice_number: payload.header.invoice_number, barcode: payload.header.barcode,
-    invoice_date: payload.header.invoice_date, invoice_time: payload.header.invoice_time, doc_type: payload.header.doc_type,
+    invoice_date: payload.header.invoice_date, posting_date: payload.header.posting_date || new Date().toISOString().slice(0, 10),
+    invoice_time: payload.header.invoice_time, doc_type: payload.header.doc_type,
     currency: "EUR", total_net: payload.header.total_net, total_vat: payload.header.total_vat, total_gross: payload.header.total_gross,
     total_credit: Number(totalCredit.toFixed(2)), engine: payload.engine, original_filename: payload.original_filename,
     document_path: documentPath, item_count: payload.items.length,
@@ -265,7 +266,7 @@ export async function updateInvoice(invoiceId: string, patch: { header?: Partial
   if (patch.header) {
     const h: any = { ...patch.header };
     if ("document_file" in h) { h.document_path = h.document_file; delete h.document_file; }
-    const allowed = ["supplier_name","store_name","supplier_vat","invoice_number","barcode","invoice_date","invoice_time","doc_type","total_net","total_vat","total_gross","document_path"];
+    const allowed = ["supplier_name","store_name","supplier_vat","invoice_number","barcode","invoice_date","posting_date","invoice_time","doc_type","total_net","total_vat","total_gross","document_path"];
     const row: any = {};
     for (const k of allowed) if (k in h) row[k] = h[k];
     if (Object.keys(row).length) await sb().from("invoices").update(row).eq("id", invoiceId);
@@ -308,8 +309,13 @@ const MONTHS = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov
 const iso = (d: Date) => d.toISOString().slice(0, 10);
 
 async function inputVatInPeriod(clientId: string, start: string, end: string): Promise<number> {
-  const { data } = await sb().from("invoices").select("total_credit,invoice_date").eq("client_id", clientId).gte("invoice_date", start).lte("invoice_date", end);
-  return Number((data ?? []).reduce((a: number, i: any) => a + (i.total_credit || 0), 0).toFixed(2));
+  // Aggregate by posting date (data de lançamento / competência), fallback invoice_date.
+  const { data } = await sb().from("invoices").select("total_credit,posting_date,invoice_date").eq("client_id", clientId);
+  const sum = (data ?? []).reduce((a: number, i: any) => {
+    const d = i.posting_date || i.invoice_date;
+    return d && d >= start && d <= end ? a + (i.total_credit || 0) : a;
+  }, 0);
+  return Number(sum.toFixed(2));
 }
 async function salesVatInPeriod(clientId: string, start: string, end: string): Promise<number> {
   const { data } = await sb().from("sales").select("vat_amount,entry_date").eq("client_id", clientId).gte("entry_date", start).lte("entry_date", end);
@@ -366,11 +372,12 @@ export async function updateObligation(id: string, patch: Partial<ClientObligati
 }
 
 export async function monthlySeries(clientId: string, year: number) {
-  const { data } = await sb().from("invoices").select("invoice_date,total_gross,total_credit").eq("client_id", clientId);
+  const { data } = await sb().from("invoices").select("invoice_date,posting_date,total_gross,total_credit").eq("client_id", clientId);
   const months = Array.from({ length: 12 }, (_, m) => ({ month: MONTHS[m], gross: 0, credit: 0, count: 0 }));
   for (const inv of data ?? []) {
-    if (!inv.invoice_date || !String(inv.invoice_date).startsWith(String(year))) continue;
-    const m = Number(String(inv.invoice_date).slice(5, 7)) - 1;
+    const d = inv.posting_date || inv.invoice_date;
+    if (!d || !String(d).startsWith(String(year))) continue;
+    const m = Number(String(d).slice(5, 7)) - 1;
     if (m < 0 || m > 11) continue;
     months[m].gross += inv.total_gross || 0; months[m].credit += inv.total_credit || 0; months[m].count += 1;
   }

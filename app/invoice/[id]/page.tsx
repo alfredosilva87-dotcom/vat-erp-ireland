@@ -70,7 +70,7 @@ export default function InvoiceEdit({ params }: { params: { id: string } }) {
       const header = {
         supplier_name: inv.supplier_name, store_name: inv.store_name, supplier_vat: inv.supplier_vat,
         invoice_number: inv.invoice_number, barcode: inv.barcode, invoice_date: inv.invoice_date,
-        invoice_time: inv.invoice_time, doc_type: inv.doc_type,
+        posting_date: inv.posting_date, invoice_time: inv.invoice_time, doc_type: inv.doc_type,
         total_net: inv.total_net, total_vat: inv.total_vat, total_gross: inv.total_gross,
       };
       const payloadItems = items.map((it) => ({
@@ -131,7 +131,8 @@ export default function InvoiceEdit({ params }: { params: { id: string } }) {
           <F label="Store / branch"><input className="input" value={inv.store_name || ""} onChange={(e) => setHdr("store_name", e.target.value)} placeholder="e.g. Shrewsbury" /></F>
           <F label="VAT number"><input className="input" value={inv.supplier_vat || ""} onChange={(e) => setHdr("supplier_vat", e.target.value)} /></F>
           <F label="Document no."><input className="input" value={inv.invoice_number || ""} onChange={(e) => setHdr("invoice_number", e.target.value)} /></F>
-          <F label="Date"><input type="date" className="input" value={inv.invoice_date || ""} onChange={(e) => setHdr("invoice_date", e.target.value)} /></F>
+          <F label="Issue date"><input type="date" className="input" value={inv.invoice_date || ""} onChange={(e) => setHdr("invoice_date", e.target.value)} /></F>
+          <F label="Posting date"><input type="date" className="input" value={inv.posting_date || ""} onChange={(e) => setHdr("posting_date", e.target.value)} /></F>
           <F label="Time"><input className="input" value={inv.invoice_time || ""} onChange={(e) => setHdr("invoice_time", e.target.value)} placeholder="HH:MM" /></F>
           <F label="Barcode / reference"><input className="input font-mono" value={inv.barcode || ""} onChange={(e) => setHdr("barcode", e.target.value)} /></F>
           <F label="Type">
