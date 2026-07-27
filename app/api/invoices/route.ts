@@ -8,11 +8,12 @@ export async function GET(req: NextRequest) {
   const { searchParams } = new URL(req.url);
   const q = searchParams.get("q") || undefined;
   const clientId = searchParams.get("client") || undefined;
+  const branchId = searchParams.get("branch") || undefined;
   const view = searchParams.get("view"); // "items" for de-para master
   if (view === "items") {
     return NextResponse.json({ items: await listMasterItems(q), stats: await stats(clientId) });
   }
-  return NextResponse.json({ invoices: await listInvoices(q, clientId), stats: await stats(clientId) });
+  return NextResponse.json({ invoices: await listInvoices(q, clientId, branchId), stats: await stats(clientId) });
 }
 
 export async function POST(req: NextRequest) {

@@ -33,6 +33,8 @@ const engineLabel = (e?: string) => e === "pdf-native" ? "PDF" : e === "gemini-v
 export default function Analyze() {
   const [clients, setClients] = useState<{ id: string; name: string; client_code: string; activity_code: string; activity_label: string }[]>([]);
   const [clientId, setClientId] = useState("");
+  const [branches, setBranches] = useState<{ id: string; name: string; code: string | null }[]>([]);
+  const [branchId, setBranchId] = useState("");
   const [postingDate, setPostingDate] = useState(() => new Date().toISOString().slice(0, 10));
   const [rows, setRows] = useState<Row[]>([]);
   const [busy, setBusy] = useState(false);
@@ -47,6 +49,12 @@ export default function Analyze() {
     const cur = getCurrentClient();
     if (cur) setClientId(cur.id);
   }, []);
+
+  useEffect(() => {
+    setBranchId("");
+    if (!clientId) { setBranches([]); return; }
+    fetch(`/api/clients/${clientId}/branches`).then((r) => r.json()).then((d) => setBranches(d.branches || []));
+  }, [clientId]);
 
   function addFiles(list: FileList | null) {
     if (!list) return;
@@ -86,7 +94,7 @@ export default function Analyze() {
       try {
         const h = r.result.header;
         const meta = {
-          client_id: clientId || null, activity_code: activity, engine: r.result.engine,
+          client_id: clientId || null, branch_id: branchId || null, activity_code: activity, engine: r.result.engine,
           original_filename: r.result.filename,
           header: {
             supplier_name: h.supplier_name, store_name: h.store_name ?? null, supplier_vat: h.supplier_vat,
@@ -155,6 +163,19 @@ export default function Analyze() {
             <p className="mt-2 text-xs text-muted">
               Period used for VAT3/RTD. Defaults to today; independent of the document&apos;s issue date. Applied to every document in this batch.
             </p>
+
+            {branches.length > 0 && (
+              <>
+                <label className="label mt-4" htmlFor="branch">Branch / loja</label>
+                <select id="branch" className="input" value={branchId} onChange={(e) => setBranchId(e.target.value)}>
+                  <option value="">No branch</option>
+                  {branches.map((b) => (
+                    <option key={b.id} value={b.id}>{b.code ? `${b.code} · ` : ""}{b.name}</option>
+                  ))}
+                </select>
+                <p className="mt-2 text-xs text-muted">Applied to every document in this batch.</p>
+              </>
+            )}
           </div>
           <div>
             <label className="label">Documents</label>

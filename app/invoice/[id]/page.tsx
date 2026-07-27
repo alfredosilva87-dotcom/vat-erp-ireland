@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import type { StoredInvoice, StoredItem, ChartAccount } from "@/lib/types";
+import type { StoredInvoice, StoredItem, ChartAccount, Branch } from "@/lib/types";
 
 type Cat = { code: string | null; description: string; vat_rate: number };
 
@@ -29,6 +29,7 @@ export default function InvoiceEdit({ params }: { params: { id: string } }) {
   const [items, setItems] = useState<StoredItem[]>([]);
   const [cats, setCats] = useState<Cat[]>([]);
   const [accounts, setAccounts] = useState<ChartAccount[]>([]);
+  const [branches, setBranches] = useState<Branch[]>([]);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [dirty, setDirty] = useState(false);
@@ -43,8 +44,9 @@ export default function InvoiceEdit({ params }: { params: { id: string } }) {
   }, [params.id]);
 
   useEffect(() => {
-    if (!inv?.client_id) { setAccounts([]); return; }
+    if (!inv?.client_id) { setAccounts([]); setBranches([]); return; }
     fetch(`/api/clients/${inv.client_id}/accounts`).then((r) => r.json()).then((d) => setAccounts(d.accounts || []));
+    fetch(`/api/clients/${inv.client_id}/branches`).then((r) => r.json()).then((d) => setBranches(d.branches || []));
   }, [inv?.client_id]);
 
   function setHdr<K extends keyof StoredInvoice>(k: K, v: StoredInvoice[K]) {
@@ -82,6 +84,7 @@ export default function InvoiceEdit({ params }: { params: { id: string } }) {
         supplier_name: inv.supplier_name, store_name: inv.store_name, supplier_vat: inv.supplier_vat,
         invoice_number: inv.invoice_number, barcode: inv.barcode, invoice_date: inv.invoice_date,
         posting_date: inv.posting_date, invoice_time: inv.invoice_time, doc_type: inv.doc_type,
+        branch_id: inv.branch_id,
         total_net: inv.total_net, total_vat: inv.total_vat, total_gross: inv.total_gross,
       };
       const payloadItems = items.map((it) => ({
@@ -154,6 +157,16 @@ export default function InvoiceEdit({ params }: { params: { id: string } }) {
               <option value="other">Other</option>
             </select>
           </F>
+          {branches.length > 0 && (
+            <F label="Branch / loja">
+              <select className="input" value={inv.branch_id || ""} onChange={(e) => setHdr("branch_id", e.target.value || null)}>
+                <option value="">No branch</option>
+                {branches.map((b) => (
+                  <option key={b.id} value={b.id}>{b.code ? `${b.code} · ` : ""}{b.name}</option>
+                ))}
+              </select>
+            </F>
+          )}
           <div className="grid grid-cols-3 gap-2 sm:col-span-2 lg:col-span-1">
             <F label="Net €"><input className="input" value={inv.total_net ?? ""} onChange={(e) => setHdr("total_net", numOrNull(e.target.value))} /></F>
             <F label="VAT €"><input className="input" value={inv.total_vat ?? ""} onChange={(e) => setHdr("total_vat", numOrNull(e.target.value))} /></F>

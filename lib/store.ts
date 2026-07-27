@@ -2,7 +2,7 @@ import { randomUUID } from "crypto";
 import { getServerSupabase } from "@/lib/supabase";
 import type {
   StoredInvoice, StoredItem, MasterItem, Client, ClientWithStats,
-  CreditRule, ClientObligation, SalesEntry, AppUser, ChartAccount,
+  CreditRule, ClientObligation, SalesEntry, AppUser, ChartAccount, Branch,
 } from "@/lib/types";
 
 // Supabase-backed data layer (server-only, service-role). Same export names.
@@ -161,7 +161,7 @@ export interface SaveItem {
   category_code: string | null; category_name: string | null; take_credit: boolean;
 }
 export interface SavePayload {
-  client_id: string | null; activity_code: string; engine: string; original_filename: string | null;
+  client_id: string | null; branch_id: string | null; activity_code: string; engine: string; original_filename: string | null;
   header: {
     supplier_name: string | null; store_name: string | null; supplier_vat: string | null;
     invoice_number: string | null; barcode: string | null; invoice_date: string | null;
@@ -180,6 +180,11 @@ const itemCredit = (it: { take_credit: boolean; vat_amount_on_invoice: number | 
 export async function saveInvoice(payload: SavePayload, fileBuffer: Buffer | null, ext: string): Promise<StoredInvoice> {
   const id = randomUUID();
   const client = payload.client_id ? await getClient(payload.client_id) : null;
+  let branchName: string | null = null;
+  if (payload.branch_id) {
+    const { data: b } = await sb().from("branches").select("name").eq("id", payload.branch_id).maybeSingle();
+    branchName = b?.name ?? null;
+  }
 
   let documentPath: string | null = null;
   if (fileBuffer) {
@@ -211,6 +216,7 @@ export async function saveInvoice(payload: SavePayload, fileBuffer: Buffer | nul
 
   const invRow = {
     id, client_id: client?.id ?? null, client_code: client?.client_code ?? null, client_name: client?.name ?? null,
+    branch_id: payload.branch_id ?? null, branch_name: branchName,
     activity_code: payload.activity_code, supplier_name: payload.header.supplier_name, store_name: payload.header.store_name,
     supplier_vat: payload.header.supplier_vat, invoice_number: payload.header.invoice_number, barcode: payload.header.barcode,
     invoice_date: payload.header.invoice_date, posting_date: payload.header.posting_date || new Date().toISOString().slice(0, 10),
@@ -225,9 +231,10 @@ export async function saveInvoice(payload: SavePayload, fileBuffer: Buffer | nul
   return toInvoice(data);
 }
 
-export async function listInvoices(q?: string, clientId?: string): Promise<StoredInvoice[]> {
+export async function listInvoices(q?: string, clientId?: string, branchId?: string): Promise<StoredInvoice[]> {
   let query = sb().from("invoices").select("*").order("created_at", { ascending: false });
   if (clientId) query = query.eq("client_id", clientId);
+  if (branchId) query = query.eq("branch_id", branchId);
   const { data } = await query;
   const list = (data ?? []).map(toInvoice);
   if (!q) return list;
@@ -271,7 +278,11 @@ export async function updateInvoice(invoiceId: string, patch: { header?: Partial
   if (patch.header) {
     const h: any = { ...patch.header };
     if ("document_file" in h) { h.document_path = h.document_file; delete h.document_file; }
-    const allowed = ["supplier_name","store_name","supplier_vat","invoice_number","barcode","invoice_date","posting_date","invoice_time","doc_type","total_net","total_vat","total_gross","document_path"];
+    if ("branch_id" in h) {
+      if (h.branch_id) { const { data: b } = await sb().from("branches").select("name").eq("id", h.branch_id).maybeSingle(); h.branch_name = b?.name ?? null; }
+      else h.branch_name = null;
+    }
+    const allowed = ["supplier_name","store_name","supplier_vat","invoice_number","barcode","invoice_date","posting_date","invoice_time","doc_type","total_net","total_vat","total_gross","document_path","branch_id","branch_name"];
     const row: any = {};
     for (const k of allowed) if (k in h) row[k] = h[k];
     if (Object.keys(row).length) await sb().from("invoices").update(row).eq("id", invoiceId);
@@ -487,6 +498,35 @@ export async function addSalesEntries(clientId: string, rows: Array<Partial<Sale
 }
 export async function deleteSalesEntry(id: string): Promise<boolean> {
   const { error } = await sb().from("sales").delete().eq("id", id);
+  return !error;
+}
+
+// ---------------- Branches / lojas (per client) ----------------
+export async function listBranches(clientId: string): Promise<Branch[]> {
+  const { data } = await sb().from("branches").select("*").eq("client_id", clientId).order("name");
+  return (data ?? []) as Branch[];
+}
+export async function createBranch(clientId: string, input: Partial<Branch>): Promise<Branch | null> {
+  const row = {
+    client_id: clientId,
+    code: input.code?.trim() || null,
+    name: (input.name || "").trim(),
+    address: input.address?.trim() || null,
+    notes: input.notes?.trim() || null,
+  };
+  if (!row.name) return null;
+  const { data, error } = await sb().from("branches").insert(row).select().single();
+  if (error) throw error;
+  return data as Branch;
+}
+export async function updateBranch(id: string, patch: Partial<Branch>): Promise<Branch | null> {
+  const row: any = {};
+  for (const k of ["code", "name", "address", "notes"]) if (k in patch) row[k] = (patch as any)[k];
+  const { data } = await sb().from("branches").update(row).eq("id", id).select().maybeSingle();
+  return (data as Branch) ?? null;
+}
+export async function deleteBranch(id: string): Promise<boolean> {
+  const { error } = await sb().from("branches").delete().eq("id", id);
   return !error;
 }
 

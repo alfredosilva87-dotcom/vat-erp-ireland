@@ -24,8 +24,8 @@ export function buildClientWorkbook(data: any) {
   ];
   XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(resumo), "Resumo");
 
-  const invHeader = ["Posting", "Issued", "Supplier", "Doc no", "Type", "Net €", "VAT €", "Gross €", "Credit €"];
-  const invRows = invoices.map((i: any) => [i.posting_date || "", i.invoice_date || "", i.supplier_name || "", i.invoice_number || "", i.doc_type || "", i.total_net, i.total_vat, i.total_gross, i.total_credit]);
+  const invHeader = ["Posting", "Issued", "Supplier", "Branch", "Doc no", "Type", "Net €", "VAT €", "Gross €", "Credit €"];
+  const invRows = invoices.map((i: any) => [i.posting_date || "", i.invoice_date || "", i.supplier_name || "", i.branch_name || "", i.invoice_number || "", i.doc_type || "", i.total_net, i.total_vat, i.total_gross, i.total_credit]);
   XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet([invHeader, ...invRows]), "Notas");
 
   const invById = new Map(invoices.map((i: any) => [i.id, i]));

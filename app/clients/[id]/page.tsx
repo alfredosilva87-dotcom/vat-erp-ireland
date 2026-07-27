@@ -88,6 +88,7 @@ export default function ClientDashboard({ params }: { params: { id: string } }) 
           </button>
           <Link href={`/clients/${params.id}/sales`} className="btn-ghost">Enter sales (T1)</Link>
           <Link href={`/clients/${params.id}/accounts`} className="btn-ghost">Chart of accounts</Link>
+          <Link href={`/clients/${params.id}/branches`} className="btn-ghost">Branches</Link>
           <Link href={`/clients/${params.id}/vat`} className="btn-ghost">VAT by rate</Link>
           <button className="btn-ghost" onClick={exportExcel}>Export Excel</button>
           <button className="btn-primary" onClick={() => window.print()}>Export PDF</button>

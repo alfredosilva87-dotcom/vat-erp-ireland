@@ -22,15 +22,18 @@ export default function Records() {
   const [loading, setLoading] = useState(false);
   const [clients, setClients] = useState<{ id: string; name: string; client_code: string }[]>([]);
   const [clientId, setClientId] = useState<string>("");
+  const [branches, setBranches] = useState<{ id: string; name: string; code: string | null }[]>([]);
+  const [branchId, setBranchId] = useState<string>("");
 
   const load = useCallback(async () => {
     setLoading(true);
     try {
       const cp = clientId ? `&client=${clientId}` : "";
+      const bp = branchId ? `&branch=${branchId}` : "";
       const url =
         tab === "items"
           ? `/api/invoices?view=items&q=${encodeURIComponent(query)}${cp}`
-          : `/api/invoices?q=${encodeURIComponent(query)}${cp}`;
+          : `/api/invoices?q=${encodeURIComponent(query)}${cp}${bp}`;
       const res = await fetch(url);
       const data = await res.json();
       setStats(data.stats);
@@ -39,7 +42,7 @@ export default function Records() {
     } finally {
       setLoading(false);
     }
-  }, [tab, query, clientId]);
+  }, [tab, query, clientId, branchId]);
 
   useEffect(() => {
     fetch("/api/clients")
@@ -48,6 +51,12 @@ export default function Records() {
     const cur = getCurrentClient();
     if (cur) setClientId(cur.id);
   }, []);
+
+  useEffect(() => {
+    setBranchId("");
+    if (!clientId) { setBranches([]); return; }
+    fetch(`/api/clients/${clientId}/branches`).then((r) => r.json()).then((d) => setBranches(d.branches || []));
+  }, [clientId]);
 
   useEffect(() => {
     load();
@@ -91,6 +100,14 @@ export default function Records() {
               <option key={c.id} value={c.id}>{c.client_code} · {c.name}</option>
             ))}
           </select>
+          {tab === "invoices" && branches.length > 0 && (
+            <select className="input w-44" value={branchId} onChange={(e) => setBranchId(e.target.value)}>
+              <option value="">All branches</option>
+              {branches.map((b) => (
+                <option key={b.id} value={b.id}>{b.code ? `${b.code} · ` : ""}{b.name}</option>
+              ))}
+            </select>
+          )}
           <form
             onSubmit={(e) => {
               e.preventDefault();
@@ -131,6 +148,7 @@ export default function Records() {
               <thead>
                 <tr className="border-b border-line bg-paper text-left text-xs uppercase tracking-wide text-muted">
                   <th className="px-4 py-3 font-medium">Supplier</th>
+                  <th className="px-4 py-3 font-medium">Branch</th>
                   <th className="px-4 py-3 font-medium">Issued</th>
                   <th className="px-4 py-3 font-medium">Posting</th>
                   <th className="px-4 py-3 font-medium">Doc no.</th>
@@ -149,6 +167,7 @@ export default function Records() {
                         <div className="text-xs text-muted font-mono">{inv.supplier_vat}</div>
                       )}
                     </td>
+                    <td className="px-4 py-3 text-xs text-muted">{inv.branch_name || "—"}</td>
                     <td className="px-4 py-3 tnum">
                       {inv.invoice_date || "—"}
                       {inv.invoice_time ? ` · ${inv.invoice_time}` : ""}
@@ -181,7 +200,7 @@ export default function Records() {
                 ))}
                 {!invoices.length && !loading && (
                   <tr>
-                    <td colSpan={8} className="px-4 py-10 text-center text-muted">
+                    <td colSpan={9} className="px-4 py-10 text-center text-muted">
                       No invoices yet. Analyze a document and click “Save to database”.
                     </td>
                   </tr>

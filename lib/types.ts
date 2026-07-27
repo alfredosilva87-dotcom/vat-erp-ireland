@@ -88,6 +88,8 @@ export interface StoredInvoice {
   client_code: string | null;
   client_name: string | null;
   activity_code: string;
+  branch_id: string | null;
+  branch_name: string | null;
   supplier_name: string | null;
   store_name: string | null;
   supplier_vat: string | null;
@@ -124,6 +126,16 @@ export interface StoredItem {
   account_name: string | null;
   take_credit: boolean;
   credit_value: number;
+}
+
+export interface Branch {
+  id: string;
+  client_id: string;
+  code: string | null;
+  name: string;
+  address: string | null;
+  notes: string | null;
+  created_at: string;
 }
 
 export interface ChartAccount {
