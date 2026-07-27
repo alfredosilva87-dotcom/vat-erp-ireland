@@ -395,6 +395,80 @@ export async function monthlySeries(clientId: string, year: number) {
   return months.map((x) => ({ ...x, gross: Number(x.gross.toFixed(2)), credit: Number(x.credit.toFixed(2)) }));
 }
 
+// ---------------- VAT by rate (entradas/saídas por alíquota) ----------------
+const r2 = (n: number) => Number(n.toFixed(2));
+
+export interface RateDoc { id: string; label: string; date: string | null; net: number; vat: number; }
+export interface RateGroup { rate: number; net: number; vat: number; credit?: number; count: number; docs: RateDoc[]; }
+
+export async function vatByRate(clientId: string, start: string, end: string): Promise<{ purchases: RateGroup[]; sales: RateGroup[] }> {
+  // ---- Purchases (entradas): group invoice_items by expected rate ----
+  const { data: invs } = await sb().from("invoices")
+    .select("id,supplier_name,invoice_number,invoice_date,posting_date").eq("client_id", clientId);
+  const inPeriod = (invs ?? []).filter((i: any) => { const d = i.posting_date || i.invoice_date; return d && d >= start && d <= end; });
+  const invMap = new Map(inPeriod.map((i: any) => [i.id, i]));
+  const ids = inPeriod.map((i: any) => i.id);
+  let items: any[] = [];
+  if (ids.length) {
+    const { data } = await sb().from("invoice_items")
+      .select("invoice_id,net_amount,vat_amount_on_invoice,expected_vat_rate,vat_rate_on_invoice,credit_value").in("invoice_id", ids);
+    items = data ?? [];
+  }
+  const pMap = new Map<number, { rate: number; net: number; vat: number; credit: number; docs: Map<string, { net: number; vat: number }> }>();
+  for (const it of items) {
+    const rate = Number(it.expected_vat_rate ?? it.vat_rate_on_invoice ?? 0);
+    const net = Number(it.net_amount || 0);
+    const vat = it.vat_amount_on_invoice != null ? Number(it.vat_amount_on_invoice)
+      : (it.net_amount != null && it.expected_vat_rate != null ? net * Number(it.expected_vat_rate) / 100 : 0);
+    const g = pMap.get(rate) || { rate, net: 0, vat: 0, credit: 0, docs: new Map() };
+    g.net += net; g.vat += vat; g.credit += Number(it.credit_value || 0);
+    const d = g.docs.get(it.invoice_id) || { net: 0, vat: 0 }; d.net += net; d.vat += vat; g.docs.set(it.invoice_id, d);
+    pMap.set(rate, g);
+  }
+  const purchases: RateGroup[] = Array.from(pMap.values()).sort((a, b) => b.rate - a.rate).map((g) => ({
+    rate: g.rate, net: r2(g.net), vat: r2(g.vat), credit: r2(g.credit), count: g.docs.size,
+    docs: Array.from(g.docs.entries()).map(([id, v]) => {
+      const inv: any = invMap.get(id);
+      return { id, label: [inv?.supplier_name, inv?.invoice_number].filter(Boolean).join(" · ") || "—", date: inv?.posting_date || inv?.invoice_date || null, net: r2(v.net), vat: r2(v.vat) };
+    }),
+  }));
+
+  // ---- Sales (saídas): group sales by rate ----
+  const { data: sales } = await sb().from("sales")
+    .select("id,entry_date,doc_number,customer,net_amount,vat_rate,vat_amount").eq("client_id", clientId).gte("entry_date", start).lte("entry_date", end);
+  const sMap = new Map<number, { rate: number; net: number; vat: number; docs: RateDoc[] }>();
+  for (const s of sales ?? []) {
+    const rate = Number(s.vat_rate ?? 0);
+    const g = sMap.get(rate) || { rate, net: 0, vat: 0, docs: [] };
+    g.net += Number(s.net_amount || 0); g.vat += Number(s.vat_amount || 0);
+    g.docs.push({ id: s.id, label: [s.doc_number, s.customer].filter(Boolean).join(" · ") || "—", date: s.entry_date, net: r2(Number(s.net_amount || 0)), vat: r2(Number(s.vat_amount || 0)) });
+    sMap.set(rate, g);
+  }
+  const salesByRate: RateGroup[] = Array.from(sMap.values()).sort((a, b) => b.rate - a.rate).map((g) => ({
+    rate: g.rate, net: r2(g.net), vat: r2(g.vat), count: g.docs.length, docs: g.docs,
+  }));
+
+  return { purchases, sales: salesByRate };
+}
+
+// Full export payload for a client + year (Excel/PDF build on the client)
+export async function exportData(clientId: string, year: number) {
+  const client = await getClient(clientId);
+  const start = `${year}-01-01`, end = `${year}-12-31`;
+  const allInv = await listInvoices(undefined, clientId);
+  const invoices = allInv.filter((i) => { const d = i.posting_date || i.invoice_date; return d ? String(d).startsWith(String(year)) : true; });
+  const ids = invoices.map((i) => i.id);
+  let items: StoredItem[] = [];
+  if (ids.length) {
+    const { data } = await sb().from("invoice_items").select("*").in("invoice_id", ids);
+    items = (data ?? []) as StoredItem[];
+  }
+  const obligations = await getObligations(clientId, year);
+  const rates = await vatByRate(clientId, start, end);
+  const series = await monthlySeries(clientId, year);
+  return { client, year, invoices, items, obligations, rates, series };
+}
+
 // ---------------- Sales ----------------
 export async function listSales(clientId: string): Promise<SalesEntry[]> {
   const { data } = await sb().from("sales").select("*").eq("client_id", clientId).order("entry_date", { ascending: false });

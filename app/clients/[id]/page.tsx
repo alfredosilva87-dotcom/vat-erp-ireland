@@ -4,6 +4,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import type { Client, StoredInvoice, ClientObligation } from "@/lib/types";
 import { setCurrentClient } from "@/lib/currentClient";
+import { downloadClientWorkbook } from "@/lib/exportXlsx";
 import MiniBars from "@/components/MiniBars";
 
 const money = (n: number | null | undefined) =>
@@ -59,6 +60,11 @@ export default function ClientDashboard({ params }: { params: { id: string } }) 
     if (d.obligation) setObligations((prev) => prev.map((o) => (o.id === id ? d.obligation : o)));
   }
 
+  async function exportExcel() {
+    const data = await (await fetch(`/api/clients/${params.id}/export?year=${year}`)).json();
+    downloadClientWorkbook(data);
+  }
+
   if (loading) return <p className="text-muted">Loading…</p>;
   if (!client) return <p className="text-muted">Client not found. <Link href="/clients" className="text-brand">Back</Link></p>;
 
@@ -82,7 +88,9 @@ export default function ClientDashboard({ params }: { params: { id: string } }) 
           </button>
           <Link href={`/clients/${params.id}/sales`} className="btn-ghost">Enter sales (T1)</Link>
           <Link href={`/clients/${params.id}/accounts`} className="btn-ghost">Chart of accounts</Link>
-          <button className="btn-primary" onClick={() => window.print()}>Export report</button>
+          <Link href={`/clients/${params.id}/vat`} className="btn-ghost">VAT by rate</Link>
+          <button className="btn-ghost" onClick={exportExcel}>Export Excel</button>
+          <button className="btn-primary" onClick={() => window.print()}>Export PDF</button>
         </div>
       </div>
 
