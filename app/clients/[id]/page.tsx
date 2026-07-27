@@ -81,6 +81,7 @@ export default function ClientDashboard({ params }: { params: { id: string } }) 
             Set as active
           </button>
           <Link href={`/clients/${params.id}/sales`} className="btn-ghost">Enter sales (T1)</Link>
+          <Link href={`/clients/${params.id}/accounts`} className="btn-ghost">Chart of accounts</Link>
           <button className="btn-primary" onClick={() => window.print()}>Export report</button>
         </div>
       </div>

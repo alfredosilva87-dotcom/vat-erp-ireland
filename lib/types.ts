@@ -120,8 +120,20 @@ export interface StoredItem {
   expected_vat_rate: number | null;
   category_code: string | null;
   category_name: string | null;
+  account_code: string | null;
+  account_name: string | null;
   take_credit: boolean;
   credit_value: number;
+}
+
+export interface ChartAccount {
+  id: string;
+  client_id: string | null;
+  code: string;
+  description: string;
+  parent_code: string | null;
+  active: boolean;
+  created_at: string;
 }
 
 export interface MasterItem {

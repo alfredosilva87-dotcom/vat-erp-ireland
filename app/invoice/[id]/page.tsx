@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import type { StoredInvoice, StoredItem } from "@/lib/types";
+import type { StoredInvoice, StoredItem, ChartAccount } from "@/lib/types";
 
 type Cat = { code: string | null; description: string; vat_rate: number };
 
@@ -28,6 +28,7 @@ export default function InvoiceEdit({ params }: { params: { id: string } }) {
   const [inv, setInv] = useState<StoredInvoice | null>(null);
   const [items, setItems] = useState<StoredItem[]>([]);
   const [cats, setCats] = useState<Cat[]>([]);
+  const [accounts, setAccounts] = useState<ChartAccount[]>([]);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [dirty, setDirty] = useState(false);
@@ -40,6 +41,11 @@ export default function InvoiceEdit({ params }: { params: { id: string } }) {
     }).finally(() => setLoading(false));
     fetch("/api/base").then((r) => r.json()).then((d) => setCats(d.categories || []));
   }, [params.id]);
+
+  useEffect(() => {
+    if (!inv?.client_id) { setAccounts([]); return; }
+    fetch(`/api/clients/${inv.client_id}/accounts`).then((r) => r.json()).then((d) => setAccounts(d.accounts || []));
+  }, [inv?.client_id]);
 
   function setHdr<K extends keyof StoredInvoice>(k: K, v: StoredInvoice[K]) {
     setInv((prev) => (prev ? { ...prev, [k]: v } : prev));
@@ -55,6 +61,11 @@ export default function InvoiceEdit({ params }: { params: { id: string } }) {
     const c = cats.find((x) => (x.code || "") === code);
     if (!c) return;
     setItem(id, { category_code: c.code, category_name: c.description, expected_vat_rate: c.vat_rate });
+  }
+  function pickAccount(id: string, code: string) {
+    if (!code) { setItem(id, { account_code: null, account_name: null }); return; }
+    const a = accounts.find((x) => x.code === code);
+    setItem(id, { account_code: code, account_name: a?.description ?? null });
   }
   function setAll(v: boolean) {
     setItems((prev) => prev.map((it) => ({ ...it, take_credit: v })));
@@ -76,7 +87,8 @@ export default function InvoiceEdit({ params }: { params: { id: string } }) {
       const payloadItems = items.map((it) => ({
         id: it.id, description: it.description, quantity: it.quantity, net_amount: it.net_amount,
         vat_rate_on_invoice: it.vat_rate_on_invoice, expected_vat_rate: it.expected_vat_rate,
-        category_code: it.category_code, category_name: it.category_name, take_credit: it.take_credit,
+        category_code: it.category_code, category_name: it.category_name,
+        account_code: it.account_code, account_name: it.account_name, take_credit: it.take_credit,
       }));
       const res = await fetch(`/api/invoices/${params.id}`, {
         method: "PATCH", headers: { "Content-Type": "application/json" },
@@ -166,6 +178,7 @@ export default function InvoiceEdit({ params }: { params: { id: string } }) {
               <tr className="border-b border-line bg-paper text-left text-xs uppercase tracking-wide text-muted">
                 <th className="px-3 py-3 font-medium">Item</th>
                 <th className="px-3 py-3 font-medium">Category</th>
+                <th className="px-3 py-3 font-medium">Account</th>
                 <th className="px-3 py-3 font-medium text-right">Base rate %</th>
                 <th className="px-3 py-3 font-medium text-right">VAT doc %</th>
                 <th className="px-3 py-3 font-medium text-right">Net €</th>
@@ -188,6 +201,18 @@ export default function InvoiceEdit({ params }: { params: { id: string } }) {
                         </option>
                       ))}
                     </select>
+                  </td>
+                  <td className="px-3 py-2">
+                    {accounts.length > 0 ? (
+                      <select className="input h-9 min-w-[140px]" value={it.account_code || ""} onChange={(e) => pickAccount(it.id, e.target.value)}>
+                        <option value="">— no account —</option>
+                        {accounts.map((a) => (
+                          <option key={a.id} value={a.code}>{a.code} · {a.description}</option>
+                        ))}
+                      </select>
+                    ) : (
+                      <span className="text-xs text-muted">no chart</span>
+                    )}
                   </td>
                   <td className="px-3 py-2">
                     <input className="input h-9 w-20 text-right" value={it.expected_vat_rate ?? ""} onChange={(e) => setItem(it.id, { expected_vat_rate: numOrNull(e.target.value) })} />

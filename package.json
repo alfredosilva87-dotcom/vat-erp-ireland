@@ -11,14 +11,16 @@
   "dependencies": {
     "@google/generative-ai": "^0.21.0",
     "@supabase/supabase-js": "^2.45.4",
+    "bcryptjs": "^2.4.3",
+    "jose": "^5.9.6",
     "next": "14.2.35",
     "pdf-parse": "^1.1.1",
     "react": "^18.3.1",
     "react-dom": "^18.3.1",
-    "bcryptjs": "^2.4.3",
-    "jose": "^5.9.6"
+    "xlsx": "^0.18.5"
   },
   "devDependencies": {
+    "@types/bcryptjs": "^2.4.6",
     "@types/node": "^20.16.11",
     "@types/pdf-parse": "^1.1.4",
     "@types/react": "^18.3.11",
@@ -26,7 +28,6 @@
     "autoprefixer": "^10.4.20",
     "postcss": "^8.4.47",
     "tailwindcss": "^3.4.13",
-    "typescript": "^5.6.3",
-    "@types/bcryptjs": "^2.4.6"
+    "typescript": "^5.6.3"
   }
 }

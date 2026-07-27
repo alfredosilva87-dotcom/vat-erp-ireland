@@ -2,7 +2,7 @@ import { randomUUID } from "crypto";
 import { getServerSupabase } from "@/lib/supabase";
 import type {
   StoredInvoice, StoredItem, MasterItem, Client, ClientWithStats,
-  CreditRule, ClientObligation, SalesEntry, AppUser,
+  CreditRule, ClientObligation, SalesEntry, AppUser, ChartAccount,
 } from "@/lib/types";
 
 // Supabase-backed data layer (server-only, service-role). Same export names.
@@ -190,16 +190,21 @@ export async function saveInvoice(payload: SavePayload, fileBuffer: Buffer | nul
     if (!error) documentPath = path;
   }
 
+  // Pre-fill accounting account from the client's learned de-para (item -> account)
+  const learned = client ? await learnedAccounts(client.id, payload.items.map((i) => i.description)) : {};
+
   let totalCredit = 0;
   const itemRows: any[] = [];
   for (const it of payload.items) {
     const masterId = await findOrCreateMaster(it.description, it.category_code, it.category_name, it.expected_vat_rate);
     const cv = itemCredit(it);
     totalCredit += cv;
+    const acc = learned[normKey(it.description)] || { code: null, name: null };
     itemRows.push({
       invoice_id: id, master_item_id: masterId, description: it.description, quantity: it.quantity,
       net_amount: it.net_amount, vat_rate_on_invoice: it.vat_rate_on_invoice, vat_amount_on_invoice: it.vat_amount_on_invoice,
       expected_vat_rate: it.expected_vat_rate, category_code: it.category_code, category_name: it.category_name,
+      account_code: acc.code, account_name: acc.name,
       take_credit: it.take_credit, credit_value: Number(cv.toFixed(2)),
     });
   }
@@ -272,6 +277,8 @@ export async function updateInvoice(invoiceId: string, patch: { header?: Partial
     if (Object.keys(row).length) await sb().from("invoices").update(row).eq("id", invoiceId);
   }
   if (patch.items) {
+    const { data: invRow } = await sb().from("invoices").select("client_id").eq("id", invoiceId).maybeSingle();
+    const clientId = invRow?.client_id as string | null;
     for (const upd of patch.items) {
       const row: any = {};
       for (const k of ["description","quantity","net_amount","vat_rate_on_invoice","expected_vat_rate","category_code","category_name","account_code","account_name","take_credit"])
@@ -280,6 +287,10 @@ export async function updateInvoice(invoiceId: string, patch: { header?: Partial
       if ("category_code" in upd || "category_name" in upd || "expected_vat_rate" in upd) {
         const { data: it } = await sb().from("invoice_items").select("master_item_id,category_code,category_name,expected_vat_rate").eq("id", upd.id).maybeSingle();
         if (it?.master_item_id) await sb().from("items_master").update({ category_code: it.category_code, category_name: it.category_name, expected_vat_rate: it.expected_vat_rate, last_seen: new Date().toISOString() }).eq("id", it.master_item_id);
+      }
+      if (clientId && ("account_code" in upd || "account_name" in upd)) {
+        const { data: it } = await sb().from("invoice_items").select("description,account_code,account_name").eq("id", upd.id).maybeSingle();
+        if (it && (it.account_code || it.account_name)) await teachAccount(clientId, it.description, it.account_code, it.account_name);
       }
     }
   }
@@ -403,6 +414,75 @@ export async function addSalesEntries(clientId: string, rows: Array<Partial<Sale
 export async function deleteSalesEntry(id: string): Promise<boolean> {
   const { error } = await sb().from("sales").delete().eq("id", id);
   return !error;
+}
+
+// ---------------- Chart of accounts (per client) ----------------
+export async function listAccounts(clientId: string): Promise<ChartAccount[]> {
+  const { data } = await sb().from("chart_of_accounts").select("*").eq("client_id", clientId).order("code");
+  return (data ?? []) as ChartAccount[];
+}
+export async function createAccount(clientId: string, input: Partial<ChartAccount>): Promise<ChartAccount | null> {
+  const row = {
+    client_id: clientId,
+    code: (input.code || "").trim(),
+    description: (input.description || "").trim(),
+    parent_code: input.parent_code?.trim() || null,
+    active: input.active !== false,
+  };
+  if (!row.code) return null;
+  const { data, error } = await sb().from("chart_of_accounts")
+    .upsert(row, { onConflict: "client_id,code" }).select().single();
+  if (error) throw error;
+  return data as ChartAccount;
+}
+export async function updateAccount(id: string, patch: Partial<ChartAccount>): Promise<ChartAccount | null> {
+  const row: any = {};
+  for (const k of ["code", "description", "parent_code", "active"]) if (k in patch) row[k] = (patch as any)[k];
+  const { data } = await sb().from("chart_of_accounts").update(row).eq("id", id).select().maybeSingle();
+  return (data as ChartAccount) ?? null;
+}
+export async function deleteAccount(id: string): Promise<boolean> {
+  const { error } = await sb().from("chart_of_accounts").delete().eq("id", id);
+  return !error;
+}
+export async function bulkImportAccounts(clientId: string, rows: Array<{ code: string; description: string; parent_code?: string | null }>): Promise<number> {
+  const clean = rows
+    .map((r) => ({
+      client_id: clientId,
+      code: String(r.code ?? "").trim(),
+      description: String(r.description ?? "").trim(),
+      parent_code: r.parent_code ? String(r.parent_code).trim() : null,
+      active: true,
+    }))
+    .filter((r) => r.code);
+  if (!clean.length) return 0;
+  // de-dup by code within the batch (keep last)
+  const byCode = new Map<string, any>();
+  for (const r of clean) byCode.set(r.code, r);
+  const list = Array.from(byCode.values());
+  const { error } = await sb().from("chart_of_accounts").upsert(list, { onConflict: "client_id,code" });
+  if (error) throw error;
+  return list.length;
+}
+
+// Per-client learned item -> account mapping (de-para de conta)
+export async function learnedAccounts(clientId: string, descriptions: string[]): Promise<Record<string, { code: string | null; name: string | null }>> {
+  const keys = Array.from(new Set(descriptions.map(normKey)));
+  if (!keys.length) return {};
+  const { data } = await sb().from("client_item_accounts").select("norm_key,account_code,account_name").eq("client_id", clientId).in("norm_key", keys);
+  const out: Record<string, { code: string | null; name: string | null }> = {};
+  for (const r of data ?? []) out[r.norm_key] = { code: r.account_code, name: r.account_name };
+  return out;
+}
+async function teachAccount(clientId: string, description: string, code: string | null, name: string | null) {
+  if (!clientId || (!code && !name)) return;
+  const key = normKey(description);
+  const { data: existing } = await sb().from("client_item_accounts").select("id,occurrences").eq("client_id", clientId).eq("norm_key", key).maybeSingle();
+  if (existing) {
+    await sb().from("client_item_accounts").update({ account_code: code, account_name: name, occurrences: (existing.occurrences || 0) + 1, updated_at: new Date().toISOString() }).eq("id", existing.id);
+  } else {
+    await sb().from("client_item_accounts").insert({ client_id: clientId, norm_key: key, account_code: code, account_name: name });
+  }
 }
 
 // ---------------- Auth users ----------------
