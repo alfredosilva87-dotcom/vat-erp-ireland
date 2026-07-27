@@ -63,21 +63,30 @@ export default function Sidebar() {
         })}
       </nav>
 
-      {/* Client switcher */}
-      <Link
-        href="/clients"
-        className="mt-4 flex items-center gap-3 rounded-xl bg-night-2 px-3 py-3 text-left transition-colors hover:bg-white/10"
-      >
-        <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-brand text-sm font-semibold text-white">
-          {client ? initials(client.name) : "—"}
-        </span>
-        <span className="hidden min-w-0 lg:block">
-          <span className="block truncate text-sm font-medium text-white">
-            {client ? client.name : "No client selected"}
+      {/* Client card → selected client's home; small switch link */}
+      <div className="mt-4 rounded-xl bg-night-2 px-3 py-3">
+        <Link
+          href={client ? `/clients/${client.id}` : "/clients"}
+          className="flex items-center gap-3 text-left"
+          title={client ? `Open ${client.name}` : "Select a client"}
+        >
+          <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-brand text-sm font-semibold text-white">
+            {client ? initials(client.name) : "—"}
           </span>
-          <span className="block text-[11px] text-night-muted">Switch company ⇄</span>
-        </span>
-      </Link>
+          <span className="hidden min-w-0 lg:block">
+            <span className="block truncate text-sm font-medium text-white">
+              {client ? client.name : "No client selected"}
+            </span>
+            <span className="block text-[11px] text-brand-400">Open client home →</span>
+          </span>
+        </Link>
+        <Link
+          href="/clients"
+          className="mt-2 hidden text-[11px] text-night-muted transition-colors hover:text-white lg:block"
+        >
+          Switch company ⇄
+        </Link>
+      </div>
 
       <button
         onClick={async () => {

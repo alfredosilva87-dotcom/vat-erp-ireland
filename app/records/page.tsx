@@ -131,7 +131,8 @@ export default function Records() {
               <thead>
                 <tr className="border-b border-line bg-paper text-left text-xs uppercase tracking-wide text-muted">
                   <th className="px-4 py-3 font-medium">Supplier</th>
-                  <th className="px-4 py-3 font-medium">Issued · posting</th>
+                  <th className="px-4 py-3 font-medium">Issued</th>
+                  <th className="px-4 py-3 font-medium">Posting</th>
                   <th className="px-4 py-3 font-medium">Doc no.</th>
                   <th className="px-4 py-3 font-medium text-right">Items</th>
                   <th className="px-4 py-3 font-medium text-right">Gross €</th>
@@ -151,10 +152,8 @@ export default function Records() {
                     <td className="px-4 py-3 tnum">
                       {inv.invoice_date || "—"}
                       {inv.invoice_time ? ` · ${inv.invoice_time}` : ""}
-                      {inv.posting_date && inv.posting_date !== inv.invoice_date && (
-                        <div className="text-xs text-muted">lçto: {inv.posting_date}</div>
-                      )}
                     </td>
+                    <td className="px-4 py-3 tnum">{inv.posting_date || "—"}</td>
                     <td className="px-4 py-3 font-mono text-xs">{inv.invoice_number || "—"}</td>
                     <td className="px-4 py-3 text-right tnum">{inv.item_count}</td>
                     <td className="px-4 py-3 text-right tnum">{money(inv.total_gross)}</td>
@@ -163,12 +162,12 @@ export default function Records() {
                     </td>
                     <td className="px-4 py-3">
                       <div className="flex items-center justify-center gap-1">
-                        <Link className="btn-ghost h-8 px-3 text-xs" href={`/invoice/${inv.id}`}>
+                        <Link className="btn-ghost h-7 px-2 text-xs" href={`/invoice/${inv.id}`}>
                           Open
                         </Link>
                         {inv.document_file && (
                           <a
-                            className="btn-ghost h-8 px-3 text-xs"
+                            className="btn-ghost h-7 px-2 text-xs"
                             href={`/api/invoices/${inv.id}/document`}
                             target="_blank"
                             rel="noreferrer"
@@ -182,7 +181,7 @@ export default function Records() {
                 ))}
                 {!invoices.length && !loading && (
                   <tr>
-                    <td colSpan={7} className="px-4 py-10 text-center text-muted">
+                    <td colSpan={8} className="px-4 py-10 text-center text-muted">
                       No invoices yet. Analyze a document and click “Save to database”.
                     </td>
                   </tr>

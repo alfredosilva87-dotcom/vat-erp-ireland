@@ -204,7 +204,7 @@ export default function InvoiceEdit({ params }: { params: { id: string } }) {
                   </td>
                   <td className="px-3 py-2">
                     {accounts.length > 0 ? (
-                      <select className="input h-9 min-w-[140px]" value={it.account_code || ""} onChange={(e) => pickAccount(it.id, e.target.value)}>
+                      <select className="input h-9 w-24" value={it.account_code || ""} onChange={(e) => pickAccount(it.id, e.target.value)} title={it.account_name || ""}>
                         <option value="">— no account —</option>
                         {accounts.map((a) => (
                           <option key={a.id} value={a.code}>{a.code} · {a.description}</option>
