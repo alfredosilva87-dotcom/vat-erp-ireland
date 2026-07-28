@@ -90,6 +90,7 @@ export default function ClientDashboard({ params }: { params: { id: string } }) 
           <Link href={`/clients/${params.id}/accounts`} className="btn-ghost">Chart of accounts</Link>
           <Link href={`/clients/${params.id}/branches`} className="btn-ghost">Branches</Link>
           <Link href={`/clients/${params.id}/vat`} className="btn-ghost">VAT by rate</Link>
+          <Link href={`/clients/${params.id}/bright`} className="btn-ghost">Bright / BrightBooks</Link>
           <button className="btn-ghost" onClick={exportExcel}>Export Excel</button>
           <button className="btn-primary" onClick={() => window.print()}>Export PDF</button>
         </div>
