@@ -63,9 +63,17 @@ export interface RawExtraction {
   items: RawItem[];
 }
 
+export interface ExtractionAttempt {
+  engine: "pdf-native" | "gemini-vision" | "tesseract";
+  confidence: number;
+}
+
 export interface ExtractionResult {
   engine: "pdf-native" | "gemini-vision" | "tesseract";
   confidence: number;
+  needs_review: boolean;
+  issues: string[];
+  audit: ExtractionAttempt[];
   data: RawExtraction;
 }
 
@@ -105,6 +113,10 @@ export interface StoredInvoice {
   total_gross: number | null;
   total_credit: number;
   engine: string;
+  extraction_confidence: number | null;
+  needs_review: boolean;
+  review_notes: string[];
+  extraction_audit: { engine: string; confidence: number }[];
   original_filename: string | null;
   document_file: string | null; // relative path under data/
   item_count: number;
@@ -168,6 +180,7 @@ export interface Client {
   tax_reg_no: string | null;   // Revenue Tax Registration Number
   activity_code: string;
   activity_label: string;
+  default_credit_unmatched: boolean;
   email: string | null;
   phone: string | null;
   address: string | null;

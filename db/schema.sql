@@ -86,6 +86,15 @@ create index if not exists idx_credit_rules_activity on credit_rules(activity_co
 -- ---------------------------------------------------------------------
 -- 4. NOTAS / RECIBOS
 -- ---------------------------------------------------------------------
+-- ⚠️ ESTA DEFINIÇÃO ESTÁ DESATUALIZADA em relação à tabela real em
+--    produção. A tabela `invoices` evoluiu por ALTERs ad-hoc (client_id/
+--    branch_id em vez de company_id, engine em vez de extraction_engine,
+--    document_path, posting_date, store_name, barcode, invoice_time,
+--    total_credit, original_filename, item_count, branch_name, e desde
+--    a migração db/add_extraction_confidence.sql também
+--    extraction_confidence/needs_review/review_notes/extraction_audit).
+--    Não há coluna `status`/`raw_extraction`/`company_id` na tabela real.
+--    Use `list_tables` (Supabase MCP) para a estrutura real e atual.
 create type doc_type as enum ('invoice', 'receipt', 'other');
 create type invoice_status as enum ('pending_review', 'reviewed', 'error');
 

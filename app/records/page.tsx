@@ -162,7 +162,14 @@ export default function Records() {
                 {invoices.map((inv) => (
                   <tr key={inv.id} className="border-b border-line/70 align-top">
                     <td className="px-4 py-3">
-                      <div className="font-medium">{inv.supplier_name || "Unknown"}</div>
+                      <div className="flex items-center gap-1.5">
+                        <span className="font-medium">{inv.supplier_name || "Unknown"}</span>
+                        {inv.needs_review && (
+                          <span className="chip-warn" title={inv.review_notes?.join("; ") || "Low confidence read — please review."}>
+                            Review
+                          </span>
+                        )}
+                      </div>
                       {inv.supplier_vat && (
                         <div className="text-xs text-muted font-mono">{inv.supplier_vat}</div>
                       )}

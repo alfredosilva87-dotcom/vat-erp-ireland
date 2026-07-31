@@ -1,0 +1,97 @@
+# VAT ERP Ireland — Handoff / Estado do Projeto
+
+> Documento para continuar o projeto em outra máquina (Mac). Gerado em 2026-07-30.
+> Cole este arquivo no início da nova sessão do Claude para retomar o contexto.
+
+## O que é o projeto
+
+Aplicativo web (ERP contábil) para **VAT da Irlanda**. Lê notas fiscais (PDF/imagem), extrai os itens, faz o **de-para** com a base do Revenue (itens + alíquotas), sinaliza inconsistências de alíquota/descrição com destaque visual, e permite decidir **tomar crédito ou não**. Referência de modelo: SPED Fiscal / Contribuições do Brasil, adaptado à base atualizada do Revenue irlandês.
+
+## Stack
+
+- **Next.js 14.2.35** (App Router) + React 18 + TypeScript + Tailwind
+- **Supabase** (Postgres + Storage) — persistência e bucket de documentos
+- **Auth**: bcryptjs + jose (cookie JWT), protegido por `middleware.ts`
+- **Extração**: Google Gemini (`@google/generative-ai`), `pdf-parse` (PDF nativo), Tesseract (OCR fallback)
+- **Excel**: `xlsx` (SheetJS) para import/export
+- Deploy: **Vercel**
+
+## Infra (onde está tudo)
+
+- **GitHub**: `https://github.com/alfredosilva87-dotcom/vat-erp-ireland.git` (branch `main`)
+  - Status: **tudo commitado e enviado** (main == origin/main, nada pendente). Tag existente: `v0-local`.
+- **Supabase**: org `alfredosilva87-dotcom`, ref `qimcehiwxalhvbcpyzvg`, região eu-central-1
+  - URL: `https://qimcehiwxalhvbcpyzvg.supabase.co`
+  - Schema `erp_initial_schema` aplicado. RLS ligado (deny-by-default; app usa service role no servidor).
+  - Bucket de Storage: `documents`
+- **Produção (Vercel)**: `https://vat-erp-ireland.vercel.app/`
+  - Login admin: `alfredo.silvajr87@gmail.com` (senha **não** versionada — está no gerenciador de senhas / painel da Vercel)
+  - Env vars já configuradas: `AUTH_SECRET`, `NEXT_PUBLIC_SUPABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY`, `GEMINI_API_KEY`
+
+## Histórico de versões (git log)
+
+| Versão | Descrição |
+|--------|-----------|
+| v0 | ERP local (VAT reader Ireland) — ponto de partida (store em JSON local) |
+| — | Migração do store para Supabase + Storage; auth e login |
+| — | Data de lançamento (`posting_date`) separada da emissão; obrigações e gráficos por competência |
+| v0.3 | Plano de contas por cliente (CRUD + import Excel/CSV); seletor de conta por item; de-para item→conta |
+| v0.3+v0.4 | Plano de contas por cliente + import Excel; UX: coluna data lançamento, voltar ao cliente, campos/botões menores |
+| v0.5 | VAT por alíquota (entradas/saídas) com drill-down; export Excel multi-aba e PDF (print) |
+| v0.6 | Filiais/lojas por cliente: cadastro, seleção no import e na nota, coluna e filtro na Database, branch no export |
+| v0.7 | Upload de vendas por arquivo (Excel/CSV/TXT/extrato) com detecção de colunas, carrega na grade para revisão |
+| v0.8 | Ponte Bright/BrightBooks (CSV export + API stub) |
+| v0.9 | Confiabilidade da leitura (score real + escalonamento p/ visão + needs_review) e crédito por categoria de negócio (11 atividades + default por cliente) |
+
+**Convenção do projeto**: cada mudança é entregue com uma tag de versão + descrição.
+
+## Estrutura do banco (Supabase)
+
+10 tabelas principais: `clients`, `branches`, `chart_of_accounts`, `vat_categories`, `credit_rules`, `items_master`, `invoices`, `invoice_items`, `obligations`, `sales`.
+
+Objetos adicionados desde a v0.1:
+- `invoices.posting_date` (data de lançamento)
+- `chart_of_accounts.client_id` + tabela `client_item_accounts` (de-para conta)
+- `invoices.branch_id` / `invoices.branch_name` (+ tabela `branches`)
+- Tabela/objetos de integração Bright (`db/bright_connections.sql`)
+
+SQL versionado em `db/`: `schema.sql`, `seed_supabase.sql`, `seed_vat_categories.sql`, `seed_credit_rules.sql`, `bright_connections.sql`.
+
+## Mapa do código
+
+**Páginas (`app/`)**: `login`, `clients` (lista + `[id]` detalhe), `clients/[id]/accounts` (plano de contas), `/branches` (filiais), `/sales` (vendas), `/vat` (VAT por alíquota), `/bright` (integração), `analyze`, `invoice/[id]`, `base`, `items`, `records`.
+
+**APIs (`app/api/`)**: auth (login/logout/me), `clients` + sub-rotas (accounts, branches, sales, obligations, export, vat-by-rate, bright/export, bright/push), `extract`, `invoices`, `items`, `base`, `credit-rules`.
+
+**Libs (`lib/`)**: `store.ts` (acesso Supabase), `supabase.ts`, `auth.ts`, `matching.ts` (de-para item→base), `extractor/` (gemini, pdfNative, tesseract, prompt, index), `exportXlsx.ts`, `brightApi.ts`, `brightExport.ts`, `loadBase.ts`, `fallbackBase.ts`, `types.ts`.
+
+## Estado verificado em produção
+
+Primeiro cliente criado (Brulor Limited — restaurante/catering) + 3 notas em batch upload OK (2026-07-27). Observação: app parece **um pouco lento em prod** (cold starts / cliente service-role por request) — candidato a otimização.
+
+## Backlog / próximos passos
+
+1. Publicar/tagear formalmente as versões v0.3–v0.8 (código já está no `main`, falta padronizar tags no GitHub).
+2. **Ponte Bright/BrightBooks**: a API do BrightBooks/Surf Accounts é *partner-gated* (sem API pública). Solução interim = export CSV / journal como ponte. Concluir a ponte de export.
+3. **OCR no navegador** (client-side) para reduzir custo/latência da extração.
+4. Confirmar UX da **data de lançamento** (posting_date).
+5. **Otimização de performance** em produção (cold start / reuso do client Supabase).
+
+## Como rodar localmente (na nova máquina)
+
+```bash
+git clone https://github.com/alfredosilva87-dotcom/vat-erp-ireland.git
+cd vat-erp-ireland
+npm install
+# criar .env.local a partir de .env.local.example e preencher:
+#   AUTH_SECRET, NEXT_PUBLIC_SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY, GEMINI_API_KEY
+npm run dev
+```
+
+> As chaves reais **não estão** no repositório (`.gitignore` cobre `.env.local`). Copie os valores do painel da Vercel (Settings → Environment Variables) ou do Supabase (Project Settings → API).
+
+## Para retomar com o Claude na outra máquina
+
+1. Conecte a pasta do projeto (repo clonado).
+2. Cole este `HANDOFF.md` no início da conversa.
+3. Peça para reconectar os connectors de **Supabase** (ref `qimcehiwxalhvbcpyzvg`) e **Vercel** (team "AJ Projects") se for mexer em infra.

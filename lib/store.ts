@@ -46,6 +46,7 @@ export async function createClient(input: Partial<Client>): Promise<Client> {
     tax_reg_no: input.tax_reg_no?.trim() || null,
     activity_code: input.activity_code || "GENERIC",
     activity_label: input.activity_label || "Generic business",
+    default_credit_unmatched: input.default_credit_unmatched ?? false,
     email: input.email?.trim() || null,
     phone: input.phone?.trim() || null,
     address: input.address?.trim() || null,
@@ -57,7 +58,7 @@ export async function createClient(input: Partial<Client>): Promise<Client> {
 }
 export async function updateClient(id: string, patch: Partial<Client>): Promise<Client | null> {
   const row: any = {};
-  for (const k of ["name","vat_number","tax_reg_no","activity_code","activity_label","email","phone","address","notes"])
+  for (const k of ["name","vat_number","tax_reg_no","activity_code","activity_label","default_credit_unmatched","email","phone","address","notes"])
     if (k in patch) row[k] = (patch as any)[k];
   const { data } = await sb().from("clients").update(row).eq("id", id).select().maybeSingle();
   return (data as Client) ?? null;
@@ -162,6 +163,8 @@ export interface SaveItem {
 }
 export interface SavePayload {
   client_id: string | null; branch_id: string | null; activity_code: string; engine: string; original_filename: string | null;
+  confidence: number; needs_review: boolean; issues: string[];
+  audit?: { engine: string; confidence: number }[];
   header: {
     supplier_name: string | null; store_name: string | null; supplier_vat: string | null;
     invoice_number: string | null; barcode: string | null; invoice_date: string | null;
@@ -224,6 +227,8 @@ export async function saveInvoice(payload: SavePayload, fileBuffer: Buffer | nul
     currency: "EUR", total_net: payload.header.total_net, total_vat: payload.header.total_vat, total_gross: payload.header.total_gross,
     total_credit: Number(totalCredit.toFixed(2)), engine: payload.engine, original_filename: payload.original_filename,
     document_path: documentPath, item_count: payload.items.length,
+    extraction_confidence: payload.confidence, needs_review: payload.needs_review, review_notes: payload.issues,
+    extraction_audit: payload.audit ?? [],
   };
   const { data, error } = await sb().from("invoices").insert(invRow).select().single();
   if (error) throw error;
@@ -282,7 +287,7 @@ export async function updateInvoice(invoiceId: string, patch: { header?: Partial
       if (h.branch_id) { const { data: b } = await sb().from("branches").select("name").eq("id", h.branch_id).maybeSingle(); h.branch_name = b?.name ?? null; }
       else h.branch_name = null;
     }
-    const allowed = ["supplier_name","store_name","supplier_vat","invoice_number","barcode","invoice_date","posting_date","invoice_time","doc_type","total_net","total_vat","total_gross","document_path","branch_id","branch_name"];
+    const allowed = ["supplier_name","store_name","supplier_vat","invoice_number","barcode","invoice_date","posting_date","invoice_time","doc_type","total_net","total_vat","total_gross","document_path","branch_id","branch_name","needs_review"];
     const row: any = {};
     for (const k of allowed) if (k in h) row[k] = h[k];
     if (Object.keys(row).length) await sb().from("invoices").update(row).eq("id", invoiceId);

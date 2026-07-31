@@ -9,7 +9,8 @@ import { getCurrentClient, setCurrentClient } from "@/lib/currentClient";
 const money = (n: number) => n.toLocaleString("en-IE", { minimumFractionDigits: 2 });
 const empty = {
   name: "", client_code: "", vat_number: "", tax_reg_no: "",
-  activity_code: "RESTAURANT", email: "", phone: "", address: "", notes: "",
+  activity_code: "RESTAURANT", default_credit_unmatched: false,
+  email: "", phone: "", address: "", notes: "",
 };
 
 export default function Clients() {
@@ -61,6 +62,7 @@ export default function Clients() {
     setForm({
       name: c.name, client_code: c.client_code, vat_number: c.vat_number || "",
       tax_reg_no: c.tax_reg_no || "", activity_code: c.activity_code,
+      default_credit_unmatched: c.default_credit_unmatched,
       email: c.email || "", phone: c.phone || "", address: c.address || "", notes: c.notes || "",
     });
     setShowForm(true);
@@ -137,6 +139,24 @@ export default function Clients() {
             <Field label="Notes">
               <input className="input" value={form.notes} onChange={(e) => setForm({ ...form, notes: e.target.value })} />
             </Field>
+          </div>
+          <div className="mt-4 flex items-start gap-3 rounded-xl2 border border-line bg-paper p-3">
+            <button
+              type="button"
+              onClick={() => setForm({ ...form, default_credit_unmatched: !form.default_credit_unmatched })}
+              role="switch" aria-checked={form.default_credit_unmatched}
+              className={`relative mt-0.5 inline-flex h-6 w-11 shrink-0 items-center rounded-full transition-colors ${form.default_credit_unmatched ? "bg-brand" : "bg-line"}`}
+            >
+              <span className={`inline-block h-5 w-5 transform rounded-full bg-white shadow transition-transform ${form.default_credit_unmatched ? "translate-x-5" : "translate-x-0.5"}`} />
+            </button>
+            <div>
+              <div className="text-sm font-medium">Auto-approve credit for unmatched items</div>
+              <p className="text-xs text-muted">
+                Off (recommended): items with no specific credit rule start unchecked — you review each one.
+                On: they start checked by default. Only known blocks (entertainment, passenger-car fuel, accommodation) and
+                this client&apos;s business-type rules are unaffected either way.
+              </p>
+            </div>
           </div>
           <div className="mt-4 flex items-center gap-3">
             <button className="btn-primary" onClick={submit}>{editId ? "Save changes" : "Create client"}</button>

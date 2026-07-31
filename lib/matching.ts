@@ -7,6 +7,18 @@ import type {
   VatCategory,
 } from "@/lib/types";
 
+// Bundles the per-client inputs credit suggestion needs, instead of passing
+// activityCode/rules/defaultCreditUnmatched as separate positional params
+// through every function in this file.
+export interface CreditContext {
+  activityCode: string;
+  rules: CreditRule[];
+  // What to suggest when NO rule (block or activity-specific) matches at
+  // all. Defaults to false (today's behaviour: unmatched items start
+  // unchecked, the accountant reviews) unless the client opted in.
+  defaultCreditUnmatched: boolean;
+}
+
 const norm = (s: string) =>
   s.toLowerCase().normalize("NFD").replace(/[̀-ͯ]/g, "");
 
@@ -65,13 +77,17 @@ function matchCategory(
 function suggestCredit(
   description: string,
   category: VatCategory | null,
-  activityCode: string,
-  rules: CreditRule[]
+  ctx: CreditContext
 ): { suggested: boolean | null; rationale: string | null } {
   const tokens = tokenize(description);
   const descNorm = norm(description);
-  const applicable = rules
-    .filter((r) => r.active && (r.activity_code === activityCode || r.activity_code === "*"))
+  const applicable = ctx.rules
+    .filter((r) => r.active && (r.activity_code === ctx.activityCode || r.activity_code === "*"))
+    // Defensive: ignore any literal catch-all rule (match_keywords === ["*"])
+    // even if one exists in the data — the client's own
+    // defaultCreditUnmatched is the single source of truth for "nothing
+    // matched", set below once the loop finds no specific hit.
+    .filter((r) => !(r.match_keywords.length === 1 && r.match_keywords[0] === "*"))
     .sort((a, b) => a.priority - b.priority);
 
   for (const rule of applicable) {
@@ -80,13 +96,18 @@ function suggestCredit(
     }
     for (const kw of rule.match_keywords) {
       const k = norm(kw);
-      if (k === "*") return { suggested: rule.deductible_default, rationale: rule.rationale };
       if (!k) continue;
       const hit = k.includes(" ") ? descNorm.includes(k) : tokens.has(stem(k));
       if (hit) return { suggested: rule.deductible_default, rationale: rule.rationale };
     }
   }
-  return { suggested: null, rationale: null };
+
+  return {
+    suggested: ctx.defaultCreditUnmatched,
+    rationale: ctx.defaultCreditUnmatched
+      ? "No specific rule for this business type — using this client's default (auto-credit)."
+      : "No specific rule — review manually before taking credit.",
+  };
 }
 
 // Build an analyzed item from a chosen category (used by both keyword & AI paths).
@@ -96,8 +117,7 @@ function build(
   confidence: number,
   source: MatchSource,
   invoiceDate: string | null,
-  activityCode: string,
-  rules: CreditRule[]
+  ctx: CreditContext
 ): AnalyzedItem {
   const expected = category ? category.vat_rate : null;
 
@@ -107,7 +127,7 @@ function build(
   else if (Math.abs(item.vat_rate_on_invoice - (expected ?? -999)) > 0.01) flag = "rate_mismatch";
   else flag = "ok";
 
-  const credit = suggestCredit(item.description, category, activityCode, rules);
+  const credit = suggestCredit(item.description, category, ctx);
 
   return {
     ...item,
@@ -125,12 +145,11 @@ function build(
 export function analyzeItem(
   item: RawItem,
   invoiceDate: string | null,
-  activityCode: string,
-  categories: VatCategory[],
-  rules: CreditRule[]
+  ctx: CreditContext,
+  categories: VatCategory[]
 ): AnalyzedItem {
   const { category, confidence } = matchCategory(item.description, invoiceDate, categories);
-  return build(item, category, confidence, category ? "keyword" : "none", invoiceDate, activityCode, rules);
+  return build(item, category, confidence, category ? "keyword" : "none", invoiceDate, ctx);
 }
 
 // Re-apply an AI-chosen category to an already-analyzed item.
@@ -138,20 +157,18 @@ export function applyAiCategory(
   item: AnalyzedItem,
   category: VatCategory,
   invoiceDate: string | null,
-  activityCode: string,
-  rules: CreditRule[]
+  ctx: CreditContext
 ): AnalyzedItem {
-  return build(item, category, 0.7, "ai", invoiceDate, activityCode, rules);
+  return build(item, category, 0.7, "ai", invoiceDate, ctx);
 }
 
 export function analyzeExtraction(
   extraction: RawExtraction,
-  activityCode: string,
-  categories: VatCategory[],
-  rules: CreditRule[]
+  ctx: CreditContext,
+  categories: VatCategory[]
 ): AnalyzedItem[] {
   return extraction.items.map((it) =>
-    analyzeItem(it, extraction.invoice_date, activityCode, categories, rules)
+    analyzeItem(it, extraction.invoice_date, ctx, categories)
   );
 }
 
@@ -161,9 +178,8 @@ export function applyCategoryFromSource(
   category: VatCategory,
   source: MatchSource,
   invoiceDate: string | null,
-  activityCode: string,
-  rules: CreditRule[]
+  ctx: CreditContext
 ): AnalyzedItem {
   const confidence = source === "learned" ? 0.9 : 0.7;
-  return build(item, category, confidence, source, invoiceDate, activityCode, rules);
+  return build(item, category, confidence, source, invoiceDate, ctx);
 }

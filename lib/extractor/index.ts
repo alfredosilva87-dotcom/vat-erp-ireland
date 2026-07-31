@@ -1,17 +1,36 @@
-import type { ExtractionResult } from "@/lib/types";
+import type { ExtractionResult, RawExtraction } from "@/lib/types";
 import { extractPdfText } from "./pdfNative";
 import { structureFromText, structureFromMedia } from "./gemini";
 import { ocrImage } from "./tesseract";
 import { coerceExtraction } from "./prompt";
+import { scoreExtraction, ESCALATION_THRESHOLD, REVIEW_THRESHOLD } from "./validate";
 
 const hasGemini = () => Boolean(process.env.GEMINI_API_KEY);
+
+function result(
+  engine: ExtractionResult["engine"],
+  data: RawExtraction,
+  score: number,
+  issues: string[],
+  audit: ExtractionResult["audit"] = [{ engine, confidence: score }]
+): ExtractionResult {
+  return { engine, confidence: score, needs_review: score < REVIEW_THRESHOLD, issues, audit, data };
+}
 
 /**
  * Pluggable reading pipeline.
  *
- *   PDF with text layer  -> free text extract + Gemini structuring   (engine: pdf-native)
- *   scanned PDF / image  -> Gemini vision                            (engine: gemini-vision)
- *   image, no Gemini key -> Tesseract OCR + naive structuring        (engine: tesseract)
+ *   PDF with text layer  -> free text extract + Gemini structuring, validated;
+ *                            escalates to Gemini vision if the score doesn't
+ *                            clear ESCALATION_THRESHOLD                        (engine: pdf-native | gemini-vision)
+ *   scanned PDF / image  -> Gemini vision, validated                          (engine: gemini-vision)
+ *   image, no Gemini key -> Tesseract OCR + naive structuring, validated      (engine: tesseract)
+ *
+ * `confidence` is always a REAL score computed from the extracted content
+ * (lib/extractor/validate.ts) — sums reconcile, VAT rates are plausible,
+ * dates make sense — never a fixed per-engine number. `needs_review` is set
+ * whenever even the best available read doesn't clear REVIEW_THRESHOLD, so
+ * low-confidence reads are never silently accepted.
  */
 export async function readDocument(
   buffer: Buffer,
@@ -27,22 +46,34 @@ export async function readDocument(
     // STAGE 1 — read the PDF text layer (cheap, no image).
     if (text && hasGemini()) {
       const data = await structureFromText(text);
-      if (data.items.length) {
-        return { engine: "pdf-native", confidence: 0.85, data };
+      const { score, issues } = scoreExtraction(data);
+      if (score >= ESCALATION_THRESHOLD) {
+        return result("pdf-native", data, score, issues);
       }
-      // Stage 1 read the text but couldn't structure any items -> STAGE 2.
-      const v = await structureFromMedia(buffer.toString("base64"), mimeType);
-      return { engine: "gemini-vision", confidence: v.items.length ? 0.8 : 0.4, data: v };
+      // Text read isn't confident enough -> escalate to vision (reads the
+      // actual layout instead of pdf-parse's possibly-scrambled text order).
+      const visionData = await structureFromMedia(buffer.toString("base64"), mimeType);
+      const visionScored = scoreExtraction(visionData);
+      const audit: ExtractionResult["audit"] = [
+        { engine: "pdf-native", confidence: score },
+        { engine: "gemini-vision", confidence: visionScored.score },
+      ];
+      if (visionScored.score >= score) {
+        return result("gemini-vision", visionData, visionScored.score, visionScored.issues, audit);
+      }
+      return result("pdf-native", data, score, issues, audit);
     }
     if (text && !hasGemini()) {
       const data = coerceExtraction(naiveTextToJson(text));
-      return { engine: "pdf-native", confidence: 0.35, data };
+      const { score, issues } = scoreExtraction(data);
+      return result("pdf-native", data, score, issues);
     }
 
     // No text layer (scanned PDF) -> STAGE 2, vision.
     if (hasGemini()) {
       const data = await structureFromMedia(buffer.toString("base64"), mimeType);
-      return { engine: "gemini-vision", confidence: data.items.length ? 0.8 : 0.4, data };
+      const { score, issues } = scoreExtraction(data);
+      return result("gemini-vision", data, score, issues);
     }
     throw new Error(
       "This PDF appears to be scanned and needs vision reading. Set GEMINI_API_KEY in .env.local."
@@ -53,11 +84,13 @@ export async function readDocument(
   if (isImage) {
     if (hasGemini()) {
       const data = await structureFromMedia(buffer.toString("base64"), mimeType);
-      return { engine: "gemini-vision", confidence: data.items.length ? 0.8 : 0.4, data };
+      const { score, issues } = scoreExtraction(data);
+      return result("gemini-vision", data, score, issues);
     }
     const text = await ocrImage(buffer);
     const data = coerceExtraction(naiveTextToJson(text));
-    return { engine: "tesseract", confidence: 0.3, data };
+    const { score, issues } = scoreExtraction(data);
+    return result("tesseract", data, score, issues);
   }
 
   throw new Error(`Unsupported file type: ${mimeType}. Upload a PDF or an image.`);

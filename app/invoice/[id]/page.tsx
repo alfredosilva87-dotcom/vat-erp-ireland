@@ -113,6 +113,15 @@ export default function InvoiceEdit({ params }: { params: { id: string } }) {
     router.push("/records");
   }
 
+  async function markReviewed() {
+    const res = await fetch(`/api/invoices/${params.id}`, {
+      method: "PATCH", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ header: { needs_review: false } }),
+    });
+    const d = await res.json();
+    if (res.ok) { setInv(d.invoice); setItems(d.items); }
+  }
+
   if (loading) return <p className="text-muted">Loading…</p>;
   if (!inv) return <p className="text-muted">Invoice not found. <Link href="/records" className="text-brand">Back</Link></p>;
 
@@ -137,6 +146,22 @@ export default function InvoiceEdit({ params }: { params: { id: string } }) {
           </button>
         </div>
       </div>
+
+      {inv.needs_review && (
+        <div className="rounded-xl2 border border-warning bg-warning-50 p-4">
+          <div className="flex flex-wrap items-start justify-between gap-3">
+            <div>
+              <p className="font-medium text-warning">Needs review — the automated read wasn&apos;t fully confident</p>
+              {inv.review_notes?.length > 0 && (
+                <ul className="mt-1 list-inside list-disc text-sm text-warning">
+                  {inv.review_notes.map((note, i) => <li key={i}>{note}</li>)}
+                </ul>
+              )}
+            </div>
+            <button className="btn-ghost shrink-0" onClick={markReviewed}>Mark as reviewed</button>
+          </div>
+        </div>
+      )}
 
       {/* Header edit */}
       <div className="card p-5">

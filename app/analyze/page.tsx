@@ -12,7 +12,8 @@ type Header = {
   total_net: number | null; total_vat: number | null; total_gross: number | null;
 };
 type Result = {
-  filename: string; engine: string; confidence: number; base_source: string;
+  filename: string; engine: string; confidence: number; needs_review: boolean; issues: string[];
+  audit?: { engine: string; confidence: number }[]; base_source: string;
   ai_matched?: number; cache_matched?: number; header: Header; items: AnalyzedItem[];
 };
 type RowStatus = "pending" | "reading" | "read" | "error" | "saving" | "saved";
@@ -31,7 +32,7 @@ const docCredit = (r: Row) => (r.result ? r.result.items.reduce((a, i) => a + cr
 const engineLabel = (e?: string) => e === "pdf-native" ? "PDF" : e === "gemini-vision" ? "AI" : e === "tesseract" ? "OCR" : "—";
 
 export default function Analyze() {
-  const [clients, setClients] = useState<{ id: string; name: string; client_code: string; activity_code: string; activity_label: string }[]>([]);
+  const [clients, setClients] = useState<{ id: string; name: string; client_code: string; activity_code: string; activity_label: string; default_credit_unmatched: boolean }[]>([]);
   const [clientId, setClientId] = useState("");
   const [branches, setBranches] = useState<{ id: string; name: string; code: string | null }[]>([]);
   const [branchId, setBranchId] = useState("");
@@ -42,7 +43,8 @@ export default function Analyze() {
   const [dragOver, setDragOver] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
 
-  const activity = clients.find((c) => c.id === clientId)?.activity_code || "GENERIC";
+  const selectedClient = clients.find((c) => c.id === clientId);
+  const activity = selectedClient?.activity_code || "GENERIC";
 
   useEffect(() => {
     fetch("/api/clients").then((r) => r.json()).then((d) => setClients(d.clients || []));
@@ -74,6 +76,7 @@ export default function Analyze() {
         const fd = new FormData();
         fd.append("file", rows[i].file);
         fd.append("activity_code", activity);
+        fd.append("default_credit_unmatched", String(selectedClient?.default_credit_unmatched ?? false));
         const res = await fetch("/api/extract", { method: "POST", body: fd });
         const data = await res.json();
         if (!res.ok) throw new Error(data.error || "Reading failed");
@@ -96,6 +99,8 @@ export default function Analyze() {
         const meta = {
           client_id: clientId || null, branch_id: branchId || null, activity_code: activity, engine: r.result.engine,
           original_filename: r.result.filename,
+          confidence: r.result.confidence, needs_review: r.result.needs_review, issues: r.result.issues,
+          audit: r.result.audit,
           header: {
             supplier_name: h.supplier_name, store_name: h.store_name ?? null, supplier_vat: h.supplier_vat,
             invoice_number: h.invoice_number, barcode: h.barcode ?? null, invoice_date: h.invoice_date,
@@ -129,6 +134,7 @@ export default function Analyze() {
   const totalCredit = rows.reduce((a, r) => a + (r.status === "saved" || r.status === "read" ? docCredit(r) : 0), 0);
   const aiCount = rows.reduce((a, r) => a + (r.result?.ai_matched || 0), 0);
   const cacheCount = rows.reduce((a, r) => a + (r.result?.cache_matched || 0), 0);
+  const reviewCount = rows.filter((r) => r.result?.needs_review).length;
 
   return (
     <div className="space-y-6">
@@ -207,6 +213,7 @@ export default function Analyze() {
           <div className="ml-auto flex flex-wrap gap-2 text-sm">
             {cacheCount > 0 && <span className="chip bg-brand-50 text-brand-700">{cacheCount} from cache</span>}
             {aiCount > 0 && <span className="chip bg-ink text-paper">{aiCount} by AI</span>}
+            {reviewCount > 0 && <span className="chip-warn">{reviewCount} need review</span>}
             {savedCount > 0 && <span className="chip-ok">{savedCount} saved</span>}
             <span className="chip bg-brand text-white">Credit € {money(totalCredit)}</span>
           </div>
@@ -239,7 +246,16 @@ export default function Analyze() {
                     <td className="px-4 py-3 text-right tnum">{money(r.result?.header.total_gross)}</td>
                     <td className="px-4 py-3 text-right tnum font-semibold text-brand-700">{r.status === "read" || r.status === "saved" ? money(docCredit(r)) : "—"}</td>
                     <td className="px-4 py-3 text-center">
-                      {r.result ? <span className="chip bg-paper border border-line text-muted">{engineLabel(r.result.engine)}</span> : "—"}
+                      {r.result ? (
+                        <span className="inline-flex items-center gap-1.5">
+                          <span className="chip bg-paper border border-line text-muted">{engineLabel(r.result.engine)}</span>
+                          {r.result.needs_review && (
+                            <span className="chip-warn" title={r.result.issues.join("; ") || "Low confidence read — please review."}>
+                              Needs review
+                            </span>
+                          )}
+                        </span>
+                      ) : "—"}
                     </td>
                     <td className="px-4 py-3">
                       <StatusChip r={r} />
