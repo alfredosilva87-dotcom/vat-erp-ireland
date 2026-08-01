@@ -5,7 +5,6 @@ import { usePathname } from "next/navigation";
 import { useCallback, useEffect, useState } from "react";
 import type { Client, StoredInvoice } from "@/lib/types";
 import { setCurrentClient } from "@/lib/currentClient";
-import { downloadClientWorkbook } from "@/lib/exportXlsx";
 
 const money = (n: number) =>
   n.toLocaleString("en-IE", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
@@ -13,6 +12,7 @@ const money = (n: number) =>
 // Everything you can do with a client lives here, so opening a sub-screen
 // never loses the client context the way the old button row did.
 const TABS = [
+  { seg: "dashboard", label: "Dashboard" },
   { seg: "", label: "Overview" },
   { seg: "sales", label: "Sales (T1)" },
   { seg: "obligations", label: "Obligations" },
@@ -51,10 +51,10 @@ export default function ClientLayout({
   const base = `/clients/${params.id}`;
   const currentSeg = pathname === base ? "" : pathname.slice(base.length + 1).split("/")[0];
 
-  const exportExcel = useCallback(async () => {
+  // The workbook is built and styled server-side; just hand the browser the URL.
+  const exportExcel = useCallback(() => {
     const year = new Date().getFullYear();
-    const data = await (await fetch(`/api/clients/${params.id}/export?year=${year}`)).json();
-    downloadClientWorkbook(data);
+    window.location.href = `/api/clients/${params.id}/export.xlsx?year=${year}`;
   }, [params.id]);
 
   function makeActive() {

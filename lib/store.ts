@@ -507,6 +507,74 @@ export async function exportData(clientId: string, year: number) {
   return { client, year, invoices, items, obligations, rates, series };
 }
 
+// ---------------- Client dashboard ----------------
+// One aggregate call for the client dashboard, so the screen fills itself as
+// soon as sales (T1) and purchase invoices (T2) are posted — no manual entry.
+export interface DashboardKpis {
+  salesGross: number;   // T1 base: sales invoiced (net + VAT)
+  salesVat: number;     // T1: VAT charged on sales
+  purchaseGross: number;// T2 base: purchases (gross)
+  inputCredit: number;  // T2: recoverable VAT actually taken
+  vatPayable: number;   // T3 = T1 - T2
+  invoiceCount: number;
+  salesCount: number;
+}
+
+export async function clientDashboard(clientId: string, year: number) {
+  const client = await getClient(clientId);
+  const start = `${year}-01-01`, end = `${year}-12-31`;
+
+  const [series, rates, obligations] = await Promise.all([
+    monthlySeries(clientId, year),
+    vatByRate(clientId, start, end),
+    getObligations(clientId, year),
+  ]);
+
+  const { count: salesCount } = await sb()
+    .from("sales").select("*", { count: "exact", head: true })
+    .eq("client_id", clientId).gte("entry_date", start).lte("entry_date", end);
+
+  const sum = (k: "gross" | "credit" | "sales" | "salesVat" | "count") =>
+    series.reduce((a, s) => a + (s[k] || 0), 0);
+
+  const salesVat = r2(sum("salesVat"));
+  const inputCredit = r2(sum("credit"));
+
+  const kpis: DashboardKpis = {
+    salesGross: r2(sum("sales")),
+    salesVat,
+    purchaseGross: r2(sum("gross")),
+    inputCredit,
+    vatPayable: r2(salesVat - inputCredit),
+    invoiceCount: sum("count"),
+    salesCount: salesCount ?? 0,
+  };
+
+  // Monthly VAT position, for the "VAT por período" chart.
+  const vatByMonth = series.map((s) => ({
+    month: s.month,
+    payable: r2((s.salesVat || 0) - (s.credit || 0)),
+  }));
+
+  // Next obligations first: still open, soonest due at the top.
+  const today = new Date().toISOString().slice(0, 10);
+  const upcoming = obligations
+    .filter((o) => o.status === "open")
+    .sort((a, b) => a.due_date.localeCompare(b.due_date))
+    .slice(0, 5)
+    .map((o) => ({
+      id: o.id, kind: o.kind, period_label: o.period_label, due_date: o.due_date,
+      state: o.due_date < today ? "overdue" : withinDays(o.due_date, today, 60) ? "soon" : "pending",
+    }));
+
+  return { client, year, kpis, series, vatByMonth, rates, upcoming };
+}
+
+function withinDays(due: string, from: string, days: number) {
+  const diff = (new Date(due).getTime() - new Date(from).getTime()) / 86400000;
+  return diff >= 0 && diff <= days;
+}
+
 // ---------------- Sales ----------------
 export async function listSales(clientId: string): Promise<SalesEntry[]> {
   const { data } = await sb().from("sales").select("*").eq("client_id", clientId).order("entry_date", { ascending: false });
@@ -634,21 +702,37 @@ export async function findAppUserByEmail(email: string): Promise<AppUser | null>
 
 // ---------------- Stats ----------------
 export async function stats(clientId?: string) {
-  let iq = sb().from("invoices").select("id,total_gross,total_credit");
+  let iq = sb().from("invoices").select("id,total_gross,total_credit,needs_review");
   if (clientId) iq = iq.eq("client_id", clientId);
-  const [{ data: invs }, { count: clientsCount }, { count: itemsCount }, { count: masterCount }] = await Promise.all([
-    iq,
-    sb().from("clients").select("*", { count: "exact", head: true }),
-    sb().from("invoice_items").select("*", { count: "exact", head: true }),
-    sb().from("items_master").select("*", { count: "exact", head: true }),
-  ]);
+  let sq = sb().from("sales").select("net_amount,vat_amount");
+  if (clientId) sq = sq.eq("client_id", clientId);
+
+  const [{ data: invs }, { data: sales }, { count: clientsCount }, { count: itemsCount }, { count: masterCount }] =
+    await Promise.all([
+      iq,
+      sq,
+      sb().from("clients").select("*", { count: "exact", head: true }),
+      sb().from("invoice_items").select("*", { count: "exact", head: true }),
+      sb().from("items_master").select("*", { count: "exact", head: true }),
+    ]);
+
   const list = invs ?? [];
+  const salesList = sales ?? [];
+  const salesVat = salesList.reduce((a: number, s: any) => a + (s.vat_amount || 0), 0);
+  const credit = list.reduce((a: number, i: any) => a + (i.total_credit || 0), 0);
+
   return {
     invoices: list.length,
     items: itemsCount ?? 0,
     unique_items: masterCount ?? 0,
     clients: clientsCount ?? 0,
-    total_credit: Number(list.reduce((a: number, i: any) => a + (i.total_credit || 0), 0).toFixed(2)),
-    total_gross: Number(list.reduce((a: number, i: any) => a + (i.total_gross || 0), 0).toFixed(2)),
+    needs_review: list.filter((i: any) => i.needs_review).length,
+    total_credit: r2(credit),
+    total_gross: r2(list.reduce((a: number, i: any) => a + (i.total_gross || 0), 0)),
+    // Consolidated VAT position across everything in scope: what was charged on
+    // sales (T1) minus the input credit taken on purchases (T2).
+    sales_gross: r2(salesList.reduce((a: number, s: any) => a + (s.net_amount || 0) + (s.vat_amount || 0), 0)),
+    sales_vat: r2(salesVat),
+    vat_payable: r2(salesVat - credit),
   };
 }

@@ -3,7 +3,6 @@
 import { Fragment, useCallback, useEffect, useState } from "react";
 import Link from "next/link";
 import type { Client } from "@/lib/types";
-import { downloadClientWorkbook } from "@/lib/exportXlsx";
 
 type RateDoc = { id: string; label: string; date: string | null; net: number; vat: number };
 type RateGroup = { rate: number; net: number; vat: number; credit?: number; count: number; docs: RateDoc[] };
@@ -30,7 +29,6 @@ export default function VatByRate({ params }: { params: { id: string } }) {
   const [sales, setSales] = useState<RateGroup[]>([]);
   const [open, setOpen] = useState<Record<string, boolean>>({});
   const [loading, setLoading] = useState(true);
-  const [exporting, setExporting] = useState(false);
 
   const range = useCallback(() => {
     const b = BIMESTERS[bi];
@@ -50,12 +48,9 @@ export default function VatByRate({ params }: { params: { id: string } }) {
 
   useEffect(() => { load(); }, [load]);
 
-  async function exportExcel() {
-    setExporting(true);
-    try {
-      const data = await (await fetch(`/api/clients/${params.id}/export?year=${year}`)).json();
-      downloadClientWorkbook(data);
-    } finally { setExporting(false); }
+  function exportExcel() {
+    // Styled workbook is built server-side — just follow the download URL.
+    window.location.href = `/api/clients/${params.id}/export.xlsx?year=${year}`;
   }
 
   const sum = (g: RateGroup[], k: "net" | "vat") => g.reduce((a, x) => a + (x[k] || 0), 0);
@@ -74,7 +69,7 @@ export default function VatByRate({ params }: { params: { id: string } }) {
           <select className="input h-9 w-44" value={bi} onChange={(e) => setBi(Number(e.target.value))}>
             {BIMESTERS.map((b, i) => <option key={b.label} value={i}>{b.label}</option>)}
           </select>
-          <button className="btn-ghost" onClick={exportExcel} disabled={exporting}>{exporting ? "…" : "Export Excel"}</button>
+          <button className="btn-ghost" onClick={exportExcel}>Export Excel</button>
           <button className="btn-ghost" onClick={() => window.print()}>Export PDF</button>
         </div>
       </div>
