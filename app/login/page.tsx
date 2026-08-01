@@ -40,7 +40,7 @@ export default function Login() {
           className="pointer-events-none absolute inset-0 opacity-70"
           style={{
             background:
-              "radial-gradient(700px 400px at 15% 10%, rgba(59,130,246,0.35), transparent 60%), radial-gradient(600px 500px at 90% 90%, rgba(29,78,216,0.4), transparent 60%)",
+              "radial-gradient(700px 400px at 15% 10%, rgb(var(--c-brand) / 0.38), transparent 60%), radial-gradient(600px 500px at 90% 90%, rgb(var(--c-violet) / 0.35), transparent 60%)",
           }}
         />
         <div className="relative flex items-center gap-3">

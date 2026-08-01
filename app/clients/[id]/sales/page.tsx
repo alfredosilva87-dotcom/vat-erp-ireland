@@ -164,8 +164,7 @@ export default function SalesEntryPage({ params }: { params: { id: string } }) {
     <div className="space-y-6">
       <div className="rise flex flex-wrap items-start justify-between gap-3">
         <div>
-          <Link href={`/clients/${params.id}`} className="text-sm text-brand">← {client?.name || "Client"}</Link>
-          <h1 className="mt-1 font-display text-3xl font-semibold tracking-tight">Sales entry (VAT on sales · T1)</h1>
+          <h1 className="font-display text-xl font-semibold tracking-tight">Sales entry (VAT on sales · T1)</h1>
           <p className="mt-1 text-muted">
             Enter emitted invoices (sales) in bulk. The VAT on sales feeds the client&apos;s bi-monthly
             VAT3 and annual RTD automatically.
@@ -241,7 +240,7 @@ export default function SalesEntryPage({ params }: { params: { id: string } }) {
         <div className="overflow-x-auto">
           <table className="w-full text-sm">
             <thead>
-              <tr className="border-b border-line bg-paper text-left text-xs uppercase tracking-wide text-muted">
+              <tr className="border-b border-line bg-surface-2/60 text-left text-xs uppercase tracking-wide text-muted">
                 <th className="px-4 py-3 font-medium">Date</th>
                 <th className="px-4 py-3 font-medium">Doc</th>
                 <th className="px-4 py-3 font-medium">Customer</th>

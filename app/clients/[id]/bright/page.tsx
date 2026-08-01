@@ -35,8 +35,7 @@ export default function BrightPage({ params }: { params: { id: string } }) {
     <div className="space-y-6">
       <div className="rise flex flex-wrap items-start justify-between gap-3">
         <div>
-          <Link href={`/clients/${params.id}`} className="text-sm text-brand">← {client?.name || "Client"}</Link>
-          <h1 className="mt-1 font-display text-3xl font-semibold tracking-tight">Bright / BrightBooks</h1>
+          <h1 className="font-display text-xl font-semibold tracking-tight">Bright / BrightBooks</h1>
           <p className="mt-1 max-w-2xl text-muted">
             Duas vias de integração com o BrightBooks (Surf Accounts): <strong>exportação por CSV</strong>{" "}
             (funciona hoje, importe dentro do Surf) e <strong>conexão via API</strong> (aguardando acesso de parceiro da Bright).

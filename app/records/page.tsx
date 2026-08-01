@@ -71,8 +71,8 @@ export default function Records() {
         </div>
         {stats && (
           <div className="flex flex-wrap gap-2 text-sm">
-            <span className="chip bg-paper border border-line text-muted">{stats.invoices} invoices</span>
-            <span className="chip bg-paper border border-line text-muted">{stats.unique_items} unique items</span>
+            <span className="chip bg-surface-2 border border-line text-muted">{stats.invoices} invoices</span>
+            <span className="chip bg-surface-2 border border-line text-muted">{stats.unique_items} unique items</span>
             <span className="chip bg-brand text-white">Credit € {money(stats.total_credit)}</span>
           </div>
         )}
@@ -146,7 +146,7 @@ export default function Records() {
           <div className="overflow-x-auto">
             <table className="w-full text-sm">
               <thead>
-                <tr className="border-b border-line bg-paper text-left text-xs uppercase tracking-wide text-muted">
+                <tr className="border-b border-line bg-surface-2/60 text-left text-xs uppercase tracking-wide text-muted">
                   <th className="px-4 py-3 font-medium">Supplier</th>
                   <th className="px-4 py-3 font-medium">Branch</th>
                   <th className="px-4 py-3 font-medium">Issued</th>
@@ -224,7 +224,7 @@ export default function Records() {
           <div className="overflow-x-auto">
             <table className="w-full text-sm">
               <thead>
-                <tr className="border-b border-line bg-paper text-left text-xs uppercase tracking-wide text-muted">
+                <tr className="border-b border-line bg-surface-2/60 text-left text-xs uppercase tracking-wide text-muted">
                   <th className="px-4 py-3 font-medium">Item (canonical)</th>
                   <th className="px-4 py-3 font-medium">Category</th>
                   <th className="px-4 py-3 font-medium text-right">Base rate</th>

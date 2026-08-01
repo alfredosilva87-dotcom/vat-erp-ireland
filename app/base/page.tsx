@@ -181,7 +181,7 @@ export default function BasePage() {
         <div className="overflow-x-auto">
           <table className="w-full text-sm">
             <thead>
-              <tr className="border-b border-line bg-paper text-left text-xs uppercase tracking-wide text-muted">
+              <tr className="border-b border-line bg-surface-2/60 text-left text-xs uppercase tracking-wide text-muted">
                 <th className="px-4 py-3 font-medium">Category</th>
                 <th className="px-4 py-3 font-medium">Keywords</th>
                 <th className="px-4 py-3 font-medium text-right">Rate</th>
@@ -198,7 +198,7 @@ export default function BasePage() {
                   <td className="px-4 py-3">
                     <div className="flex flex-wrap gap-1">
                       {c.keywords.slice(0, 8).map((k) => (
-                        <span key={k} className="chip bg-paper border border-line text-muted">
+                        <span key={k} className="chip bg-surface-2 border border-line text-muted">
                           {k}
                         </span>
                       ))}

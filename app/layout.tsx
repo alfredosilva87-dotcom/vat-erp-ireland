@@ -12,9 +12,21 @@ export const metadata: Metadata = {
   description: "Read invoices, check Irish VAT, manage clients, credits and records.",
 };
 
+// Runs before first paint so the saved theme is applied without a flash of the
+// wrong palette. Defaults to dark when nothing is stored.
+const themeScript = `(function(){try{var t=localStorage.getItem("vat-theme");document.documentElement.dataset.theme=t==="light"?"light":"dark"}catch(e){document.documentElement.dataset.theme="dark"}})()`;
+
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
-    <html lang="en" className={`${display.variable} ${sans.variable} ${mono.variable}`}>
+    <html
+      lang="en"
+      data-theme="dark"
+      className={`${display.variable} ${sans.variable} ${mono.variable}`}
+      suppressHydrationWarning
+    >
+      <head>
+        <script dangerouslySetInnerHTML={{ __html: themeScript }} />
+      </head>
       <body className="min-h-dvh font-sans antialiased">
         <AppFrame>{children}</AppFrame>
       </body>

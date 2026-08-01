@@ -74,7 +74,7 @@ export default function Items() {
           </p>
         </div>
         <div className="flex flex-wrap gap-2 text-sm">
-          <span className="chip bg-paper border border-line text-muted">{items.length} items</span>
+          <span className="chip bg-surface-2 border border-line text-muted">{items.length} items</span>
           {uncategorised > 0 && <span className="chip-warn">{uncategorised} uncategorised</span>}
         </div>
       </div>
@@ -97,7 +97,7 @@ export default function Items() {
         <div className="overflow-x-auto">
           <table className="w-full text-sm">
             <thead>
-              <tr className="border-b border-line bg-paper text-left text-xs uppercase tracking-wide text-muted">
+              <tr className="border-b border-line bg-surface-2/60 text-left text-xs uppercase tracking-wide text-muted">
                 <th className="px-3 py-3 font-medium">Item name</th>
                 <th className="px-3 py-3 font-medium">Category</th>
                 <th className="px-3 py-3 font-medium text-right">Base rate %</th>

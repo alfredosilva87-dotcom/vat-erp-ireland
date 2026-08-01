@@ -73,7 +73,7 @@ export default function ClientsOverview() {
 
 function Stat({ label, value, strong }: { label: string; value: string; strong?: boolean }) {
   return (
-    <div className="rounded-lg border border-line bg-paper px-2 py-2">
+    <div className="rounded-lg border border-line bg-surface-2 px-2 py-2">
       <div className="text-[11px] text-muted">{label}</div>
       <div className={`tnum ${strong ? "font-semibold text-brand-700" : ""}`}>{value}</div>
     </div>

@@ -140,7 +140,7 @@ export default function Clients() {
               <input className="input" value={form.notes} onChange={(e) => setForm({ ...form, notes: e.target.value })} />
             </Field>
           </div>
-          <div className="mt-4 flex items-start gap-3 rounded-xl2 border border-line bg-paper p-3">
+          <div className="mt-4 flex items-start gap-3 rounded-xl2 border border-line bg-surface-2 p-3">
             <button
               type="button"
               onClick={() => setForm({ ...form, default_credit_unmatched: !form.default_credit_unmatched })}
@@ -169,7 +169,7 @@ export default function Clients() {
         <div className="overflow-x-auto">
           <table className="w-full text-sm">
             <thead>
-              <tr className="border-b border-line bg-paper text-left text-xs uppercase tracking-wide text-muted">
+              <tr className="border-b border-line bg-surface-2/60 text-left text-xs uppercase tracking-wide text-muted">
                 <th className="px-4 py-3 font-medium">Code</th>
                 <th className="px-4 py-3 font-medium">Company</th>
                 <th className="px-4 py-3 font-medium">Type</th>

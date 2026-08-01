@@ -14,9 +14,14 @@ const NAV = [
   { href: "/base", label: "Rate base", icon: IconPercent },
 ];
 
+const COLLAPSE_KEY = "vat-sidebar-collapsed";
+
 export default function Sidebar() {
   const pathname = usePathname();
   const [client, setClient] = useState<CurrentClient>(null);
+  // Undefined until read from storage, so the first paint doesn't flash the
+  // wrong width.
+  const [collapsed, setCollapsed] = useState<boolean | undefined>(undefined);
 
   useEffect(() => {
     const read = () => setClient(getCurrentClient());
@@ -25,16 +30,41 @@ export default function Sidebar() {
     return () => window.removeEventListener("current-client-changed", read);
   }, []);
 
-  const isActive = (href: string) => (href === "/" ? pathname === "/" : pathname.startsWith(href));
+  useEffect(() => {
+    try {
+      setCollapsed(localStorage.getItem(COLLAPSE_KEY) === "1");
+    } catch {
+      setCollapsed(false);
+    }
+  }, []);
+
+  function toggle() {
+    const next = !collapsed;
+    setCollapsed(next);
+    try {
+      localStorage.setItem(COLLAPSE_KEY, next ? "1" : "0");
+    } catch {
+      /* private mode — the choice just won't persist */
+    }
+  }
+
+  // `open` drives the labels; while the preference is still unknown we keep
+  // the responsive default (hidden under lg) to avoid a layout jump.
+  const open = collapsed === false;
+  const showLabel = open ? "block" : collapsed === undefined ? "hidden lg:block" : "hidden";
 
   return (
-    <aside className="sticky top-0 flex h-dvh w-[68px] shrink-0 flex-col bg-night px-3 py-5 lg:w-64">
+    <aside
+      className={`sticky top-0 flex h-dvh shrink-0 flex-col bg-night px-3 py-5 transition-[width] duration-200 ${
+        collapsed === undefined ? "w-[68px] lg:w-64" : open ? "w-64" : "w-[68px]"
+      }`}
+    >
       {/* Brand */}
-      <Link href="/" className="mb-6 flex items-center gap-2.5 px-1">
-        <span className="flex h-9 w-9 items-center justify-center rounded-xl bg-gradient-to-b from-brand-400 to-brand-700 font-display text-lg leading-none text-white shadow-brand">
+      <Link href="/" className="mb-6 flex items-center gap-2.5 px-1" title="VAT Reader">
+        <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-gradient-to-b from-brand-400 to-brand-700 font-display text-lg leading-none text-white shadow-brand">
           V
         </span>
-        <span className="hidden lg:block">
+        <span className={showLabel}>
           <span className="block font-display text-lg font-semibold leading-none text-white">
             VAT Reader
           </span>
@@ -48,7 +78,7 @@ export default function Sidebar() {
       <nav className="flex flex-1 flex-col gap-1">
         {NAV.map((n) => {
           const Icon = n.icon;
-          const active = isActive(n.href);
+          const active = n.href === "/" ? pathname === "/" : pathname.startsWith(n.href);
           return (
             <Link
               key={n.href}
@@ -57,7 +87,7 @@ export default function Sidebar() {
               title={n.label}
             >
               <Icon />
-              <span className="hidden lg:block">{n.label}</span>
+              <span className={showLabel}>{n.label}</span>
             </Link>
           );
         })}
@@ -73,7 +103,7 @@ export default function Sidebar() {
           <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-brand text-sm font-semibold text-white">
             {client ? initials(client.name) : "—"}
           </span>
-          <span className="hidden min-w-0 lg:block">
+          <span className={`min-w-0 ${showLabel}`}>
             <span className="block truncate text-sm font-medium text-white">
               {client ? client.name : "No client selected"}
             </span>
@@ -82,22 +112,39 @@ export default function Sidebar() {
         </Link>
         <Link
           href="/clients"
-          className="mt-2 hidden text-[11px] text-night-muted transition-colors hover:text-white lg:block"
+          className={`mt-2 text-[11px] text-night-muted transition-colors hover:text-white ${showLabel}`}
         >
           Switch company ⇄
         </Link>
       </div>
+
+      {/* Collapse / pin */}
+      <button
+        onClick={toggle}
+        className="mt-2 flex h-10 items-center gap-3 rounded-xl px-3 text-sm font-medium text-night-muted transition-colors hover:bg-white/5 hover:text-white"
+        title={open ? "Collapse menu" : "Expand menu"}
+        aria-label={open ? "Collapse menu" : "Expand menu"}
+      >
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" className="shrink-0" aria-hidden="true">
+          <rect x="3" y="4" width="18" height="16" rx="2" {...S} />
+          <path d="M9 4v16" {...S} />
+          {open ? <path d="M15.5 9.5 13 12l2.5 2.5" {...S} /> : <path d="M13 9.5 15.5 12 13 14.5" {...S} />}
+        </svg>
+        <span className={showLabel}>Collapse</span>
+      </button>
 
       <button
         onClick={async () => {
           await fetch("/api/auth/logout", { method: "POST" });
           window.location.href = "/login";
         }}
-        className="mt-2 flex items-center gap-3 rounded-xl px-3 h-10 text-sm font-medium text-night-muted transition-colors hover:bg-white/5 hover:text-white"
+        className="flex items-center gap-3 rounded-xl px-3 h-10 text-sm font-medium text-night-muted transition-colors hover:bg-white/5 hover:text-white"
         title="Sign out"
       >
-        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" className="shrink-0" aria-hidden="true"><path d="M15 12H4m0 0l4-4m-4 4l4 4M14 4h4a2 2 0 0 1 2 2v12a2 2 0 0 1-2 2h-4" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"/></svg>
-        <span className="hidden lg:block">Sign out</span>
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" className="shrink-0" aria-hidden="true">
+          <path d="M15 12H4m0 0l4-4m-4 4l4 4M14 4h4a2 2 0 0 1 2 2v12a2 2 0 0 1-2 2h-4" {...S} />
+        </svg>
+        <span className={showLabel}>Sign out</span>
       </button>
     </aside>
   );

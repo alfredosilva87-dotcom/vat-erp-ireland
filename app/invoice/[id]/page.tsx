@@ -213,7 +213,7 @@ export default function InvoiceEdit({ params }: { params: { id: string } }) {
         <div className="overflow-x-auto">
           <table className="w-full text-sm">
             <thead>
-              <tr className="border-b border-line bg-paper text-left text-xs uppercase tracking-wide text-muted">
+              <tr className="border-b border-line bg-surface-2/60 text-left text-xs uppercase tracking-wide text-muted">
                 <th className="px-3 py-3 font-medium">Item</th>
                 <th className="px-3 py-3 font-medium">Category</th>
                 <th className="px-3 py-3 font-medium">Account</th>

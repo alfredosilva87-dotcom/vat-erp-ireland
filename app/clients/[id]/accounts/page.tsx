@@ -94,8 +94,7 @@ export default function ChartOfAccounts({ params }: { params: { id: string } }) 
     <div className="space-y-6">
       <div className="rise flex flex-wrap items-end justify-between gap-3">
         <div>
-          <Link href={`/clients/${params.id}`} className="text-sm text-brand">← {client?.name || "Client"}</Link>
-          <h1 className="font-display text-3xl font-semibold tracking-tight">Chart of accounts</h1>
+          <h1 className="font-display text-xl font-semibold tracking-tight">Chart of accounts</h1>
           <p className="mt-1 text-muted">Plano de contas de {client?.name || "this client"}. Import from Excel or add accounts manually.</p>
         </div>
         <div className="flex items-center gap-2">
@@ -132,7 +131,7 @@ export default function ChartOfAccounts({ params }: { params: { id: string } }) 
           <div className="overflow-x-auto">
             <table className="w-full text-sm">
               <thead>
-                <tr className="border-b border-line bg-paper text-left text-xs uppercase tracking-wide text-muted">
+                <tr className="border-b border-line bg-surface-2/60 text-left text-xs uppercase tracking-wide text-muted">
                   <th className="px-4 py-3 font-medium w-[140px]">Code</th>
                   <th className="px-4 py-3 font-medium">Description</th>
                   <th className="px-4 py-3 font-medium w-[140px]">Parent</th>

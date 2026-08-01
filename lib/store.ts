@@ -398,9 +398,14 @@ export async function updateObligation(id: string, patch: Partial<ClientObligati
   return (data as ClientObligation) ?? null;
 }
 
+// Monthly purchases (from invoices) AND sales (from the sales table), so the
+// client overview can show money in vs money out side by side.
 export async function monthlySeries(clientId: string, year: number) {
+  const months = Array.from({ length: 12 }, (_, m) => ({
+    month: MONTHS[m], gross: 0, credit: 0, sales: 0, salesVat: 0, count: 0,
+  }));
+
   const { data } = await sb().from("invoices").select("invoice_date,posting_date,total_gross,total_credit").eq("client_id", clientId);
-  const months = Array.from({ length: 12 }, (_, m) => ({ month: MONTHS[m], gross: 0, credit: 0, count: 0 }));
   for (const inv of data ?? []) {
     const d = inv.posting_date || inv.invoice_date;
     if (!d || !String(d).startsWith(String(year))) continue;
@@ -408,7 +413,24 @@ export async function monthlySeries(clientId: string, year: number) {
     if (m < 0 || m > 11) continue;
     months[m].gross += inv.total_gross || 0; months[m].credit += inv.total_credit || 0; months[m].count += 1;
   }
-  return months.map((x) => ({ ...x, gross: Number(x.gross.toFixed(2)), credit: Number(x.credit.toFixed(2)) }));
+
+  const { data: sales } = await sb().from("sales").select("entry_date,net_amount,vat_amount").eq("client_id", clientId);
+  for (const s of sales ?? []) {
+    const d = s.entry_date;
+    if (!d || !String(d).startsWith(String(year))) continue;
+    const m = Number(String(d).slice(5, 7)) - 1;
+    if (m < 0 || m > 11) continue;
+    months[m].sales += (s.net_amount || 0) + (s.vat_amount || 0);
+    months[m].salesVat += s.vat_amount || 0;
+  }
+
+  return months.map((x) => ({
+    ...x,
+    gross: Number(x.gross.toFixed(2)),
+    credit: Number(x.credit.toFixed(2)),
+    sales: Number(x.sales.toFixed(2)),
+    salesVat: Number(x.salesVat.toFixed(2)),
+  }));
 }
 
 // ---------------- VAT by rate (entradas/saídas por alíquota) ----------------

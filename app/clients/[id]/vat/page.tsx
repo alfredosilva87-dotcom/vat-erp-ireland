@@ -64,15 +64,14 @@ export default function VatByRate({ params }: { params: { id: string } }) {
     <div className="space-y-6">
       <div className="rise flex flex-wrap items-end justify-between gap-3">
         <div>
-          <Link href={`/clients/${params.id}`} className="text-sm text-brand">← {client?.name || "Client"}</Link>
-          <h1 className="font-display text-3xl font-semibold tracking-tight">VAT by rate</h1>
+          <h1 className="font-display text-xl font-semibold tracking-tight">VAT by rate</h1>
           <p className="mt-1 text-muted">Entradas e saídas agrupadas por alíquota. Clique numa linha para ver os documentos.</p>
         </div>
         <div className="flex flex-wrap items-center gap-2 print:hidden">
           <select className="input h-9 w-24" value={year} onChange={(e) => setYear(Number(e.target.value))}>
             {[year - 2, year - 1, year, year + 1].map((y) => <option key={y} value={y}>{y}</option>)}
           </select>
-          <select className="input h-9" value={bi} onChange={(e) => setBi(Number(e.target.value))}>
+          <select className="input h-9 w-44" value={bi} onChange={(e) => setBi(Number(e.target.value))}>
             {BIMESTERS.map((b, i) => <option key={b.label} value={i}>{b.label}</option>)}
           </select>
           <button className="btn-ghost" onClick={exportExcel} disabled={exporting}>{exporting ? "…" : "Export Excel"}</button>
@@ -100,7 +99,7 @@ function RateTable({ title, groups, open, setOpen, keyPrefix, linkDocs, sum }: {
   const money2 = (n: number) => n.toLocaleString("en-IE", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
   return (
     <div className="card overflow-hidden">
-      <div className="border-b border-line bg-paper px-4 py-3 font-medium">{title}</div>
+      <div className="border-b border-line bg-surface-2/60 px-4 py-3 font-medium">{title}</div>
       <table className="w-full text-sm">
         <thead>
           <tr className="border-b border-line text-left text-xs uppercase tracking-wide text-muted">
@@ -119,14 +118,14 @@ function RateTable({ title, groups, open, setOpen, keyPrefix, linkDocs, sum }: {
             const isOpen = !!open[k];
             return (
               <Fragment key={k}>
-                <tr className="cursor-pointer border-b border-line/70 hover:bg-paper" onClick={() => setOpen((p) => ({ ...p, [k]: !p[k] }))}>
+                <tr className="cursor-pointer border-b border-line/70 hover:bg-surface-2/60" onClick={() => setOpen((p) => ({ ...p, [k]: !p[k] }))}>
                   <td className="px-4 py-2 font-medium">{isOpen ? "▾" : "▸"} {g.rate}%</td>
                   <td className="px-4 py-2 text-right tnum">{money2(g.net)}</td>
                   <td className="px-4 py-2 text-right tnum font-semibold text-brand-700">{money2(g.vat)}</td>
                   <td className="px-4 py-2 text-right tnum">{g.count}</td>
                 </tr>
                 {isOpen && g.docs.map((d) => (
-                  <tr key={k + d.id} className="border-b border-line/50 bg-paper/60 text-xs">
+                  <tr key={k + d.id} className="border-b border-line/50 bg-surface-2/40 text-xs">
                     <td className="px-4 py-1.5 pl-8">
                       {linkDocs ? <Link className="text-brand hover:underline" href={`/invoice/${d.id}`}>{d.label}</Link> : d.label}
                       {d.date ? <span className="text-muted"> · {d.date}</span> : ""}
@@ -142,7 +141,7 @@ function RateTable({ title, groups, open, setOpen, keyPrefix, linkDocs, sum }: {
             );
           })}
           {groups.length > 0 && (
-            <tr className="bg-paper font-semibold">
+            <tr className="bg-surface-2/60 font-semibold">
               <td className="px-4 py-2">Total</td>
               <td className="px-4 py-2 text-right tnum">{money2(sum(groups, "net"))}</td>
               <td className="px-4 py-2 text-right tnum text-brand-700">{money2(sum(groups, "vat"))}</td>

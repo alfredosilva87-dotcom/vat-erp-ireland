@@ -2,8 +2,97 @@
 @tailwind components;
 @tailwind utilities;
 
-:root {
+/* ---------------------------------------------------------------------------
+   Theme tokens. Values are RGB triplets (not hex) so Tailwind's
+   `rgb(var(--x) / <alpha-value>)` keeps working with opacity modifiers
+   like `bg-surface/50`. Dark (purple) is the default; the toggle in the
+   header flips `data-theme` on <html> and stores the choice.
+--------------------------------------------------------------------------- */
+:root,
+:root[data-theme="dark"] {
+  color-scheme: dark;
+
+  --c-paper: 21 16 46; /* #15102E app background */
+  --c-surface: 29 23 64; /* #1D1740 cards */
+  --c-surface-2: 38 30 82; /* #261E52 hover / subtle fills */
+  --c-ink: 237 234 250; /* #EDEAFA primary text */
+  --c-muted: 162 156 200; /* #A29CC8 secondary text */
+  --c-line: 47 40 96; /* #2F2860 borders */
+
+  /* sidebar — deepest shade, stays dark in both themes */
+  --c-night: 14 10 32; /* #0E0A20 */
+  --c-night-2: 30 23 66; /* #1E1742 */
+  --c-night-muted: 152 145 194; /* #9891C2 */
+
+  /* accent — vibrant purple */
+  --c-brand: 124 92 255; /* #7C5CFF */
+  --c-brand-50: 38 30 82; /* dark-mode "tint" = subtle fill, not a pale wash */
+  --c-brand-100: 48 38 102;
+  --c-brand-400: 154 129 255;
+  --c-brand-500: 138 110 255;
+  --c-brand-600: 124 92 255;
+  --c-brand-700: 176 156 255; /* lighter in dark mode so text stays readable */
+
+  --c-violet: 192 132 252;
+  --c-violet-50: 52 32 84;
+  --c-success: 52 211 153;
+  --c-success-50: 16 62 54;
+  --c-danger: 248 113 113;
+  --c-danger-50: 74 26 34;
+  --c-warning: 251 191 36;
+  --c-warning-50: 71 48 12;
+
+  /* elevation tuned for dark surfaces */
+  --shadow-card: 0 1px 2px rgb(0 0 0 / 0.3), 0 16px 40px -24px rgb(0 0 0 / 0.7);
+  --shadow-raised: inset 0 1px 0 rgb(255 255 255 / 0.06), 0 1px 2px rgb(0 0 0 / 0.35);
+  --shadow-pressed: inset 0 2px 6px rgb(0 0 0 / 0.45);
+  --shadow-brand: inset 0 1px 0 rgb(255 255 255 / 0.22), 0 10px 26px -10px rgb(124 92 255 / 0.65);
+
+  --btn-ghost-from: 38 30 82;
+  --btn-ghost-to: 29 23 64;
+}
+
+:root[data-theme="light"] {
   color-scheme: light;
+
+  --c-paper: 246 245 252; /* #F6F5FC */
+  --c-surface: 255 255 255;
+  --c-surface-2: 245 243 253;
+  --c-ink: 26 21 51; /* #1A1533 */
+  --c-muted: 107 101 144; /* #6B6590 */
+  --c-line: 231 228 243; /* #E7E4F3 */
+
+  /* sidebar stays dark (matches the reference design) */
+  --c-night: 26 19 56; /* #1A1338 */
+  --c-night-2: 42 33 82;
+  --c-night-muted: 160 152 200;
+
+  --c-brand: 109 74 255; /* #6D4AFF */
+  --c-brand-50: 240 236 255;
+  --c-brand-100: 226 219 255;
+  --c-brand-400: 141 113 255;
+  --c-brand-500: 124 92 255;
+  --c-brand-600: 109 74 255;
+  --c-brand-700: 84 51 214;
+
+  --c-violet: 124 58 237;
+  --c-violet-50: 243 236 253;
+  --c-success: 21 154 107;
+  --c-success-50: 230 245 239;
+  --c-danger: 220 38 38;
+  --c-danger-50: 253 235 235;
+  --c-warning: 217 119 6;
+  --c-warning-50: 252 241 226;
+
+  --shadow-card: 0 1px 2px rgb(20 27 46 / 0.04), 0 12px 30px -18px rgb(20 27 46 / 0.16);
+  --shadow-raised: inset 0 1px 0 rgb(255 255 255 / 0.7), 0 1px 2px rgb(20 27 46 / 0.08),
+    0 8px 18px -10px rgb(20 27 46 / 0.22);
+  --shadow-pressed: inset 0 2px 5px rgb(20 27 46 / 0.16);
+  --shadow-brand: inset 0 1px 0 rgb(255 255 255 / 0.28), 0 1px 2px rgb(109 74 255 / 0.25),
+    0 10px 22px -10px rgb(109 74 255 / 0.55);
+
+  --btn-ghost-from: 255 255 255;
+  --btn-ghost-to: 242 244 249;
 }
 
 html,
@@ -19,7 +108,8 @@ body {
 
 @layer components {
   .card {
-    @apply bg-surface border border-line rounded-xl2 shadow-card;
+    @apply bg-surface border border-line rounded-xl2;
+    box-shadow: var(--shadow-card);
   }
 
   /* embossed buttons */
@@ -27,30 +117,40 @@ body {
     @apply inline-flex items-center justify-center gap-2 rounded-xl px-4 h-11 text-sm font-semibold transition-all duration-150 select-none;
   }
   .btn-primary {
-    @apply btn text-white shadow-brand;
-    background-image: linear-gradient(180deg, #3b82f6 0%, #2563eb 100%);
+    @apply btn text-white;
+    background-image: linear-gradient(
+      180deg,
+      rgb(var(--c-brand-400)) 0%,
+      rgb(var(--c-brand-600)) 100%
+    );
+    box-shadow: var(--shadow-brand);
   }
   .btn-primary:hover {
-    filter: brightness(1.05);
+    filter: brightness(1.08);
   }
   .btn-primary:active {
     transform: translateY(1px);
-    box-shadow: theme("boxShadow.pressed");
+    box-shadow: var(--shadow-pressed);
   }
   .btn-primary:disabled {
     @apply opacity-50;
     filter: none;
   }
   .btn-ghost {
-    @apply btn text-ink border border-line shadow-raised;
-    background-image: linear-gradient(180deg, #ffffff 0%, #f2f4f9 100%);
+    @apply btn text-ink border border-line;
+    background-image: linear-gradient(
+      180deg,
+      rgb(var(--btn-ghost-from)) 0%,
+      rgb(var(--btn-ghost-to)) 100%
+    );
+    box-shadow: var(--shadow-raised);
   }
   .btn-ghost:hover {
-    @apply border-brand/40;
+    @apply border-brand/50;
   }
   .btn-ghost:active {
     transform: translateY(1px);
-    box-shadow: theme("boxShadow.pressed");
+    box-shadow: var(--shadow-pressed);
   }
 
   .chip {
@@ -71,11 +171,14 @@ body {
   }
   .input {
     @apply w-full h-11 rounded-xl border border-line bg-surface px-3 text-sm text-ink outline-none transition-shadow;
-    box-shadow: inset 0 1px 2px rgba(20, 27, 46, 0.05);
+    box-shadow: inset 0 1px 2px rgb(0 0 0 / 0.08);
   }
   .input:focus {
     @apply border-brand;
-    box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.16), inset 0 1px 2px rgba(20, 27, 46, 0.05);
+    box-shadow: 0 0 0 3px rgb(var(--c-brand) / 0.28), inset 0 1px 2px rgb(0 0 0 / 0.08);
+  }
+  .input::placeholder {
+    color: rgb(var(--c-muted) / 0.7);
   }
 
   /* sidebar nav */
@@ -87,8 +190,24 @@ body {
   }
   .nav-item-active {
     @apply text-white;
-    background-image: linear-gradient(180deg, #3b82f6 0%, #1d4ed8 100%);
-    box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.22), 0 6px 16px -8px rgba(37, 99, 235, 0.6);
+    background-image: linear-gradient(
+      180deg,
+      rgb(var(--c-brand-400)) 0%,
+      rgb(var(--c-brand-600)) 100%
+    );
+    box-shadow: inset 0 1px 0 rgb(255 255 255 / 0.22), 0 6px 16px -8px rgb(var(--c-brand) / 0.7);
+  }
+
+  /* client sub-panel tabs */
+  .subnav-item {
+    @apply inline-flex shrink-0 items-center gap-2 rounded-lg px-3 h-9 text-sm font-medium text-muted transition-colors;
+  }
+  .subnav-item:hover {
+    @apply bg-surface-2 text-ink;
+  }
+  .subnav-item-active {
+    @apply bg-brand text-white;
+    box-shadow: 0 6px 16px -10px rgb(var(--c-brand) / 0.9);
   }
 
   .badge-soft {

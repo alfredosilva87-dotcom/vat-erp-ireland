@@ -52,8 +52,7 @@ export default function Branches({ params }: { params: { id: string } }) {
   return (
     <div className="space-y-6">
       <div className="rise">
-        <Link href={`/clients/${params.id}`} className="text-sm text-brand">← {client?.name || "Client"}</Link>
-        <h1 className="font-display text-3xl font-semibold tracking-tight">Branches / lojas</h1>
+        <h1 className="font-display text-xl font-semibold tracking-tight">Branches / lojas</h1>
         <p className="mt-1 text-muted">Filiais de {client?.name || "this client"}. Vincule notas a cada filial e filtre por elas na Database.</p>
       </div>
 
@@ -76,7 +75,7 @@ export default function Branches({ params }: { params: { id: string } }) {
         ) : (
           <table className="w-full text-sm">
             <thead>
-              <tr className="border-b border-line bg-paper text-left text-xs uppercase tracking-wide text-muted">
+              <tr className="border-b border-line bg-surface-2/60 text-left text-xs uppercase tracking-wide text-muted">
                 <th className="px-4 py-3 font-medium w-[140px]">Code</th>
                 <th className="px-4 py-3 font-medium">Name</th>
                 <th className="px-4 py-3 font-medium">Address</th>

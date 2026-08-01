@@ -101,7 +101,7 @@ export default function CreditRulesManager() {
         <div className="overflow-x-auto">
           <table className="w-full text-sm">
             <thead>
-              <tr className="border-b border-line bg-paper text-left text-xs uppercase tracking-wide text-muted">
+              <tr className="border-b border-line bg-surface-2/60 text-left text-xs uppercase tracking-wide text-muted">
                 <th className="px-3 py-3 font-medium">Activity</th>
                 <th className="px-3 py-3 font-medium">Keywords</th>
                 <th className="px-3 py-3 font-medium text-right">Priority</th>
