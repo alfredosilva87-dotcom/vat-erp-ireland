@@ -16,6 +16,7 @@ const money = (n: number) =>
 const TABS: { seg: string; key: TKey }[] = [
   { seg: "dashboard", key: "client.tabDashboard" },
   { seg: "", key: "client.tabOverview" },
+  { seg: "purchases", key: "client.tabPurchases" },
   { seg: "sales", key: "client.tabSales" },
   { seg: "obligations", key: "client.tabObligations" },
   { seg: "vat", key: "client.tabVat" },

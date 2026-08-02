@@ -105,6 +105,7 @@ const en = {
   "client.export": "Export",
   "client.tabDashboard": "Dashboard",
   "client.tabOverview": "Overview",
+  "client.tabPurchases": "Purchases (T2)",
   "client.tabSales": "Sales (T1)",
   "client.tabObligations": "Obligations",
   "client.tabVat": "VAT by rate",
@@ -202,6 +203,16 @@ const en = {
   "analyze.statusPending": "Pending",
   "analyze.footer":
     "Each document becomes an individual invoice under the selected client. After saving, open any of them from Database to review items, fix categories or credit, and see the document.",
+
+  // ---- purchases (client-scoped) ----
+  "purchases.title": "Purchase invoices (T2)",
+  "purchases.subtitle": "Every invoice posted for this client, with the same filters as the database.",
+  "purchases.noneFiltered": "No invoices match these filters.",
+  "purchases.selectAll": "Select all",
+  "purchases.selectedCount": "invoice(s) selected",
+  "purchases.clearSelection": "Clear selection",
+  "purchases.deleteSelected": "Delete selected",
+  "purchases.deleteConfirm": "Delete {n} invoice(s) and their documents permanently?",
 
   // ---- database / records ----
   "records.title": "Database",

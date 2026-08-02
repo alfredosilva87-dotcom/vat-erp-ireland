@@ -346,6 +346,27 @@ export async function updateInvoice(invoiceId: string, patch: { header?: Partial
   return getInvoice(invoiceId);
 }
 
+/**
+ * Deletes several invoices in one go. Storage objects are removed in a single
+ * call and the rows in a single statement, so a 50-invoice cleanup is two
+ * round-trips instead of a hundred. Returns how many rows were removed.
+ */
+export async function deleteInvoices(ids: string[]): Promise<number> {
+  if (!ids.length) return 0;
+
+  const { data: rows } = await sb().from("invoices").select("id,document_path").in("id", ids);
+  const found = (rows ?? []).map((r: any) => r.id as string);
+  if (!found.length) return 0;
+
+  const paths = (rows ?? []).map((r: any) => r.document_path).filter(Boolean) as string[];
+  if (paths.length) {
+    try { await sb().storage.from(BUCKET).remove(paths); } catch { /* keep going; rows still go */ }
+  }
+
+  const { error } = await sb().from("invoices").delete().in("id", found);
+  return error ? 0 : found.length;
+}
+
 export async function deleteInvoice(id: string): Promise<boolean> {
   const { data: inv } = await sb().from("invoices").select("document_path").eq("id", id).maybeSingle();
   if (inv?.document_path) { try { await sb().storage.from(BUCKET).remove([inv.document_path]); } catch {} }

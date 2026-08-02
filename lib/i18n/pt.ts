@@ -108,6 +108,7 @@ const pt: Dict = {
   "client.export": "Exportar",
   "client.tabDashboard": "Painel",
   "client.tabOverview": "Visão geral",
+  "client.tabPurchases": "Compras (T2)",
   "client.tabSales": "Vendas (T1)",
   "client.tabObligations": "Obrigações",
   "client.tabVat": "VAT por alíquota",
@@ -205,6 +206,16 @@ const pt: Dict = {
   "analyze.statusPending": "Aguardando",
   "analyze.footer":
     "Cada documento vira uma nota individual do cliente selecionado. Depois de salvar, abra qualquer uma pela Base de dados para revisar itens, corrigir categorias ou crédito, e ver o documento.",
+
+  // ---- compras (por cliente) ----
+  "purchases.title": "Notas de entrada (T2)",
+  "purchases.subtitle": "Todas as notas lançadas para este cliente, com os mesmos filtros da base de dados.",
+  "purchases.noneFiltered": "Nenhuma nota corresponde a estes filtros.",
+  "purchases.selectAll": "Selecionar todas",
+  "purchases.selectedCount": "nota(s) selecionada(s)",
+  "purchases.clearSelection": "Limpar seleção",
+  "purchases.deleteSelected": "Excluir selecionadas",
+  "purchases.deleteConfirm": "Excluir {n} nota(s) e os documentos delas permanentemente?",
 
   // ---- base de dados ----
   "records.title": "Base de dados",
