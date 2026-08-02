@@ -1,11 +1,13 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { useT } from "@/lib/i18n";
 
 export type Theme = "dark" | "light";
 export const THEME_KEY = "vat-theme";
 
 export default function ThemeToggle() {
+  const { t } = useT();
   // Starts as null so the first render matches the server output; the real
   // theme (already applied to <html> by the inline script in layout.tsx) is
   // read on mount, which avoids a hydration mismatch.
@@ -33,8 +35,8 @@ export default function ThemeToggle() {
     <button
       onClick={toggle}
       className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border border-line bg-surface text-muted shadow-raised transition-colors hover:text-ink"
-      title={isLight ? "Switch to dark theme" : "Switch to light theme"}
-      aria-label={isLight ? "Switch to dark theme" : "Switch to light theme"}
+      title={isLight ? t("nav.themeToDark") : t("nav.themeToLight")}
+      aria-label={isLight ? t("nav.themeToDark") : t("nav.themeToLight")}
     >
       {isLight ? <IconMoon /> : <IconSun />}
     </button>

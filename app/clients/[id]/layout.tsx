@@ -6,21 +6,22 @@ import { useEffect, useState } from "react";
 import type { Client, StoredInvoice } from "@/lib/types";
 import { setCurrentClient } from "@/lib/currentClient";
 import ExportPanel from "@/components/ExportPanel";
+import { useT, type TKey } from "@/lib/i18n";
 
 const money = (n: number) =>
   n.toLocaleString("en-IE", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 
 // Everything you can do with a client lives here, so opening a sub-screen
 // never loses the client context the way the old button row did.
-const TABS = [
-  { seg: "dashboard", label: "Dashboard" },
-  { seg: "", label: "Overview" },
-  { seg: "sales", label: "Sales (T1)" },
-  { seg: "obligations", label: "Obligations" },
-  { seg: "vat", label: "VAT by rate" },
-  { seg: "accounts", label: "Chart of accounts" },
-  { seg: "branches", label: "Branches" },
-  { seg: "bright", label: "Bright / BrightBooks" },
+const TABS: { seg: string; key: TKey }[] = [
+  { seg: "dashboard", key: "client.tabDashboard" },
+  { seg: "", key: "client.tabOverview" },
+  { seg: "sales", key: "client.tabSales" },
+  { seg: "obligations", key: "client.tabObligations" },
+  { seg: "vat", key: "client.tabVat" },
+  { seg: "accounts", key: "client.tabAccounts" },
+  { seg: "branches", key: "client.tabBranches" },
+  { seg: "bright", key: "client.tabBright" },
 ];
 
 export default function ClientLayout({
@@ -31,6 +32,7 @@ export default function ClientLayout({
   params: { id: string };
 }) {
   const pathname = usePathname();
+  const { t } = useT();
   const [client, setClient] = useState<Client | null>(null);
   const [totals, setTotals] = useState({ count: 0, gross: 0, credit: 0 });
   const [active, setActive] = useState(false);
@@ -69,10 +71,10 @@ export default function ClientLayout({
             </span>
             <div className="min-w-0">
               <Link href="/clients" className="text-xs font-medium text-brand-700">
-                ← All clients
+                {t("client.allClients")}
               </Link>
               <h1 className="mt-0.5 truncate font-display text-3xl font-semibold tracking-tight">
-                {client?.name ?? "Loading…"}
+                {client?.name ?? t("common.loading")}
               </h1>
               {client && (
                 <div className="mt-1 flex flex-wrap items-center gap-x-4 gap-y-1 text-sm text-muted">
@@ -87,7 +89,7 @@ export default function ClientLayout({
 
           <div className="flex flex-wrap items-center gap-2">
             <button className="btn-ghost h-9 px-3 text-xs" onClick={makeActive}>
-              {active ? "Active ✓" : "Set as active"}
+              {active ? t("client.isActive") : t("client.setActive")}
             </button>
             <ExportPanel clientId={params.id} />
           </div>
@@ -95,23 +97,23 @@ export default function ClientLayout({
 
         {/* Quick stats */}
         <div className="grid gap-px border-t border-line bg-line sm:grid-cols-3">
-          <Stat label="Invoices" value={String(totals.count)} />
-          <Stat label="Gross spend €" value={money(totals.gross)} />
-          <Stat label="Input credit €" value={money(totals.credit)} accent />
+          <Stat label={t("dash.invoices")} value={String(totals.count)} />
+          <Stat label={t("dash.grossSpend")} value={money(totals.gross)} />
+          <Stat label={t("dash.credit")} value={money(totals.credit)} accent />
         </div>
 
         {/* Sub-panel nav */}
         <div className="flex gap-1 overflow-x-auto border-t border-line bg-surface-2/60 p-2">
-          {TABS.map((t) => {
-            const href = t.seg ? `${base}/${t.seg}` : base;
-            const isActive = currentSeg === t.seg;
+          {TABS.map((tab) => {
+            const href = tab.seg ? `${base}/${tab.seg}` : base;
+            const isActive = currentSeg === tab.seg;
             return (
               <Link
-                key={t.seg || "overview"}
+                key={tab.seg || "overview"}
                 href={href}
                 className={`subnav-item ${isActive ? "subnav-item-active" : ""}`}
               >
-                {t.label}
+                {t(tab.key)}
               </Link>
             );
           })}

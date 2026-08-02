@@ -1,6 +1,9 @@
+"use client";
+
 import Link from "next/link";
 import ClientsOverview from "@/components/ClientsOverview";
 import DashboardStats from "@/components/DashboardStats";
+import { useT } from "@/lib/i18n";
 
 const rates = [
   { rate: "23%", type: "Standard", ex: "Alcohol, electronics, soft drinks, furniture, auto fuel", cls: "bg-ink text-paper" },
@@ -12,17 +15,18 @@ const rates = [
 ];
 
 export default function Home() {
+  const { t } = useT();
   return (
     <div className="space-y-10">
       {/* Header */}
       <div className="rise flex flex-wrap items-end justify-between gap-4">
         <div>
-          <h1 className="font-display text-3xl font-semibold tracking-tight">Dashboard</h1>
-          <p className="mt-1 text-muted">Overview of your fiscal and VAT information.</p>
+          <h1 className="font-display text-3xl font-semibold tracking-tight">{t("dash.title")}</h1>
+          <p className="mt-1 text-muted">{t("dash.subtitle")}</p>
         </div>
         <div className="flex gap-2">
-          <Link href="/analyze" className="btn-primary">Analyze a document</Link>
-          <Link href="/clients" className="btn-ghost">Clients</Link>
+          <Link href="/analyze" className="btn-primary">{t("dash.analyzeDoc")}</Link>
+          <Link href="/clients" className="btn-ghost">{t("nav.clients")}</Link>
         </div>
       </div>
 
@@ -32,7 +36,7 @@ export default function Home() {
 
       {/* Rate legend */}
       <section>
-        <h2 className="font-display text-2xl font-semibold tracking-tight">Current Irish VAT rates</h2>
+        <h2 className="font-display text-2xl font-semibold tracking-tight">{t("dash.ratesTitle")}</h2>
         <p className="mt-1 text-sm text-muted">
           Effective July 2026. The base is history-aware, so older invoices are checked against the
           rate valid on their date.

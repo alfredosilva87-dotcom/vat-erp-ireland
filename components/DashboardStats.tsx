@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { useEffect, useState } from "react";
+import { useT } from "@/lib/i18n";
 
 type Stats = {
   invoices: number; items: number; unique_items: number; clients: number;
@@ -11,6 +12,7 @@ type Stats = {
 const money = (n: number) => n.toLocaleString("en-IE", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 
 export default function DashboardStats() {
+  const { t } = useT();
   const [s, setS] = useState<Stats | null>(null);
   useEffect(() => {
     fetch("/api/invoices").then((r) => r.json()).then((d) => setS(d.stats));
@@ -18,21 +20,21 @@ export default function DashboardStats() {
 
   const tiles = [
     {
-      label: "Faturamento (T1)", value: s ? `€ ${money(s.sales_gross)}` : "—",
+      label: t("dash.revenueT1"), value: s ? `€ ${money(s.sales_gross)}` : "—",
       sub: s ? `VAT € ${money(s.sales_vat)}` : "", tone: "brand" as const, icon: IconTrend,
     },
     {
-      label: "Compras (T2)", value: s ? `€ ${money(s.total_gross)}` : "—",
-      sub: s ? `${s.invoices} nota(s)` : "", tone: "violet" as const, icon: IconDoc,
+      label: t("dash.purchasesT2"), value: s ? `€ ${money(s.total_gross)}` : "—",
+      sub: s ? `${s.invoices} ${t("dash.invoices").toLowerCase()}` : "", tone: "violet" as const, icon: IconDoc,
     },
     {
-      label: "VAT a pagar (T3)", value: s ? `€ ${money(s.vat_payable)}` : "—",
-      sub: s ? (s.vat_payable >= 0 ? "A recolher" : "A recuperar") : "",
+      label: t("dash.vatPayableT3"), value: s ? `€ ${money(s.vat_payable)}` : "—",
+      sub: s ? (s.vat_payable >= 0 ? t("dash.toPay") : t("dash.toReclaim")) : "",
       tone: (s && s.vat_payable < 0 ? "success" : "danger") as "success" | "danger", icon: IconReceipt,
     },
     {
-      label: "Crédito de entrada", value: s ? `€ ${money(s.total_credit)}` : "—",
-      sub: s ? `${s.clients} cliente(s) · ${s.unique_items} itens` : "", tone: "success" as const, icon: IconEuro,
+      label: t("dash.inputCredit"), value: s ? `€ ${money(s.total_credit)}` : "—",
+      sub: s ? `${s.clients} · ${s.unique_items}` : "", tone: "success" as const, icon: IconEuro,
     },
   ];
   const toneCls = {
@@ -67,7 +69,7 @@ export default function DashboardStats() {
           href="/records"
           className="flex items-center gap-2 rounded-xl border border-warning/40 bg-warning-50 px-4 py-2.5 text-sm text-warning transition-colors hover:border-warning"
         >
-          <strong>{s.needs_review}</strong> nota(s) com leitura de baixa confiança aguardando revisão →
+          <strong>{s.needs_review}</strong> {t("dash.needsReviewAlert")}
         </Link>
       )}
     </div>

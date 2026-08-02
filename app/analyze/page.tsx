@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { getCurrentClient } from "@/lib/currentClient";
+import { useT } from "@/lib/i18n";
 import type { AnalyzedItem } from "@/lib/types";
 
 type Header = {
@@ -39,6 +40,7 @@ const engineLabel = (e?: string) => e === "pdf-native" ? "PDF" : e === "gemini-v
 const READ_CONCURRENCY = 8;
 
 export default function Analyze() {
+  const { t } = useT();
   const [clients, setClients] = useState<{ id: string; name: string; client_code: string; activity_code: string; activity_label: string; default_credit_unmatched: boolean }[]>([]);
   const [clientId, setClientId] = useState("");
   const [branches, setBranches] = useState<{ id: string; name: string; code: string | null }[]>([]);
@@ -173,26 +175,25 @@ export default function Analyze() {
   return (
     <div className="space-y-6">
       <div className="rise">
-        <h1 className="font-display text-3xl font-semibold tracking-tight">Batch import</h1>
+        <h1 className="font-display text-3xl font-semibold tracking-tight">{t("analyze.title")}</h1>
         <p className="mt-1 text-muted">
-          Drop many invoices/receipts at once. Each document is read and saved as its own record for
-          the selected client.
+{t("analyze.subtitle")}
         </p>
       </div>
 
       <div className="card rise p-5">
         <div className="grid gap-5 sm:grid-cols-[260px_1fr]">
           <div>
-            <label className="label" htmlFor="client">Client</label>
+            <label className="label" htmlFor="client">{t("analyze.client")}</label>
             <select id="client" className="input" value={clientId} onChange={(e) => setClientId(e.target.value)}>
-              <option value="">No client (generic)</option>
+              <option value="">{t("analyze.noClientGeneric")}</option>
               {clients.map((c) => (
                 <option key={c.id} value={c.id}>{c.client_code} · {c.name} ({c.activity_label})</option>
               ))}
             </select>
-            <p className="mt-2 text-xs text-muted">Every document imported goes to this client.</p>
+            <p className="mt-2 text-xs text-muted">{t("analyze.clientHelp")}</p>
 
-            <label className="label mt-4" htmlFor="posting">Posting date (data de lançamento)</label>
+            <label className="label mt-4" htmlFor="posting">{t("analyze.postingDate")}</label>
             <input
               id="posting"
               type="date"
@@ -201,24 +202,24 @@ export default function Analyze() {
               onChange={(e) => setPostingDate(e.target.value)}
             />
             <p className="mt-2 text-xs text-muted">
-              Period used for VAT3/RTD. Defaults to today; independent of the document&apos;s issue date. Applied to every document in this batch.
+{t("analyze.postingHelp")}
             </p>
 
             {branches.length > 0 && (
               <>
                 <label className="label mt-4" htmlFor="branch">Branch / loja</label>
                 <select id="branch" className="input" value={branchId} onChange={(e) => setBranchId(e.target.value)}>
-                  <option value="">No branch</option>
+                  <option value="">{t("analyze.noBranch")}</option>
                   {branches.map((b) => (
                     <option key={b.id} value={b.id}>{b.code ? `${b.code} · ` : ""}{b.name}</option>
                   ))}
                 </select>
-                <p className="mt-2 text-xs text-muted">Applied to every document in this batch.</p>
+                <p className="mt-2 text-xs text-muted">{t("analyze.branchHelp")}</p>
               </>
             )}
           </div>
           <div>
-            <label className="label">Documents</label>
+            <label className="label">{t("analyze.documents")}</label>
             <div
               onDragOver={(e) => { e.preventDefault(); setDragOver(true); }}
               onDragLeave={() => setDragOver(false)}
@@ -227,7 +228,7 @@ export default function Analyze() {
               className={`flex h-[104px] cursor-pointer flex-col items-center justify-center rounded-xl border-2 border-dashed text-center transition-colors ${dragOver ? "border-brand bg-brand-50" : "border-line bg-surface-2/50 hover:border-brand/50"}`}
             >
               <svg width="22" height="22" viewBox="0 0 24 24" fill="none" className="text-brand"><path d="M12 16V4m0 0L8 8m4-4l4 4M4 16v2a2 2 0 002 2h12a2 2 0 002-2v-2" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" /></svg>
-              <p className="mt-2 text-sm">Drop <strong>multiple</strong> PDFs or images, or <span className="text-brand">browse</span></p>
+              <p className="mt-2 text-sm">{t("analyze.drop")} <span className="text-brand">{t("analyze.browse")}</span></p>
               <p className="text-xs text-muted">PDF, PNG, JPEG, WebP</p>
               <input ref={inputRef} type="file" multiple accept="application/pdf,image/png,image/jpeg,image/webp" className="hidden" onChange={(e) => addFiles(e.target.files)} />
             </div>
@@ -236,20 +237,20 @@ export default function Analyze() {
 
         <div className="mt-5 flex flex-wrap items-center gap-3">
           <button className="btn-primary" onClick={readAll} disabled={busy || !rows.some((r) => r.status === "pending" || r.status === "error")}>
-            {phase === "reading" ? "Reading…" : `Read all (${rows.length})`}
+            {phase === "reading" ? t("analyze.reading") : `${t("analyze.readAll")} (${rows.length})`}
           </button>
           <button className="btn-primary" onClick={saveAll} disabled={busy || readCount === 0}>
-            {phase === "saving" ? "Saving…" : `Save all (${readCount})`}
+            {phase === "saving" ? t("common.saving") : `${t("analyze.saveAll")} (${readCount})`}
           </button>
           {rows.length > 0 && !busy && (
-            <button className="btn-ghost" onClick={() => setRows([])}>Clear</button>
+            <button className="btn-ghost" onClick={() => setRows([])}>{t("common.clear")}</button>
           )}
           <div className="ml-auto flex flex-wrap gap-2 text-sm">
-            {cacheCount > 0 && <span className="chip bg-brand-50 text-brand-700">{cacheCount} from cache</span>}
-            {aiCount > 0 && <span className="chip bg-ink text-paper">{aiCount} by AI</span>}
-            {reviewCount > 0 && <span className="chip-warn">{reviewCount} need review</span>}
-            {savedCount > 0 && <span className="chip-ok">{savedCount} saved</span>}
-            <span className="chip bg-brand text-white">Credit € {money(totalCredit)}</span>
+            {cacheCount > 0 && <span className="chip bg-brand-50 text-brand-700">{cacheCount} {t("analyze.fromCache")}</span>}
+            {aiCount > 0 && <span className="chip bg-ink text-paper">{aiCount} {t("analyze.byAI")}</span>}
+            {reviewCount > 0 && <span className="chip-warn">{reviewCount} {t("analyze.needReview")}</span>}
+            {savedCount > 0 && <span className="chip-ok">{savedCount} {t("analyze.saved")}</span>}
+            <span className="chip bg-brand text-white">{t("dash.credit")} {money(totalCredit)}</span>
           </div>
         </div>
 
@@ -257,8 +258,8 @@ export default function Analyze() {
           <div className="mt-4">
             <div className="flex items-center justify-between text-xs text-muted">
               <span>
-                {phase === "reading" ? "Reading documents" : "Saving to database"} · {doneCount} of {rows.length}
-                {phase === "reading" && rows.length > READ_CONCURRENCY && ` · ${READ_CONCURRENCY} at a time`}
+                {phase === "reading" ? t("analyze.readingDocs") : t("analyze.savingDocs")} · {doneCount} {t("analyze.ofCount")} {rows.length}
+                {phase === "reading" && rows.length > READ_CONCURRENCY && ` · ${READ_CONCURRENCY} ${t("analyze.atATime")}`}
               </span>
               <span className="tnum">{progressPct}%</span>
             </div>
@@ -278,14 +279,14 @@ export default function Analyze() {
             <table className="w-full text-sm">
               <thead>
                 <tr className="border-b border-line bg-surface-2/60 text-left text-xs uppercase tracking-wide text-muted">
-                  <th className="px-4 py-3 font-medium">Document</th>
-                  <th className="px-4 py-3 font-medium">Supplier</th>
-                  <th className="px-4 py-3 font-medium">Issued</th>
-                  <th className="px-4 py-3 font-medium">Posting</th>
-                  <th className="px-4 py-3 font-medium text-right">Gross €</th>
-                  <th className="px-4 py-3 font-medium text-right">Credit €</th>
-                  <th className="px-4 py-3 font-medium text-center">Read by</th>
-                  <th className="px-4 py-3 font-medium">Status</th>
+                  <th className="px-4 py-3 font-medium">{t("analyze.document")}</th>
+                  <th className="px-4 py-3 font-medium">{t("analyze.supplier")}</th>
+                  <th className="px-4 py-3 font-medium">{t("analyze.issued")}</th>
+                  <th className="px-4 py-3 font-medium">{t("analyze.posting")}</th>
+                  <th className="px-4 py-3 font-medium text-right">{t("analyze.gross")}</th>
+                  <th className="px-4 py-3 font-medium text-right">{t("analyze.creditCol")}</th>
+                  <th className="px-4 py-3 font-medium text-center">{t("analyze.readBy")}</th>
+                  <th className="px-4 py-3 font-medium">{t("common.status")}</th>
                 </tr>
               </thead>
               <tbody>
@@ -302,8 +303,8 @@ export default function Analyze() {
                         <span className="inline-flex items-center gap-1.5">
                           <span className="chip bg-surface-2 border border-line text-muted">{engineLabel(r.result.engine)}</span>
                           {r.result.needs_review && (
-                            <span className="chip-warn" title={r.result.issues.join("; ") || "Low confidence read — please review."}>
-                              Needs review
+                            <span className="chip-warn" title={r.result.issues.join("; ") || t("analyze.lowConfidence")}>
+                              {t("analyze.needsReview")}
                             </span>
                           )}
                         </span>
@@ -321,19 +322,18 @@ export default function Analyze() {
       )}
 
       <p className="text-xs text-muted">
-        Each document becomes an <strong>individual invoice</strong> under the selected client. After saving,
-        open any of them from <Link href="/records" className="text-brand">Database</Link> to review items, fix
-        categories or credit, and see the document.
+        {t("analyze.footer")}
       </p>
     </div>
   );
 }
 
 function StatusChip({ r }: { r: Row }) {
-  if (r.status === "saved") return <Link href={`/invoice/${r.savedId}`} className="chip-ok">Saved ✓ open</Link>;
-  if (r.status === "error") return <span className="chip-danger" title={r.error}>Error</span>;
-  if (r.status === "reading") return <span className="chip bg-brand-50 text-brand-700">Reading…</span>;
-  if (r.status === "saving") return <span className="chip bg-brand-50 text-brand-700">Saving…</span>;
-  if (r.status === "read") return <span className="chip bg-surface-2 border border-line text-muted">Ready to save</span>;
-  return <span className="chip bg-surface-2 border border-line text-muted">Pending</span>;
+  const { t: tt } = useT();
+  if (r.status === "saved") return <Link href={`/invoice/${r.savedId}`} className="chip-ok">{tt("analyze.statusSaved")}</Link>;
+  if (r.status === "error") return <span className="chip-danger" title={r.error}>{tt("analyze.statusError")}</span>;
+  if (r.status === "reading") return <span className="chip bg-brand-50 text-brand-700">{tt("analyze.statusReading")}</span>;
+  if (r.status === "saving") return <span className="chip bg-brand-50 text-brand-700">{tt("analyze.statusSaving")}</span>;
+  if (r.status === "read") return <span className="chip bg-surface-2 border border-line text-muted">{tt("analyze.statusReady")}</span>;
+  return <span className="chip bg-surface-2 border border-line text-muted">{tt("analyze.statusPending")}</span>;
 }

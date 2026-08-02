@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getServerSupabase, hasSupabaseConfig } from "@/lib/supabase";
+import { requireRole } from "@/lib/auth";
 
 export const runtime = "nodejs";
 
@@ -41,6 +42,11 @@ export async function PUT(req: NextRequest) {
 
 // Deactivate a category (soft delete).
 export async function DELETE(req: NextRequest) {
+  // Destructive: administrators only. The UI hides these buttons, but the
+  // check has to live here to actually be a permission.
+  const guard = await requireRole("admin");
+  if ("error" in guard) return guard.error;
+
   if (!hasSupabaseConfig()) {
     return NextResponse.json({ error: "Editing requires Supabase." }, { status: 400 });
   }

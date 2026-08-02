@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useEffect, useState } from "react";
 import LineChart from "@/components/LineChart";
 import DonutChart from "@/components/DonutChart";
+import { useT } from "@/lib/i18n";
 
 type Kpis = {
   salesGross: number; salesVat: number; purchaseGross: number;
@@ -23,6 +24,7 @@ const money = (n: number) =>
   n.toLocaleString("en-IE", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 
 export default function ClientDashboard({ params }: { params: { id: string } }) {
+  const { t } = useT();
   const [d, setD] = useState<Data | null>(null);
   const [year, setYear] = useState(new Date().getFullYear());
   const [loading, setLoading] = useState(true);
@@ -37,7 +39,7 @@ export default function ClientDashboard({ params }: { params: { id: string } }) 
 
   const yearOptions = Array.from(new Set([year + 1, year, year - 1, year - 2])).sort((a, b) => b - a);
 
-  if (loading && !d) return <p className="text-muted">Loading…</p>;
+  if (loading && !d) return <p className="text-muted">{t("common.loading")}</p>;
   if (!d) return <p className="text-muted">Could not load the dashboard.</p>;
 
   const { kpis, series, vatByMonth, rates, upcoming } = d;
@@ -66,9 +68,9 @@ export default function ClientDashboard({ params }: { params: { id: string } }) 
       {/* Period picker */}
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
-          <h2 className="font-display text-xl font-semibold tracking-tight">Financial overview</h2>
+          <h2 className="font-display text-xl font-semibold tracking-tight">{t("client.financialOverview")}</h2>
           <p className="text-sm text-muted">
-            Fills in automatically from posted sales (T1) and purchase invoices (T2).
+            {t("client.financialSubtitle")}
           </p>
         </div>
         <select className="input w-28" value={year} onChange={(e) => setYear(Number(e.target.value))}>
@@ -79,40 +81,40 @@ export default function ClientDashboard({ params }: { params: { id: string } }) 
       {/* KPI cards */}
       <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
         <Kpi
-          label="Faturamento (T1)" value={money(kpis.salesGross)}
-          sub={`${kpis.salesCount} venda(s) · VAT € ${money(kpis.salesVat)}`}
+          label={t("dash.revenueT1")} value={money(kpis.salesGross)}
+          sub={`${kpis.salesCount} ${t("client.salesCount")} · VAT € ${money(kpis.salesVat)}`}
           tone="brand" icon={<IconTrend />}
         />
         <Kpi
-          label="Compras (T2)" value={money(kpis.purchaseGross)}
-          sub={`${kpis.invoiceCount} nota(s) processada(s)`}
+          label={t("dash.purchasesT2")} value={money(kpis.purchaseGross)}
+          sub={`${kpis.invoiceCount} ${t("client.invoiceCount")}`}
           tone="violet" icon={<IconCart />}
         />
         <Kpi
-          label="VAT a pagar (T3)" value={money(kpis.vatPayable)}
-          sub={kpis.vatPayable >= 0 ? "A recolher à Revenue" : "A recuperar da Revenue"}
+          label={t("dash.vatPayableT3")} value={money(kpis.vatPayable)}
+          sub={kpis.vatPayable >= 0 ? t("client.toRevenue") : t("client.fromRevenue")}
           tone={kpis.vatPayable >= 0 ? "danger" : "success"} icon={<IconReceipt />}
         />
         <Kpi
-          label="Crédito de entrada" value={money(kpis.inputCredit)}
-          sub="VAT recuperável já aprovado" tone="success" icon={<IconCredit />}
+          label={t("dash.inputCredit")} value={money(kpis.inputCredit)}
+          sub={t("client.creditApproved")} tone="success" icon={<IconCredit />}
         />
       </div>
 
       <div className="grid gap-4 xl:grid-cols-3">
         {/* Sales vs purchases */}
         <section className="card p-5 xl:col-span-2">
-          <h3 className="font-display text-lg font-semibold">Faturamento × Compras</h3>
-          <p className="mb-2 text-sm text-muted">Vendas (T1) e compras (T2) por mês, valores brutos.</p>
+          <h3 className="font-display text-lg font-semibold">{t("client.revenueVsPurchases")}</h3>
+          <p className="mb-2 text-sm text-muted">{t("client.revenueVsPurchasesSub")}</p>
           <LineChart
             data={series.map((s) => ({ label: s.month, a: s.sales, b: s.gross }))}
-            aLabel="Vendas (T1)" bLabel="Compras (T2)"
+            aLabel={t("dash.revenueT1")} bLabel={t("dash.purchasesT2")}
           />
         </section>
 
         {/* Upcoming obligations */}
         <section className="card flex flex-col p-5">
-          <h3 className="font-display text-lg font-semibold">Obrigações próximas</h3>
+          <h3 className="font-display text-lg font-semibold">{t("client.upcoming")}</h3>
           <ul className="mt-3 flex-1 space-y-2">
             {upcoming.map((o) => (
               <li key={o.id} className="flex items-center justify-between gap-2 border-b border-line/60 pb-2 last:border-0">
@@ -123,16 +125,16 @@ export default function ClientDashboard({ params }: { params: { id: string } }) 
                 <span className={
                   o.state === "overdue" ? "chip-danger" : o.state === "soon" ? "chip-warn" : "chip bg-surface-2 text-muted"
                 }>
-                  {o.state === "overdue" ? "Vencido" : o.state === "soon" ? "Em breve" : "Pendente"}
+                  {o.state === "overdue" ? t("client.overdue") : o.state === "soon" ? t("client.soon") : t("client.pending")}
                 </span>
               </li>
             ))}
             {!upcoming.length && (
-              <li className="py-6 text-center text-sm text-muted">Nenhuma obrigação em aberto para {d.year}.</li>
+              <li className="py-6 text-center text-sm text-muted">{t("client.noOpenObligations")} {d.year}.</li>
             )}
           </ul>
           <Link href={`/clients/${params.id}/obligations`} className="btn-primary mt-3 h-9 text-xs">
-            Ver todas as obrigações →
+            {t("client.seeAllObligations")}
           </Link>
         </section>
       </div>
@@ -140,8 +142,8 @@ export default function ClientDashboard({ params }: { params: { id: string } }) 
       <div className="grid gap-4 xl:grid-cols-3">
         {/* VAT per month */}
         <section className="card p-5 xl:col-span-2">
-          <h3 className="font-display text-lg font-semibold">VAT por período</h3>
-          <p className="mb-3 text-sm text-muted">Posição líquida por mês (T1 − T2). Acima de zero = a recolher.</p>
+          <h3 className="font-display text-lg font-semibold">{t("client.vatByPeriod")}</h3>
+          <p className="mb-3 text-sm text-muted">{t("client.vatByPeriodSub")}</p>
           <div className="flex h-40 items-end gap-1.5">
             {vatByMonth.map((m) => {
               const h = (Math.abs(m.payable) / maxVat) * 100;
@@ -164,12 +166,12 @@ export default function ClientDashboard({ params }: { params: { id: string } }) 
 
         {/* Sales split */}
         <section className="card p-5">
-          <h3 className="font-display text-lg font-semibold">Distribuição de faturamento</h3>
-          <p className="mb-3 text-sm text-muted">Vendas líquidas por alíquota.</p>
+          <h3 className="font-display text-lg font-semibold">{t("client.revenueSplit")}</h3>
+          <p className="mb-3 text-sm text-muted">{t("client.revenueSplitSub")}</p>
           <DonutChart
             data={donut}
             total={rates.sales.reduce((a, r) => a + r.net, 0)}
-            totalLabel="Vendas líquidas"
+            totalLabel={t("client.netSales")}
           />
         </section>
       </div>
@@ -177,9 +179,9 @@ export default function ClientDashboard({ params }: { params: { id: string } }) 
       {/* VAT rate summary */}
       <section className="card overflow-hidden">
         <div className="px-5 py-4">
-          <h3 className="font-display text-lg font-semibold">Resumo por taxa de VAT</h3>
+          <h3 className="font-display text-lg font-semibold">{t("client.rateSummary")}</h3>
           <p className="text-sm text-muted">
-            O que foi cobrado nas vendas contra o crédito tomado nas compras, por alíquota.
+            {t("client.rateSummarySub")}
           </p>
         </div>
         <div className="overflow-x-auto">
@@ -208,13 +210,13 @@ export default function ClientDashboard({ params }: { params: { id: string } }) 
                 </tr>
               ))}
               {!rateRows.length && (
-                <tr><td colSpan={6} className="px-4 py-10 text-center text-muted">Sem lançamentos em {d.year}.</td></tr>
+                <tr><td colSpan={6} className="px-4 py-10 text-center text-muted">{t("client.noData")} {d.year}.</td></tr>
               )}
             </tbody>
             {rateRows.length > 0 && (
               <tfoot>
                 <tr className="bg-surface-2/60 font-semibold">
-                  <td className="px-5 py-3">Total</td>
+                  <td className="px-5 py-3">{t("common.total")}</td>
                   <td className="px-4 py-3 text-right tnum">{money(rateRows.reduce((a, r) => a + r.salesNet, 0))}</td>
                   <td className="px-4 py-3 text-right tnum">{money(kpis.salesVat)}</td>
                   <td className="px-4 py-3 text-right tnum">{money(rateRows.reduce((a, r) => a + r.purchaseNet, 0))}</td>
@@ -231,12 +233,12 @@ export default function ClientDashboard({ params }: { params: { id: string } }) 
 
       {/* Quick actions */}
       <section className="card p-5">
-        <h3 className="font-display text-lg font-semibold">Ações rápidas</h3>
+        <h3 className="font-display text-lg font-semibold">{t("client.quickActions")}</h3>
         <div className="mt-3 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
-          <Action href="/analyze" title="Nova compra" desc="Importar notas (T2)" />
-          <Action href={`/clients/${params.id}/sales`} title="Nova venda" desc="Lançar faturamento (T1)" />
-          <Action href={`/clients/${params.id}/vat`} title="Relatório VAT" desc="Detalhe por alíquota" />
-          <Action href={`/api/clients/${params.id}/export.xlsx?year=${d.year}`} title="Exportar Excel" desc="Relatório completo" external />
+          <Action href="/analyze" title={t("client.newPurchase")} desc={t("client.newPurchaseSub")} />
+          <Action href={`/clients/${params.id}/sales`} title={t("client.newSale")} desc={t("client.newSaleSub")} />
+          <Action href={`/clients/${params.id}/vat`} title={t("client.vatReport")} desc={t("client.vatReportSub")} />
+          <Action href={`/api/clients/${params.id}/export.xlsx?year=${d.year}`} title={t("client.exportExcel")} desc={t("client.exportExcelSub")} external />
         </div>
       </section>
     </div>

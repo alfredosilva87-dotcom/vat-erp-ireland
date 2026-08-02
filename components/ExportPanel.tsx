@@ -3,17 +3,18 @@
 import { useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { downloadClientPdf } from "@/lib/exportPdf";
+import { useT, type TKey } from "@/lib/i18n";
 
 type Fmt = "xlsx" | "csv" | "pdf";
 type SetKey = "invoices" | "items" | "sales" | "obligations" | "rates" | "accounts";
 
-const SETS: { key: SetKey; label: string; hint: string }[] = [
-  { key: "invoices", label: "Notas de entrada", hint: "Compras (T2)" },
-  { key: "items", label: "Itens das notas", hint: "Linha a linha" },
-  { key: "sales", label: "Vendas", hint: "Faturamento (T1)" },
-  { key: "obligations", label: "Apurações", hint: "VAT3 / RTD" },
-  { key: "rates", label: "VAT por alíquota", hint: "Resumo fiscal" },
-  { key: "accounts", label: "Plano de contas", hint: "Contas contábeis" },
+const SETS: { key: SetKey; label: TKey; hint: TKey }[] = [
+  { key: "invoices", label: "export.invoices", hint: "export.invoicesHint" },
+  { key: "items", label: "export.items", hint: "export.itemsHint" },
+  { key: "sales", label: "export.sales", hint: "export.salesHint" },
+  { key: "obligations", label: "export.obligations", hint: "export.obligationsHint" },
+  { key: "rates", label: "export.rates", hint: "export.ratesHint" },
+  { key: "accounts", label: "export.accounts", hint: "export.accountsHint" },
 ];
 
 const pad = (n: number) => String(n).padStart(2, "0");
@@ -38,12 +39,13 @@ function presetRange(preset: string): { start: string; end: string } {
 export default function ExportPanel({
   clientId,
   defaultSets = ["invoices", "items", "sales", "obligations", "rates"],
-  label = "Exportar",
+  label,
 }: {
   clientId: string;
   defaultSets?: SetKey[];
   label?: string;
 }) {
+  const { t } = useT();
   const [open, setOpen] = useState(false);
   const [preset, setPreset] = useState("year");
   const [range, setRange] = useState(() => presetRange("year"));
@@ -103,8 +105,8 @@ export default function ExportPanel({
     `year=${range.start.slice(0, 4)}&start=${range.start}&end=${range.end}&sets=${sets.join(",")}`;
 
   async function run(fmt: Fmt) {
-    if (!sets.length) { setErr("Selecione ao menos um conjunto de dados."); return; }
-    if (range.start > range.end) { setErr("A data inicial é posterior à final."); return; }
+    if (!sets.length) { setErr(t("export.pickOne")); return; }
+    if (range.start > range.end) { setErr(t("export.badRange")); return; }
     setErr(null);
     setBusy(fmt);
     try {
@@ -113,7 +115,7 @@ export default function ExportPanel({
         // formats use so all three stay identical.
         const res = await fetch(`/api/clients/${clientId}/export.json?${qs()}`);
         const data = await res.json();
-        if (!res.ok) throw new Error(data.error || "Falha ao gerar o PDF.");
+        if (!res.ok) throw new Error(data.error || t("export.pdfFailed"));
         downloadClientPdf(data);
       } else {
         window.location.href = `/api/clients/${clientId}/export.${fmt}?${qs()}`;
@@ -132,11 +134,11 @@ export default function ExportPanel({
       style={{ position: "fixed", top: pos?.top ?? 0, right: pos?.right ?? 0 }}
       className="z-50 w-[340px] rounded-xl2 border border-line bg-surface p-4 shadow-card"
     >
-          <div className="label">Período</div>
+          <div className="label">{t("export.period")}</div>
           <div className="flex flex-wrap gap-1.5">
             {[
-              ["today", "Hoje"], ["month", "Este mês"], ["prev-month", "Mês anterior"],
-              ["quarter", "Trimestre"], ["year", "Ano"], ["custom", "Personalizado"],
+              ["today", "export.today"], ["month", "export.month"], ["prev-month", "export.prevMonth"],
+              ["quarter", "export.quarter"], ["year", "export.year"], ["custom", "export.custom"],
             ].map(([k, lbl]) => (
               <button
                 key={k}
@@ -145,21 +147,21 @@ export default function ExportPanel({
                   preset === k ? "bg-brand text-white" : "bg-surface-2 text-muted hover:text-ink"
                 }`}
               >
-                {lbl}
+                {t(lbl as TKey)}
               </button>
             ))}
           </div>
 
           <div className="mt-2 grid grid-cols-2 gap-2">
             <div>
-              <label className="label mb-1">De</label>
+              <label className="label mb-1">{t("common.from")}</label>
               <input
                 type="date" className="input h-9 text-xs" value={range.start}
                 onChange={(e) => { setPreset("custom"); setRange((r) => ({ ...r, start: e.target.value })); }}
               />
             </div>
             <div>
-              <label className="label mb-1">Até</label>
+              <label className="label mb-1">{t("common.to")}</label>
               <input
                 type="date" className="input h-9 text-xs" value={range.end}
                 onChange={(e) => { setPreset("custom"); setRange((r) => ({ ...r, end: e.target.value })); }}
@@ -167,7 +169,7 @@ export default function ExportPanel({
             </div>
           </div>
 
-          <div className="label mt-3">Dados a exportar</div>
+          <div className="label mt-3">{t("export.dataTitle")}</div>
           <div className="space-y-1">
             {SETS.map((s) => (
               <label key={s.key} className="flex cursor-pointer items-center gap-2 rounded-lg px-1.5 py-1 hover:bg-surface-2">
@@ -175,8 +177,8 @@ export default function ExportPanel({
                   type="checkbox" checked={sets.includes(s.key)} onChange={() => toggle(s.key)}
                   className="h-3.5 w-3.5 accent-[rgb(var(--c-brand))]"
                 />
-                <span className="flex-1 text-sm">{s.label}</span>
-                <span className="text-[11px] text-muted">{s.hint}</span>
+                <span className="flex-1 text-sm">{t(s.label)}</span>
+                <span className="text-[11px] text-muted">{t(s.hint)}</span>
               </label>
             ))}
           </div>
@@ -200,7 +202,7 @@ export default function ExportPanel({
   return (
     <>
       <button ref={btnRef} className="btn-ghost h-9 px-3 text-xs" onClick={() => setOpen((v) => !v)}>
-        <IconDownload /> {label}
+        <IconDownload /> {label ?? t("export.button")}
       </button>
       {mounted && open && pos && createPortal(panel, document.body)}
     </>

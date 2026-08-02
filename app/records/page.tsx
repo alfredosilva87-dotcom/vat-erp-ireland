@@ -5,6 +5,7 @@ import type { StoredInvoice, MasterItem } from "@/lib/types";
 import Link from "next/link";
 import { getCurrentClient } from "@/lib/currentClient";
 import ExportPanel from "@/components/ExportPanel";
+import { useT } from "@/lib/i18n";
 
 type Stats = { invoices: number; items: number; unique_items: number; total_credit: number };
 
@@ -14,6 +15,7 @@ const money = (n: number | null) =>
     : n.toLocaleString("en-IE", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 
 export default function Records() {
+  const { t } = useT();
   const [tab, setTab] = useState<"invoices" | "items">("invoices");
   const [q, setQ] = useState("");
   const [query, setQuery] = useState("");
@@ -76,14 +78,14 @@ export default function Records() {
     <div className="space-y-8">
       <div className="rise flex flex-wrap items-end justify-between gap-4">
         <div>
-          <h1 className="font-display text-3xl font-semibold tracking-tight">Database</h1>
-          <p className="mt-1 text-muted">All saved invoices and the de-duplicated item catalogue.</p>
+          <h1 className="font-display text-3xl font-semibold tracking-tight">{t("records.title")}</h1>
+          <p className="mt-1 text-muted">{t("records.subtitle")}</p>
         </div>
         {stats && (
           <div className="flex flex-wrap gap-2 text-sm">
-            <span className="chip bg-surface-2 border border-line text-muted">{stats.invoices} invoices</span>
-            <span className="chip bg-surface-2 border border-line text-muted">{stats.unique_items} unique items</span>
-            <span className="chip bg-brand text-white">Credit € {money(stats.total_credit)}</span>
+            <span className="chip bg-surface-2 border border-line text-muted">{stats.invoices} {t("records.invoices")}</span>
+            <span className="chip bg-surface-2 border border-line text-muted">{stats.unique_items} {t("records.uniqueItems")}</span>
+            <span className="chip bg-brand text-white">{t("dash.credit")} {money(stats.total_credit)}</span>
           </div>
         )}
       </div>
@@ -91,28 +93,28 @@ export default function Records() {
       {/* Tabs + search */}
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div className="flex gap-1 rounded-lg border border-line bg-surface p-1">
-          {(["invoices", "items"] as const).map((t) => (
+          {(["invoices", "items"] as const).map((tt) => (
             <button
-              key={t}
-              onClick={() => setTab(t)}
+              key={tt}
+              onClick={() => setTab(tt)}
               className={`rounded-md px-3 py-1.5 text-sm font-medium ${
-                tab === t ? "bg-brand text-white" : "text-muted hover:text-ink"
+                tab === tt ? "bg-brand text-white" : "text-muted hover:text-ink"
               }`}
             >
-              {t === "invoices" ? "Invoices" : "Unique items (de-para)"}
+              {tt === "invoices" ? t("records.invoices") : t("records.uniqueItems")}
             </button>
           ))}
         </div>
         <div className="flex items-center gap-2">
           <select className="input w-56" value={clientId} onChange={(e) => setClientId(e.target.value)}>
-            <option value="">All clients</option>
+            <option value="">{t("records.allClients")}</option>
             {clients.map((c) => (
               <option key={c.id} value={c.id}>{c.client_code} · {c.name}</option>
             ))}
           </select>
           {tab === "invoices" && branches.length > 0 && (
             <select className="input w-44" value={branchId} onChange={(e) => setBranchId(e.target.value)}>
-              <option value="">All branches</option>
+              <option value="">{t("records.allBranches")}</option>
               {branches.map((b) => (
                 <option key={b.id} value={b.id}>{b.code ? `${b.code} · ` : ""}{b.name}</option>
               ))}
@@ -127,12 +129,12 @@ export default function Records() {
           >
           <input
             className="input w-64"
-            placeholder="Search supplier, item, doc no…"
+            placeholder={t("records.searchPlaceholder")}
             value={q}
             onChange={(e) => setQ(e.target.value)}
           />
           <button className="btn-primary" type="submit">
-            <SearchIcon /> Search
+            <SearchIcon /> {t("common.search")}
           </button>
           </form>
         </div>
@@ -142,15 +144,15 @@ export default function Records() {
       {tab === "invoices" && (
         <div className="card flex flex-wrap items-end gap-3 p-4">
           <div>
-            <label className="label">Posting from</label>
+            <label className="label">{t("records.postingFrom")}</label>
             <input type="date" className="input h-9 w-40 text-sm" value={start} onChange={(e) => setStart(e.target.value)} />
           </div>
           <div>
-            <label className="label">to</label>
+            <label className="label">{t("common.to")}</label>
             <input type="date" className="input h-9 w-40 text-sm" value={end} onChange={(e) => setEnd(e.target.value)} />
           </div>
           <div className="flex flex-wrap gap-1.5 pb-0.5">
-            {([["month", "This month"], ["prev", "Last month"], ["year", "This year"]] as const).map(([k, lbl]) => (
+            {([["month", "records.thisMonth"], ["prev", "records.lastMonth"], ["year", "records.thisYear"]] as const).map(([k, lbl]) => (
               <button
                 key={k}
                 className="rounded-lg bg-surface-2 px-2.5 py-1.5 text-xs font-medium text-muted transition-colors hover:text-ink"
@@ -163,7 +165,7 @@ export default function Records() {
                   else { setStart(`${y}-01-01`); setEnd(`${y}-12-31`); }
                 }}
               >
-                {lbl}
+                {t(lbl as any)}
               </button>
             ))}
           </div>
@@ -173,17 +175,17 @@ export default function Records() {
               type="checkbox" checked={onlyReview} onChange={(e) => setOnlyReview(e.target.checked)}
               className="h-3.5 w-3.5 accent-[rgb(var(--c-brand))]"
             />
-            Only needs review
+            {t("records.onlyReview")}
           </label>
 
           <div className="ml-auto flex items-center gap-2 pb-0.5">
             {filtersOn && (
-              <button className="btn-ghost h-9 px-3 text-xs" onClick={clearFilters}>Clear filters</button>
+              <button className="btn-ghost h-9 px-3 text-xs" onClick={clearFilters}>{t("records.clearFilters")}</button>
             )}
             {clientId ? (
               <ExportPanel clientId={clientId} />
             ) : (
-              <span className="text-xs text-muted">Pick a client to export</span>
+              <span className="text-xs text-muted">{t("records.pickClient")}</span>
             )}
           </div>
         </div>
@@ -196,15 +198,15 @@ export default function Records() {
             <table className="w-full text-sm">
               <thead>
                 <tr className="border-b border-line bg-surface-2/60 text-left text-xs uppercase tracking-wide text-muted">
-                  <th className="px-4 py-3 font-medium">Supplier</th>
-                  <th className="px-4 py-3 font-medium">Branch</th>
-                  <th className="px-4 py-3 font-medium">Issued</th>
-                  <th className="px-4 py-3 font-medium">Posting</th>
-                  <th className="px-4 py-3 font-medium">Doc no.</th>
-                  <th className="px-4 py-3 font-medium text-right">Items</th>
-                  <th className="px-4 py-3 font-medium text-right">Gross €</th>
-                  <th className="px-4 py-3 font-medium text-right">Credit €</th>
-                  <th className="px-4 py-3 font-medium text-center">Actions</th>
+                  <th className="px-4 py-3 font-medium">{t("analyze.supplier")}</th>
+                  <th className="px-4 py-3 font-medium">{t("records.branch")}</th>
+                  <th className="px-4 py-3 font-medium">{t("analyze.issued")}</th>
+                  <th className="px-4 py-3 font-medium">{t("analyze.posting")}</th>
+                  <th className="px-4 py-3 font-medium">{t("records.docNo")}</th>
+                  <th className="px-4 py-3 font-medium text-right">{t("records.itemsCol")}</th>
+                  <th className="px-4 py-3 font-medium text-right">{t("analyze.gross")}</th>
+                  <th className="px-4 py-3 font-medium text-right">{t("analyze.creditCol")}</th>
+                  <th className="px-4 py-3 font-medium text-center">{t("common.actions")}</th>
                 </tr>
               </thead>
               <tbody>
@@ -214,8 +216,8 @@ export default function Records() {
                       <div className="flex items-center gap-1.5">
                         <span className="font-medium">{inv.supplier_name || "Unknown"}</span>
                         {inv.needs_review && (
-                          <span className="chip-warn" title={inv.review_notes?.join("; ") || "Low confidence read — please review."}>
-                            Review
+                          <span className="chip-warn" title={inv.review_notes?.join("; ") || t("analyze.lowConfidence")}>
+                            {t("records.review")}
                           </span>
                         )}
                       </div>
@@ -247,7 +249,7 @@ export default function Records() {
                             target="_blank"
                             rel="noreferrer"
                           >
-                            Doc
+                            {t("records.doc")}
                           </a>
                         )}
                       </div>
@@ -257,7 +259,7 @@ export default function Records() {
                 {!invoices.length && !loading && (
                   <tr>
                     <td colSpan={9} className="px-4 py-10 text-center text-muted">
-                      No invoices yet. Analyze a document and click “Save to database”.
+                      {t("records.empty")}
                     </td>
                   </tr>
                 )}
@@ -307,8 +309,7 @@ export default function Records() {
       )}
 
       <p className="text-xs text-muted">
-        Each distinct item name is stored once in the de-para catalogue, so repeated products never
-        duplicate. “View” opens the saved original document (image or PDF).
+        {t("records.itemsFooter")}
       </p>
     </div>
   );

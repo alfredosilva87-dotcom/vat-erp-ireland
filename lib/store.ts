@@ -758,6 +758,45 @@ async function teachAccount(clientId: string, description: string, code: string 
 }
 
 // ---------------- Auth users ----------------
+// ---------------- App users ----------------
+export async function listAppUsers(): Promise<AppUser[]> {
+  const { data } = await sb().from("app_users").select("*").order("created_at");
+  return (data ?? []) as AppUser[];
+}
+
+export async function createAppUser(input: {
+  email: string; name: string | null; password_hash: string; role: string;
+}): Promise<AppUser> {
+  const { data, error } = await sb().from("app_users").insert({
+    email: input.email.toLowerCase().trim(),
+    name: input.name?.trim() || null,
+    password_hash: input.password_hash,
+    role: input.role,
+    active: true,
+    must_change: false,
+  }).select().single();
+  if (error) throw error;
+  return data as AppUser;
+}
+
+export async function updateAppUser(
+  id: string,
+  patch: Partial<Pick<AppUser, "name" | "role" | "active">> & { password_hash?: string }
+): Promise<AppUser | null> {
+  const row: any = {};
+  for (const k of ["name", "role", "active", "password_hash"]) {
+    if (k in patch) row[k] = (patch as any)[k];
+  }
+  if (!Object.keys(row).length) return null;
+  const { data } = await sb().from("app_users").update(row).eq("id", id).select().maybeSingle();
+  return (data as AppUser) ?? null;
+}
+
+export async function deleteAppUser(id: string): Promise<boolean> {
+  const { error } = await sb().from("app_users").delete().eq("id", id);
+  return !error;
+}
+
 export async function findAppUserByEmail(email: string): Promise<AppUser | null> {
   const { data } = await sb().from("app_users").select("*").eq("email", email.toLowerCase().trim()).eq("active", true).maybeSingle();
   return (data as AppUser) ?? null;
