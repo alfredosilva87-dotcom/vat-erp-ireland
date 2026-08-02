@@ -236,14 +236,46 @@ export async function saveInvoice(payload: SavePayload, fileBuffer: Buffer | nul
   return toInvoice(data);
 }
 
-export async function listInvoices(q?: string, clientId?: string, branchId?: string): Promise<StoredInvoice[]> {
+export interface InvoiceFilter {
+  q?: string;
+  clientId?: string;
+  branchId?: string;
+  /** Inclusive yyyy-mm-dd bounds on posting_date (falling back to invoice_date). */
+  start?: string;
+  end?: string;
+  needsReview?: boolean;
+}
+
+export async function listInvoices(
+  q?: string | InvoiceFilter,
+  clientId?: string,
+  branchId?: string
+): Promise<StoredInvoice[]> {
+  // Accepts either the original positional args or a filter object.
+  const f: InvoiceFilter = typeof q === "object" && q !== null ? q : { q, clientId, branchId };
+
   let query = sb().from("invoices").select("*").order("created_at", { ascending: false });
-  if (clientId) query = query.eq("client_id", clientId);
-  if (branchId) query = query.eq("branch_id", branchId);
+  if (f.clientId) query = query.eq("client_id", f.clientId);
+  if (f.branchId) query = query.eq("branch_id", f.branchId);
+  if (f.needsReview) query = query.eq("needs_review", true);
   const { data } = await query;
-  const list = (data ?? []).map(toInvoice);
-  if (!q) return list;
-  const s = normKey(q);
+
+  let list = (data ?? []).map(toInvoice);
+
+  // Date filtering happens here (not in SQL) because the effective date is
+  // posting_date with invoice_date as fallback.
+  if (f.start || f.end) {
+    list = list.filter((i) => {
+      const d = i.posting_date || i.invoice_date;
+      if (!d) return false;
+      if (f.start && d < f.start) return false;
+      if (f.end && d > f.end) return false;
+      return true;
+    });
+  }
+
+  if (!f.q) return list;
+  const s = normKey(f.q);
   const ids = list.map((i) => i.id);
   const { data: items } = await sb().from("invoice_items").select("invoice_id,description,category_name").in("invoice_id", ids);
   const byInv = new Map<string, any[]>();
@@ -489,22 +521,53 @@ export async function vatByRate(clientId: string, start: string, end: string): P
   return { purchases, sales: salesByRate };
 }
 
-// Full export payload for a client + year (Excel/PDF build on the client)
-export async function exportData(clientId: string, year: number) {
+/** Datasets an export can include. */
+export type ExportSet = "invoices" | "items" | "sales" | "obligations" | "rates" | "accounts";
+export const ALL_EXPORT_SETS: ExportSet[] = ["invoices", "items", "sales", "obligations", "rates", "accounts"];
+
+export interface ExportOptions {
+  /** Inclusive yyyy-mm-dd. Defaults to the whole year. */
+  start?: string;
+  end?: string;
+  sets?: ExportSet[];
+}
+
+// Export payload for a client over an arbitrary period, limited to the
+// datasets asked for so a "just the invoices for March" export stays cheap.
+export async function exportData(clientId: string, year: number, opts: ExportOptions = {}) {
   const client = await getClient(clientId);
-  const start = `${year}-01-01`, end = `${year}-12-31`;
-  const allInv = await listInvoices(undefined, clientId);
-  const invoices = allInv.filter((i) => { const d = i.posting_date || i.invoice_date; return d ? String(d).startsWith(String(year)) : true; });
-  const ids = invoices.map((i) => i.id);
+  const start = opts.start || `${year}-01-01`;
+  const end = opts.end || `${year}-12-31`;
+  const sets = new Set<ExportSet>(opts.sets?.length ? opts.sets : ALL_EXPORT_SETS);
+
+  const wantsInvoices = sets.has("invoices") || sets.has("items");
+  const invoices = wantsInvoices ? await listInvoices({ clientId, start, end }) : [];
+
   let items: StoredItem[] = [];
-  if (ids.length) {
-    const { data } = await sb().from("invoice_items").select("*").in("invoice_id", ids);
+  if (sets.has("items") && invoices.length) {
+    const { data } = await sb().from("invoice_items").select("*").in("invoice_id", invoices.map((i) => i.id));
     items = (data ?? []) as StoredItem[];
   }
-  const obligations = await getObligations(clientId, year);
-  const rates = await vatByRate(clientId, start, end);
+
+  let sales: SalesEntry[] = [];
+  if (sets.has("sales")) {
+    const { data } = await sb().from("sales").select("*").eq("client_id", clientId)
+      .gte("entry_date", start).lte("entry_date", end).order("entry_date");
+    sales = (data ?? []) as SalesEntry[];
+  }
+
+  let accounts: ChartAccount[] = [];
+  if (sets.has("accounts")) accounts = await listAccounts(clientId);
+
+  const obligations = sets.has("obligations") ? await getObligations(clientId, year) : [];
+  const rates = sets.has("rates") ? await vatByRate(clientId, start, end) : { purchases: [], sales: [] };
   const series = await monthlySeries(clientId, year);
-  return { client, year, invoices, items, obligations, rates, series };
+
+  return {
+    client, year, start, end, sets: Array.from(sets),
+    invoices: sets.has("invoices") ? invoices : [],
+    items, sales, accounts, obligations, rates, series,
+  };
 }
 
 // ---------------- Client dashboard ----------------

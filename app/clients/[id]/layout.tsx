@@ -2,9 +2,10 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { useCallback, useEffect, useState } from "react";
+import { useEffect, useState } from "react";
 import type { Client, StoredInvoice } from "@/lib/types";
 import { setCurrentClient } from "@/lib/currentClient";
+import ExportPanel from "@/components/ExportPanel";
 
 const money = (n: number) =>
   n.toLocaleString("en-IE", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
@@ -51,12 +52,6 @@ export default function ClientLayout({
   const base = `/clients/${params.id}`;
   const currentSeg = pathname === base ? "" : pathname.slice(base.length + 1).split("/")[0];
 
-  // The workbook is built and styled server-side; just hand the browser the URL.
-  const exportExcel = useCallback(() => {
-    const year = new Date().getFullYear();
-    window.location.href = `/api/clients/${params.id}/export.xlsx?year=${year}`;
-  }, [params.id]);
-
   function makeActive() {
     if (!client) return;
     setCurrentClient({ id: client.id, name: client.name, activity_code: client.activity_code });
@@ -94,12 +89,7 @@ export default function ClientLayout({
             <button className="btn-ghost h-9 px-3 text-xs" onClick={makeActive}>
               {active ? "Active ✓" : "Set as active"}
             </button>
-            <button className="btn-ghost h-9 px-3 text-xs" onClick={exportExcel}>
-              Export Excel
-            </button>
-            <button className="btn-primary h-9 px-3 text-xs" onClick={() => window.print()}>
-              Export PDF
-            </button>
+            <ExportPanel clientId={params.id} />
           </div>
         </div>
 

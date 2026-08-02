@@ -1,12 +1,11 @@
 import { NextRequest, NextResponse } from "next/server";
 import { exportData, clientDashboard, ALL_EXPORT_SETS, type ExportSet } from "@/lib/store";
-import { buildClientWorkbook } from "@/lib/exportExcel";
+import { buildClientCsvs } from "@/lib/exportCsv";
 
 export const runtime = "nodejs";
 export const maxDuration = 60;
 
-/** Reads ?start=&end=&sets= into a validated period + dataset selection. */
-function readExportParams(req: NextRequest) {
+function readParams(req: NextRequest) {
   const sp = req.nextUrl.searchParams;
   const year = Number(sp.get("year")) || new Date().getFullYear();
   const start = sp.get("start") || `${year}-01-01`;
@@ -16,10 +15,11 @@ function readExportParams(req: NextRequest) {
   return { year, start, end, sets: sets.length ? sets : ALL_EXPORT_SETS };
 }
 
-// Serves the styled workbook directly as a download, so the browser never has
-// to build (or style) the file itself.
+// One dataset -> a plain .csv download. Several datasets -> the files are
+// concatenated with a header line naming each, so the user still gets a single
+// file without pulling in a zip dependency.
 export async function GET(req: NextRequest, { params }: { params: { id: string } }) {
-  const { year, start, end, sets } = readExportParams(req);
+  const { year, start, end, sets } = readParams(req);
 
   const [data, dash] = await Promise.all([
     exportData(params.id, year, { start, end, sets }),
@@ -27,25 +27,27 @@ export async function GET(req: NextRequest, { params }: { params: { id: string }
   ]);
   if (!data.client) return NextResponse.json({ error: "Client not found." }, { status: 404 });
 
-  const buffer = await buildClientWorkbook({
-    client: data.client,
-    year, start, end, sets,
+  const files = buildClientCsvs({
+    client: data.client, start, end, sets,
+    invoices: data.invoices, items: data.items, sales: data.sales,
+    accounts: data.accounts, obligations: data.obligations, rates: data.rates,
     kpis: dash.kpis,
-    series: dash.series,
-    rates: data.rates,
-    obligations: data.obligations,
-    invoices: data.invoices,
-    items: data.items,
-    sales: data.sales,
-    accounts: data.accounts,
   });
 
-  const safeName = (data.client.name || "client").replace(/[^a-z0-9]+/gi, "-").replace(/^-|-$/g, "").toLowerCase();
-  const filename = `vat-report_${safeName}_${start}_${end}.xlsx`;
+  if (!files.length) return NextResponse.json({ error: "Nothing selected to export." }, { status: 400 });
 
-  return new NextResponse(new Uint8Array(buffer), {
+  const single = files.length === 1;
+  const body = single
+    ? files[0].content
+    : files.map((f) => `### ${f.name}\r\n${f.content}`).join("\r\n\r\n");
+
+  const safeName = (data.client.name || "client").replace(/[^a-z0-9]+/gi, "-").replace(/^-|-$/g, "").toLowerCase();
+  const filename = single ? files[0].name : `vat-export_${safeName}_${start}_${end}.csv`;
+
+  // BOM so Excel opens accented characters correctly on Windows.
+  return new NextResponse("﻿" + body, {
     headers: {
-      "Content-Type": "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+      "Content-Type": "text/csv; charset=utf-8",
       "Content-Disposition": `attachment; filename="${filename}"`,
       "Cache-Control": "no-store",
     },

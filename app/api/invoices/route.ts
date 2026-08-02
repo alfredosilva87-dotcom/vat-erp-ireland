@@ -9,11 +9,17 @@ export async function GET(req: NextRequest) {
   const q = searchParams.get("q") || undefined;
   const clientId = searchParams.get("client") || undefined;
   const branchId = searchParams.get("branch") || undefined;
+  const start = searchParams.get("start") || undefined;
+  const end = searchParams.get("end") || undefined;
+  const needsReview = searchParams.get("review") === "1";
   const view = searchParams.get("view"); // "items" for de-para master
   if (view === "items") {
     return NextResponse.json({ items: await listMasterItems(q), stats: await stats(clientId) });
   }
-  return NextResponse.json({ invoices: await listInvoices(q, clientId, branchId), stats: await stats(clientId) });
+  return NextResponse.json({
+    invoices: await listInvoices({ q, clientId, branchId, start, end, needsReview }),
+    stats: await stats(clientId),
+  });
 }
 
 export async function POST(req: NextRequest) {

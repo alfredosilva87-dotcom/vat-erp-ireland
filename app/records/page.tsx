@@ -4,6 +4,7 @@ import { useCallback, useEffect, useState } from "react";
 import type { StoredInvoice, MasterItem } from "@/lib/types";
 import Link from "next/link";
 import { getCurrentClient } from "@/lib/currentClient";
+import ExportPanel from "@/components/ExportPanel";
 
 type Stats = { invoices: number; items: number; unique_items: number; total_credit: number };
 
@@ -24,17 +25,21 @@ export default function Records() {
   const [clientId, setClientId] = useState<string>("");
   const [branches, setBranches] = useState<{ id: string; name: string; code: string | null }[]>([]);
   const [branchId, setBranchId] = useState<string>("");
+  const [start, setStart] = useState("");
+  const [end, setEnd] = useState("");
+  const [onlyReview, setOnlyReview] = useState(false);
 
   const load = useCallback(async () => {
     setLoading(true);
     try {
-      const cp = clientId ? `&client=${clientId}` : "";
-      const bp = branchId ? `&branch=${branchId}` : "";
-      const url =
-        tab === "items"
-          ? `/api/invoices?view=items&q=${encodeURIComponent(query)}${cp}`
-          : `/api/invoices?q=${encodeURIComponent(query)}${cp}${bp}`;
-      const res = await fetch(url);
+      const p = new URLSearchParams({ q: query });
+      if (clientId) p.set("client", clientId);
+      if (branchId) p.set("branch", branchId);
+      if (start) p.set("start", start);
+      if (end) p.set("end", end);
+      if (onlyReview) p.set("review", "1");
+      if (tab === "items") p.set("view", "items");
+      const res = await fetch(`/api/invoices?${p.toString()}`);
       const data = await res.json();
       setStats(data.stats);
       if (tab === "items") setItems(data.items || []);
@@ -42,7 +47,12 @@ export default function Records() {
     } finally {
       setLoading(false);
     }
-  }, [tab, query, clientId, branchId]);
+  }, [tab, query, clientId, branchId, start, end, onlyReview]);
+
+  const filtersOn = !!(start || end || onlyReview || clientId || branchId || query);
+  function clearFilters() {
+    setStart(""); setEnd(""); setOnlyReview(false); setBranchId(""); setQ(""); setQuery("");
+  }
 
   useEffect(() => {
     fetch("/api/clients")
@@ -124,21 +134,60 @@ export default function Records() {
           <button className="btn-primary" type="submit">
             <SearchIcon /> Search
           </button>
-          {query && (
-            <button
-              type="button"
-              className="btn-ghost"
-              onClick={() => {
-                setQ("");
-                setQuery("");
-              }}
-            >
-              Clear
-            </button>
-          )}
           </form>
         </div>
       </div>
+
+      {/* Period + status filters */}
+      {tab === "invoices" && (
+        <div className="card flex flex-wrap items-end gap-3 p-4">
+          <div>
+            <label className="label">Posting from</label>
+            <input type="date" className="input h-9 w-40 text-sm" value={start} onChange={(e) => setStart(e.target.value)} />
+          </div>
+          <div>
+            <label className="label">to</label>
+            <input type="date" className="input h-9 w-40 text-sm" value={end} onChange={(e) => setEnd(e.target.value)} />
+          </div>
+          <div className="flex flex-wrap gap-1.5 pb-0.5">
+            {([["month", "This month"], ["prev", "Last month"], ["year", "This year"]] as const).map(([k, lbl]) => (
+              <button
+                key={k}
+                className="rounded-lg bg-surface-2 px-2.5 py-1.5 text-xs font-medium text-muted transition-colors hover:text-ink"
+                onClick={() => {
+                  const n = new Date(), y = n.getFullYear(), m = n.getMonth();
+                  const p = (x: number) => String(x).padStart(2, "0");
+                  const f = (d: Date) => `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}`;
+                  if (k === "month") { setStart(f(new Date(y, m, 1))); setEnd(f(new Date(y, m + 1, 0))); }
+                  else if (k === "prev") { setStart(f(new Date(y, m - 1, 1))); setEnd(f(new Date(y, m, 0))); }
+                  else { setStart(`${y}-01-01`); setEnd(`${y}-12-31`); }
+                }}
+              >
+                {lbl}
+              </button>
+            ))}
+          </div>
+
+          <label className="flex cursor-pointer items-center gap-2 pb-1.5 text-sm">
+            <input
+              type="checkbox" checked={onlyReview} onChange={(e) => setOnlyReview(e.target.checked)}
+              className="h-3.5 w-3.5 accent-[rgb(var(--c-brand))]"
+            />
+            Only needs review
+          </label>
+
+          <div className="ml-auto flex items-center gap-2 pb-0.5">
+            {filtersOn && (
+              <button className="btn-ghost h-9 px-3 text-xs" onClick={clearFilters}>Clear filters</button>
+            )}
+            {clientId ? (
+              <ExportPanel clientId={clientId} />
+            ) : (
+              <span className="text-xs text-muted">Pick a client to export</span>
+            )}
+          </div>
+        </div>
+      )}
 
       {/* Invoices */}
       {tab === "invoices" && (

@@ -14,6 +14,8 @@
     "bcryptjs": "^2.4.3",
     "exceljs": "^4.4.0",
     "jose": "^5.9.6",
+    "jspdf": "^2.5.2",
+    "jspdf-autotable": "^3.8.4",
     "next": "14.2.35",
     "pdf-parse": "^1.1.1",
     "react": "^18.3.1",

@@ -152,6 +152,11 @@ function sheetTitle(ws: ExcelJS.Worksheet, title: string, subtitle: string, last
 export interface WorkbookInput {
   client: any;
   year: number;
+  /** Period actually covered, shown in the header. */
+  start?: string;
+  end?: string;
+  /** Datasets to include; omit for everything. */
+  sets?: string[];
   kpis: {
     salesGross: number; salesVat: number; purchaseGross: number;
     inputCredit: number; vatPayable: number; invoiceCount: number; salesCount: number;
@@ -161,6 +166,8 @@ export interface WorkbookInput {
   obligations: any[];
   invoices: any[];
   items: any[];
+  sales?: any[];
+  accounts?: any[];
 }
 
 export async function buildClientWorkbook(d: WorkbookInput): Promise<Buffer> {
@@ -170,6 +177,8 @@ export async function buildClientWorkbook(d: WorkbookInput): Promise<Buffer> {
 
   const clientName = d.client?.name ?? "Client";
   const generated = new Date().toISOString().slice(0, 10);
+  const has = (s: string) => !d.sets?.length || d.sets.includes(s);
+  const period = d.start && d.end ? `${d.start} a ${d.end}` : String(d.year);
 
   // ---------------- Sheet 1: Dashboard ----------------
   const dash = wb.addWorksheet("Dashboard", {
@@ -181,9 +190,10 @@ export async function buildClientWorkbook(d: WorkbookInput): Promise<Buffer> {
 
   sheetTitle(
     dash,
-    `${clientName} — Resumo fiscal ${d.year}`,
+    `${clientName} — Resumo fiscal`,
     `${d.client?.client_code ?? ""} · ${d.client?.activity_label ?? ""}` +
-      `${d.client?.vat_number ? ` · VAT ${d.client.vat_number}` : ""} · Gerado em ${generated}`,
+      `${d.client?.vat_number ? ` · VAT ${d.client.vat_number}` : ""}` +
+      ` · Período ${period} · Gerado em ${generated}`,
     "P"
   );
 
@@ -267,6 +277,7 @@ export async function buildClientWorkbook(d: WorkbookInput): Promise<Buffer> {
   note.alignment = { wrapText: true, vertical: "top" };
 
   // ---------------- Sheet 3: VAT por alíquota ----------------
+  if (has("rates")) {
   const vat = wb.addWorksheet("VAT por aliquota", { properties: { tabColor: { argb: C.accent } } });
   const allRates = Array.from(new Set([
     ...d.rates.sales.map((r: any) => r.rate),
@@ -298,8 +309,10 @@ export async function buildClientWorkbook(d: WorkbookInput): Promise<Buffer> {
       ],
     }
   );
+  }
 
   // ---------------- Sheet 4: Apurações ----------------
+  if (has("obligations")) {
   const obl = wb.addWorksheet("Apuracoes", { properties: { tabColor: { argb: C.accent } } });
   table(obl,
     ["Tipo", "Período", "Vencimento", "T1 · VAT vendas €", "T2 · VAT compras €", "T3 · Líquido €", "Situação"],
@@ -319,8 +332,10 @@ export async function buildClientWorkbook(d: WorkbookInput): Promise<Buffer> {
       }],
     });
   }
+  }
 
   // ---------------- Sheet 5: Notas ----------------
+  if (has("invoices")) {
   const inv = wb.addWorksheet("Notas", { properties: { tabColor: { argb: C.accent } } });
   table(inv,
     ["Lançamento", "Emissão", "Fornecedor", "Filial", "Documento", "Tipo", "Líquido €", "VAT €", "Bruto €", "Crédito €", "Revisar"],
@@ -332,8 +347,10 @@ export async function buildClientWorkbook(d: WorkbookInput): Promise<Buffer> {
     ]),
     { moneyCols: [6, 7, 8, 9] }
   );
+  }
 
   // ---------------- Sheet 6: Itens ----------------
+  if (has("items")) {
   const it = wb.addWorksheet("Itens", { properties: { tabColor: { argb: C.accent } } });
   const invById = new Map(d.invoices.map((i: any) => [i.id, i]));
   table(it,
@@ -349,6 +366,41 @@ export async function buildClientWorkbook(d: WorkbookInput): Promise<Buffer> {
     }),
     { moneyCols: [6, 8, 9] }
   );
+  }
+
+  // ---------------- Sheet 7: Vendas (T1) ----------------
+  if (has("sales")) {
+    const sl = wb.addWorksheet("Vendas", { properties: { tabColor: { argb: C.accent } } });
+    const rows = (d.sales ?? []).map((s: any) => [
+      s.entry_date || "", s.doc_number || "", s.customer || "",
+      r2(s.net_amount), Number(s.vat_rate ?? 0), r2(s.vat_amount),
+      r2((s.net_amount || 0) + (s.vat_amount || 0)), s.account_code || "",
+    ]);
+    table(sl,
+      ["Data", "Documento", "Cliente", "Líquido €", "Taxa %", "VAT €", "Bruto €", "Conta"],
+      rows,
+      {
+        moneyCols: [3, 5, 6],
+        totals: [
+          "Total", "", "",
+          r2(rows.reduce((a, r) => a + (r[3] as number), 0)), "",
+          r2(rows.reduce((a, r) => a + (r[5] as number), 0)),
+          r2(rows.reduce((a, r) => a + (r[6] as number), 0)), "",
+        ],
+      }
+    );
+  }
+
+  // ---------------- Sheet 8: Plano de contas ----------------
+  if (has("accounts")) {
+    const acc = wb.addWorksheet("Plano de contas", { properties: { tabColor: { argb: C.accent } } });
+    table(acc,
+      ["Código", "Descrição", "Conta pai", "Ativa"],
+      (d.accounts ?? []).map((a: any) => [
+        a.code || "", a.description || "", a.parent_code || "", a.active === false ? "Não" : "Sim",
+      ])
+    );
+  }
 
   const out = await wb.xlsx.writeBuffer();
   return Buffer.from(out);
