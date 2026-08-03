@@ -42,6 +42,12 @@ Aplicativo web (ERP contábil) para **VAT da Irlanda**. Lê notas fiscais (PDF/i
 | v0.7 | Upload de vendas por arquivo (Excel/CSV/TXT/extrato) com detecção de colunas, carrega na grade para revisão |
 | v0.8 | Ponte Bright/BrightBooks (CSV export + API stub) |
 | v0.9 | Confiabilidade da leitura (score real + escalonamento p/ visão + needs_review) e crédito por categoria de negócio (11 atividades + default por cliente) |
+| v1.0 | Identidade roxo/escuro + tema claro, sub-painel do cliente com abas, menu retrátil, gráfico entradas×saídas, import paralelo |
+| v1.1 | Dashboard fiscal auto-alimentado (KPIs T1/T2/T3, linha, rosca, obrigações próximas) e Excel estilizado com ExcelJS |
+| v1.2 | Exportação Excel/CSV/PDF com seleção de período e de quais dados; filtros de data e revisão na Database |
+| v1.3 | Idiomas EN/PT completos (5 no seletor), Configurações, contas de usuário e permissões por perfil |
+| v1.4 | Aba Compras (T2) por cliente e exclusão em lote |
+| v1.5 | Multi-empresa: login por empresa, isolamento de dados e painel master com licença anual |
 
 **Convenção do projeto**: cada mudança é entregue com uma tag de versão + descrição.
 
