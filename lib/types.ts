@@ -229,8 +229,22 @@ export interface AppUser {
   email: string;
   name: string | null;
   password_hash: string;
-  role: string;          // 'admin' | 'user'
+  role: string;          // 'user' | 'admin' | 'master'
   active: boolean;
   must_change: boolean;
+  company_id: string | null;
+  created_at: string;
+}
+
+/** Tenant: the accounting practice using the system. */
+export interface Company {
+  id: string;
+  name: string;
+  slug: string;
+  active: boolean;
+  license_key: string | null;
+  license_expires_at: string | null;
+  contact_email: string | null;
+  notes: string | null;
   created_at: string;
 }

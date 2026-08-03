@@ -4,11 +4,17 @@ import bcrypt from "bcryptjs";
 import { cookies } from "next/headers";
 import { hasSupabaseConfig, getServerSupabase } from "@/lib/supabase";
 import { findAppUserByEmail } from "@/lib/store";
-import type { AppUser } from "@/lib/types";
+import type { AppUser, Company } from "@/lib/types";
 
 export const SESSION_COOKIE = "vat_session";
 
-export type SessionUser = { id: string; email: string; name: string | null; role: string };
+export type SessionUser = {
+  id: string; email: string; name: string | null; role: string;
+  company_id: string | null; company_slug: string | null; company_name: string | null;
+};
+
+/** Why a sign-in was refused, so the UI can say something useful. */
+export type LoginFailure = "invalid" | "companyInactive" | "licenseExpired";
 
 function secret() {
   return new TextEncoder().encode(process.env.AUTH_SECRET || "dev-insecure-secret-change-me");
@@ -29,16 +35,57 @@ async function lookup(email: string): Promise<AppUser | null> {
   return await findAppUserByEmail(e);
 }
 
-export async function verifyCredentials(email: string, password: string): Promise<SessionUser | null> {
+/**
+ * Verifies credentials and the tenant's standing in one step: a correct
+ * password is not enough if the company is switched off or the licence has
+ * lapsed. `companySlug` is optional — users belonging to a single company do
+ * not have to type it.
+ */
+export async function verifyCredentials(
+  email: string,
+  password: string,
+  companySlug?: string
+): Promise<{ user: SessionUser } | { failure: LoginFailure }> {
   const u = await lookup(email);
-  if (!u) return null;
-  const ok = await bcrypt.compare(password, u.password_hash);
-  if (!ok) return null;
-  return { id: u.id, email: u.email, name: u.name, role: u.role };
+  if (!u) return { failure: "invalid" };
+  if (!(await bcrypt.compare(password, u.password_hash))) return { failure: "invalid" };
+
+  let company: Company | null = null;
+  if (u.company_id && hasSupabaseConfig()) {
+    const { data } = await getServerSupabase()
+      .from("companies").select("*").eq("id", u.company_id).maybeSingle();
+    company = (data as Company) ?? null;
+  }
+
+  // A slug typed at login must match the account, else it is a wrong sign-in.
+  if (companySlug && company && company.slug.toLowerCase() !== companySlug.toLowerCase()) {
+    return { failure: "invalid" };
+  }
+
+  if (company) {
+    if (!company.active) return { failure: "companyInactive" };
+    if (company.license_expires_at && company.license_expires_at < new Date().toISOString().slice(0, 10)) {
+      // A master must still get in — otherwise an expired licence locks the
+      // person who renews it out of the master panel.
+      if (u.role !== "master") return { failure: "licenseExpired" };
+    }
+  }
+
+  return {
+    user: {
+      id: u.id, email: u.email, name: u.name, role: u.role,
+      company_id: u.company_id ?? null,
+      company_slug: company?.slug ?? null,
+      company_name: company?.name ?? null,
+    },
+  };
 }
 
 export async function createSession(user: SessionUser) {
-  const token = await new SignJWT({ email: user.email, name: user.name, role: user.role })
+  const token = await new SignJWT({
+    email: user.email, name: user.name, role: user.role,
+    company_id: user.company_id, company_slug: user.company_slug, company_name: user.company_name,
+  })
     .setProtectedHeader({ alg: "HS256" })
     .setSubject(user.id)
     .setIssuedAt()
@@ -94,7 +141,15 @@ export async function getSessionUser(): Promise<SessionUser | null> {
   if (!token) return null;
   try {
     const { payload } = await jwtVerify(token, secret());
-    return { id: String(payload.sub), email: String(payload.email), name: (payload.name as string) ?? null, role: String(payload.role) };
+    return {
+      id: String(payload.sub),
+      email: String(payload.email),
+      name: (payload.name as string) ?? null,
+      role: String(payload.role),
+      company_id: (payload.company_id as string) ?? null,
+      company_slug: (payload.company_slug as string) ?? null,
+      company_name: (payload.company_name as string) ?? null,
+    };
   } catch {
     return null;
   }

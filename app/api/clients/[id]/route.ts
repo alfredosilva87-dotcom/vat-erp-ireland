@@ -1,11 +1,12 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getClient, updateClient, deleteClient } from "@/lib/store";
-import { requireRole } from "@/lib/auth";
+import { requireRole, getSessionUser } from "@/lib/auth";
 
 export const runtime = "nodejs";
 
 export async function GET(_req: NextRequest, { params }: { params: { id: string } }) {
-  const client = await getClient(params.id);
+  const company = (await getSessionUser())?.company_id ?? null;
+  const client = await getClient(params.id, company);
   if (!client) return NextResponse.json({ error: "Not found." }, { status: 404 });
   return NextResponse.json({ client });
 }

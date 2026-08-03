@@ -22,6 +22,7 @@ export default function Sidebar() {
   const pathname = usePathname();
   const { t } = useT();
   const [client, setClient] = useState<CurrentClient>(null);
+  const [isMaster, setIsMaster] = useState(false);
   // Undefined until read from storage, so the first paint doesn't flash the
   // wrong width.
   const [collapsed, setCollapsed] = useState<boolean | undefined>(undefined);
@@ -31,6 +32,11 @@ export default function Sidebar() {
     read();
     window.addEventListener("current-client-changed", read);
     return () => window.removeEventListener("current-client-changed", read);
+  }, []);
+
+  useEffect(() => {
+    fetch("/api/auth/me").then((r) => r.json())
+      .then((d) => setIsMaster(d.user?.role === "master")).catch(() => {});
   }, []);
 
   useEffect(() => {
@@ -95,6 +101,16 @@ export default function Sidebar() {
             </Link>
           );
         })}
+        {isMaster && (
+          <Link
+            href="/master"
+            className={`nav-item ${pathname.startsWith("/master") ? "nav-item-active" : ""}`}
+            title={t("master.title")}
+          >
+            <IconShield />
+            <span className={showLabel}>{t("master.title")}</span>
+          </Link>
+        )}
       </nav>
 
       {/* Client card → selected client's home; small switch link */}
@@ -172,5 +188,6 @@ function IconUsers() { return base(<><circle cx="9" cy="8" r="3.2" {...S} /><pat
 function IconScan() { return base(<><path d="M4 8V6a2 2 0 0 1 2-2h2M16 4h2a2 2 0 0 1 2 2v2M20 16v2a2 2 0 0 1-2 2h-2M8 20H6a2 2 0 0 1-2-2v-2" {...S} /><path d="M7 12h10" {...S} /></>); }
 function IconStack() { return base(<><path d="M12 3l9 5-9 5-9-5 9-5Z" {...S} /><path d="M3 12l9 5 9-5M3 16l9 5 9-5" {...S} /></>); }
 function IconTag() { return base(<><path d="M3 12V5a2 2 0 0 1 2-2h7l9 9-9 9-9-9Z" {...S} /><circle cx="7.5" cy="7.5" r="1.3" fill="currentColor" stroke="none" /></>); }
+function IconShield() { return base(<><path d="M12 3l7 3v5.5c0 4.2-2.9 7.9-7 8.9-4.1-1-7-4.7-7-8.9V6l7-3Z" {...S} /><path d="m9.5 12 1.8 1.8 3.4-3.6" {...S} /></>); }
 function IconCog() { return base(<><circle cx="12" cy="12" r="3.2" {...S} /><path d="M19.4 15a1.7 1.7 0 0 0 .34 1.88l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.7 1.7 0 0 0-1.88-.34 1.7 1.7 0 0 0-1.03 1.56V21a2 2 0 1 1-4 0v-.09A1.7 1.7 0 0 0 8.9 19.3a1.7 1.7 0 0 0-1.88.34l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06A1.7 1.7 0 0 0 4.7 15a1.7 1.7 0 0 0-1.56-1.03H3a2 2 0 1 1 0-4h.09A1.7 1.7 0 0 0 4.7 8.9a1.7 1.7 0 0 0-.34-1.88l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06A1.7 1.7 0 0 0 9 4.6a1.7 1.7 0 0 0 1-1.56V3a2 2 0 1 1 4 0v.09a1.7 1.7 0 0 0 1.03 1.56 1.7 1.7 0 0 0 1.88-.34l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06A1.7 1.7 0 0 0 19.4 9v.09a1.7 1.7 0 0 0 1.56 1.03H21a2 2 0 1 1 0 4h-.09a1.7 1.7 0 0 0-1.51 1.03Z" {...S} /></>); }
 function IconPercent() { return base(<><path d="M19 5 5 19" {...S} /><circle cx="7.5" cy="7.5" r="2.5" {...S} /><circle cx="16.5" cy="16.5" r="2.5" {...S} /></>); }

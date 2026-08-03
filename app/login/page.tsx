@@ -2,9 +2,12 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
+import { useT, type TKey } from "@/lib/i18n";
 
 export default function Login() {
   const router = useRouter();
+  const { t } = useT();
+  const [company, setCompany] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [show, setShow] = useState(false);
@@ -19,10 +22,11 @@ export default function Login() {
       const res = await fetch("/api/auth/login", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ email, password }),
+        body: JSON.stringify({ email, password, company: company.trim() || undefined }),
       });
       const data = await res.json();
-      if (!res.ok) throw new Error(data.error || "Login failed.");
+      // The API returns an i18n key so the reason shows in the chosen language.
+      if (!res.ok) throw new Error(data.messageKey ? t(data.messageKey as TKey) : (data.error || t("login.invalid")));
       const next = new URLSearchParams(window.location.search).get("next") || "/";
       router.push(next);
       router.refresh();
@@ -78,12 +82,22 @@ export default function Login() {
               V
             </span>
           </div>
-          <h2 className="font-display text-2xl font-semibold tracking-tight">Sign in</h2>
-          <p className="mt-1 text-sm text-muted">Welcome back. Enter your credentials to continue.</p>
+          <h2 className="font-display text-2xl font-semibold tracking-tight">{t("login.signIn")}</h2>
+          <p className="mt-1 text-sm text-muted">{t("login.welcome")}</p>
 
           <form onSubmit={submit} className="mt-7 space-y-4">
             <div>
-              <label className="label" htmlFor="email">Email</label>
+              <label className="label" htmlFor="company">{t("login.company")}</label>
+              <input
+                id="company" className="input" value={company} autoComplete="organization"
+                placeholder="precisetax"
+                onChange={(e) => setCompany(e.target.value)}
+              />
+              <p className="mt-1 text-xs text-muted">{t("login.companyHelp")}</p>
+            </div>
+
+            <div>
+              <label className="label" htmlFor="email">{t("login.email")}</label>
               <input
                 id="email"
                 type="email"
@@ -96,7 +110,7 @@ export default function Login() {
               />
             </div>
             <div>
-              <label className="label" htmlFor="password">Password</label>
+              <label className="label" htmlFor="password">{t("login.password")}</label>
               <div className="relative">
                 <input
                   id="password"
@@ -113,7 +127,7 @@ export default function Login() {
                   onClick={() => setShow((v) => !v)}
                   className="absolute right-2 top-1/2 -translate-y-1/2 rounded-md px-2 py-1 text-xs font-medium text-muted hover:text-ink"
                 >
-                  {show ? "Hide" : "Show"}
+                  {show ? t("login.hide") : t("login.show")}
                 </button>
               </div>
             </div>
@@ -125,12 +139,12 @@ export default function Login() {
             )}
 
             <button className="btn-primary w-full" type="submit" disabled={loading}>
-              {loading ? "Signing in…" : "Sign in"}
+              {loading ? t("login.signingIn") : t("login.signIn")}
             </button>
           </form>
 
           <p className="mt-8 text-center text-xs text-muted">
-            Protected area — access is restricted to authorised users.
+            {t("login.protected")}
           </p>
         </div>
       </div>

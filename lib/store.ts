@@ -2,7 +2,7 @@ import { randomUUID } from "crypto";
 import { getServerSupabase } from "@/lib/supabase";
 import type {
   StoredInvoice, StoredItem, MasterItem, Client, ClientWithStats,
-  CreditRule, ClientObligation, SalesEntry, AppUser, ChartAccount, Branch,
+  CreditRule, ClientObligation, SalesEntry, AppUser, ChartAccount, Branch, Company,
 } from "@/lib/types";
 
 // Supabase-backed data layer (server-only, service-role). Same export names.
@@ -18,8 +18,13 @@ function toInvoice(r: any): StoredInvoice {
 }
 
 // ---------------- Clients ----------------
-export async function listClients(q?: string): Promise<Client[]> {
-  const { data } = await sb().from("clients").select("*").order("name");
+// Tenant isolation happens here. Every other table hangs off clients.client_id,
+// so scoping the client list (and the id lookup) by company keeps a whole
+// tenant separate without touching the rest of the queries.
+export async function listClients(q?: string, companyId?: string | null): Promise<Client[]> {
+  let query = sb().from("clients").select("*").order("name");
+  if (companyId) query = query.eq("company_id", companyId);
+  const { data } = await query;
   const list = (data ?? []) as Client[];
   if (!q) return list;
   const s = normKey(q);
@@ -27,8 +32,10 @@ export async function listClients(q?: string): Promise<Client[]> {
     normKey([c.name, c.client_code, c.vat_number, c.tax_reg_no, c.email].filter(Boolean).join(" ")).includes(s)
   );
 }
-export async function getClient(id: string): Promise<Client | null> {
-  const { data } = await sb().from("clients").select("*").eq("id", id).maybeSingle();
+export async function getClient(id: string, companyId?: string | null): Promise<Client | null> {
+  let query = sb().from("clients").select("*").eq("id", id);
+  if (companyId) query = query.eq("company_id", companyId);
+  const { data } = await query.maybeSingle();
   return (data as Client) ?? null;
 }
 async function nextClientCode(): Promise<string> {
@@ -47,6 +54,7 @@ export async function createClient(input: Partial<Client>): Promise<Client> {
     activity_code: input.activity_code || "GENERIC",
     activity_label: input.activity_label || "Generic business",
     default_credit_unmatched: input.default_credit_unmatched ?? false,
+    company_id: (input as any).company_id ?? null,
     email: input.email?.trim() || null,
     phone: input.phone?.trim() || null,
     address: input.address?.trim() || null,
@@ -67,8 +75,8 @@ export async function deleteClient(id: string): Promise<boolean> {
   const { error } = await sb().from("clients").delete().eq("id", id);
   return !error;
 }
-export async function clientsWithStats(q?: string): Promise<ClientWithStats[]> {
-  const clients = await listClients(q);
+export async function clientsWithStats(q?: string, companyId?: string | null): Promise<ClientWithStats[]> {
+  const clients = await listClients(q, companyId);
   const { data: invs } = await sb().from("invoices").select("client_id,total_gross,total_credit");
   return clients.map((c) => {
     const mine = (invs ?? []).filter((i: any) => i.client_id === c.id);
@@ -780,19 +788,23 @@ async function teachAccount(clientId: string, description: string, code: string 
 
 // ---------------- Auth users ----------------
 // ---------------- App users ----------------
-export async function listAppUsers(): Promise<AppUser[]> {
-  const { data } = await sb().from("app_users").select("*").order("created_at");
+export async function listAppUsers(companyId?: string | null): Promise<AppUser[]> {
+  let query = sb().from("app_users").select("*").order("created_at");
+  if (companyId) query = query.eq("company_id", companyId);
+  const { data } = await query;
   return (data ?? []) as AppUser[];
 }
 
 export async function createAppUser(input: {
   email: string; name: string | null; password_hash: string; role: string;
+  company_id?: string | null;
 }): Promise<AppUser> {
   const { data, error } = await sb().from("app_users").insert({
     email: input.email.toLowerCase().trim(),
     name: input.name?.trim() || null,
     password_hash: input.password_hash,
     role: input.role,
+    company_id: input.company_id ?? null,
     active: true,
     must_change: false,
   }).select().single();
@@ -858,4 +870,69 @@ export async function stats(clientId?: string) {
     sales_vat: r2(salesVat),
     vat_payable: r2(salesVat - credit),
   };
+}
+
+// ---------------- Companies (tenants) ----------------
+export async function listCompanies(): Promise<Company[]> {
+  const { data } = await sb().from("companies").select("*").order("name");
+  return (data ?? []) as Company[];
+}
+
+export async function companyStats(): Promise<Record<string, { clients: number; users: number }>> {
+  const [{ data: cl }, { data: us }] = await Promise.all([
+    sb().from("clients").select("company_id"),
+    sb().from("app_users").select("company_id"),
+  ]);
+  const out: Record<string, { clients: number; users: number }> = {};
+  const bump = (id: string | null, k: "clients" | "users") => {
+    if (!id) return;
+    out[id] = out[id] || { clients: 0, users: 0 };
+    out[id][k]++;
+  };
+  for (const c of cl ?? []) bump((c as any).company_id, "clients");
+  for (const u of us ?? []) bump((u as any).company_id, "users");
+  return out;
+}
+
+const slugify = (s: string) =>
+  s.toLowerCase().normalize("NFD").replace(/[̀-ͯ]/g, "")
+    .replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "").slice(0, 40) || "company";
+
+/**
+ * Activation key. Random, stored as-is — this is a licence marker the operator
+ * hands over, not a secret that authenticates anything on its own.
+ */
+export function generateLicenseKey(): string {
+  const block = () => randomUUID().replace(/-/g, "").slice(0, 5).toUpperCase();
+  return `VAT-${block()}-${block()}-${block()}`;
+}
+
+export async function createCompany(input: {
+  name: string; slug?: string; contact_email?: string | null; months?: number;
+}): Promise<Company> {
+  const expires = new Date();
+  expires.setMonth(expires.getMonth() + (input.months ?? 12));
+  const { data, error } = await sb().from("companies").insert({
+    name: input.name.trim(),
+    slug: (input.slug?.trim() || slugify(input.name)),
+    active: true,
+    license_key: generateLicenseKey(),
+    license_expires_at: expires.toISOString().slice(0, 10),
+    contact_email: input.contact_email?.trim() || null,
+  }).select().single();
+  if (error) throw error;
+  return data as Company;
+}
+
+export async function updateCompany(
+  id: string,
+  patch: Partial<Pick<Company, "name" | "active" | "license_expires_at" | "license_key" | "contact_email" | "notes">>
+): Promise<Company | null> {
+  const row: any = {};
+  for (const k of ["name", "active", "license_expires_at", "license_key", "contact_email", "notes"]) {
+    if (k in patch) row[k] = (patch as any)[k];
+  }
+  if (!Object.keys(row).length) return null;
+  const { data } = await sb().from("companies").update(row).eq("id", id).select().maybeSingle();
+  return (data as Company) ?? null;
 }

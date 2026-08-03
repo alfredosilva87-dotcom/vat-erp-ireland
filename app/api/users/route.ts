@@ -14,7 +14,7 @@ const safe = (u: any) => ({
 export async function GET() {
   const guard = await requireRole("admin");
   if ("error" in guard) return guard.error;
-  return NextResponse.json({ users: (await listAppUsers()).map(safe) });
+  return NextResponse.json({ users: (await listAppUsers(guard.user.company_id)).map(safe) });
 }
 
 export async function POST(req: NextRequest) {
@@ -45,6 +45,7 @@ export async function POST(req: NextRequest) {
     name: body?.name ? String(body.name) : null,
     password_hash: await bcrypt.hash(password, 10),
     role,
+    company_id: guard.user.company_id,
   });
   return NextResponse.json({ user: safe(user) });
 }
