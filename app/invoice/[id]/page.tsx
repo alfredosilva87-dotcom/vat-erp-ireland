@@ -4,6 +4,7 @@ import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import type { StoredInvoice, StoredItem, ChartAccount, Branch } from "@/lib/types";
+import { computeLines } from "@/lib/vat";
 
 type Cat = { code: string | null; description: string; vat_rate: number };
 
@@ -16,12 +17,19 @@ const numOrNull = (v: string): number | null => {
   return Number.isFinite(n) ? n : null;
 };
 
-const creditValue = (it: StoredItem): number => {
-  if (!it.take_credit) return 0;
-  if (it.vat_amount_on_invoice != null) return it.vat_amount_on_invoice;
-  if (it.net_amount != null && it.expected_vat_rate != null) return (it.net_amount * it.expected_vat_rate) / 100;
-  return 0;
-};
+/**
+ * Per-line VAT for the whole invoice at once — receipts price VAT-inclusive,
+ * so the figure depends on the other lines and on the document totals.
+ * Same helper the server uses when saving, so screen and database agree.
+ */
+function lineCredits(items: StoredItem[], inv: StoredInvoice | null): number[] {
+  const { lines } = computeLines(items, {
+    total_net: inv?.total_net ?? null,
+    total_vat: inv?.total_vat ?? null,
+    total_gross: inv?.total_gross ?? null,
+  });
+  return items.map((it, i) => (it.take_credit ? lines[i].vat : 0));
+}
 
 export default function InvoiceEdit({ params }: { params: { id: string } }) {
   const router = useRouter();
@@ -74,7 +82,8 @@ export default function InvoiceEdit({ params }: { params: { id: string } }) {
     setDirty(true);
   }
 
-  const totalCredit = useMemo(() => items.reduce((a, i) => a + creditValue(i), 0), [items]);
+  const credits = useMemo(() => lineCredits(items, inv), [items, inv]);
+  const totalCredit = useMemo(() => credits.reduce((a, v) => a + v, 0), [credits]);
 
   async function save() {
     if (!inv) return;
@@ -225,7 +234,7 @@ export default function InvoiceEdit({ params }: { params: { id: string } }) {
               </tr>
             </thead>
             <tbody>
-              {items.map((it) => (
+              {items.map((it, idx) => (
                 <tr key={it.id} className="border-b border-line/70 align-middle">
                   <td className="px-3 py-2">
                     <input className="input h-9" value={it.description} onChange={(e) => setItem(it.id, { description: e.target.value })} />
@@ -261,7 +270,7 @@ export default function InvoiceEdit({ params }: { params: { id: string } }) {
                   <td className="px-3 py-2">
                     <input className="input h-9 w-24 text-right" value={it.net_amount ?? ""} onChange={(e) => setItem(it.id, { net_amount: numOrNull(e.target.value) })} />
                   </td>
-                  <td className="px-3 py-2 text-right tnum">{it.take_credit ? money(creditValue(it)) : "—"}</td>
+                  <td className="px-3 py-2 text-right tnum">{it.take_credit ? money(credits[idx]) : "—"}</td>
                   <td className="px-3 py-2 text-center">
                     <button
                       onClick={() => setItem(it.id, { take_credit: !it.take_credit })}

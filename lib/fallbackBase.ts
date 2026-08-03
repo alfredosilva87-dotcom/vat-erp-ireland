@@ -102,8 +102,16 @@ const rule = (
 });
 
 export const FALLBACK_CREDIT_RULES: CreditRule[] = [
+  // Blocked / restricted items under Irish VAT — evaluated before any
+  // business-type rule that might otherwise allow the claim.
+  // "unleaded" only ever appears on real petrol lines; plain "petrol" also
+  // appears in the category name of every fuel, so it sits on the softer rule
+  // below — otherwise diesel gets told that petrol is blocked.
+  rule("*", ["unleaded", "super unleaded", "petrol 95"], false, "Petrol is a blocked item in Ireland — input VAT is never recoverable, regardless of business use.", 5),
+  rule("*", ["diesel", "vehicle fuel", "fuel card", "forecourt", "petrol"], false, "Fuel: diesel for a commercial vehicle is recoverable, petrol never is. Confirm the grade and the business use before claiming.", 6),
+  rule("*", ["confectionery", "chocolate", "savoury snack", "crisps", "soft drink", "biscuit", "sweets", "snack"], false, "Food and drink for own or staff consumption is a blocked item. Only claim if this was bought as stock for resale.", 7),
+  rule("*", ["restaurant meal", "takeaway", "catering service", "personal service"], false, "Meals and personal services are blocked items for input VAT in Ireland.", 8),
   rule("*", ["entertainment", "client entertainment", "hospitality event"], false, "Entertainment is not deductible in Ireland (legal block).", 10),
-  rule("*", ["petrol"], false, "Passenger-car petrol is generally not deductible.", 11),
   rule("*", ["hotel", "accommodation"], false, "Accommodation/meals out may be restricted — review.", 12),
   rule("RESTAURANT", ["prawn", "prawns", "shrimp", "fish", "salmon", "meat", "beef", "steak", "chicken", "wings", "pork", "bacon", "lardons", "lamb", "vegetable", "potato", "onion", "tomato", "carrot", "garlic", "rice", "pasta", "flour", "oil", "milk", "cheese", "egg", "eggs", "salt", "spice", "sauce", "bread", "ingredient"], true, "Kitchen input for the restaurant — used in the taxable activity, gives credit.", 50),
   rule("RESTAURANT", ["kitchen equipment", "oven", "fridge", "utensil", "cookware"], true, "Kitchen equipment used in operations — deductible.", 51),

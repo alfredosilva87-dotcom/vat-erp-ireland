@@ -5,6 +5,7 @@ import Link from "next/link";
 import { getCurrentClient } from "@/lib/currentClient";
 import { useT } from "@/lib/i18n";
 import type { AnalyzedItem } from "@/lib/types";
+import { computeLines } from "@/lib/vat";
 
 type Header = {
   supplier_name: string | null; store_name: string | null; supplier_vat: string | null;
@@ -23,13 +24,15 @@ type Row = { file: File; status: RowStatus; result?: Result; error?: string; sav
 const money = (n: number | null | undefined) =>
   n === null || n === undefined ? "—" : n.toLocaleString("en-IE", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 
-const creditValue = (it: AnalyzedItem): number => {
-  if (!it.take_credit) return 0;
-  if (it.vat_amount_on_invoice != null) return it.vat_amount_on_invoice;
-  if (it.net_amount != null && it.expected_vat_rate != null) return (it.net_amount * it.expected_vat_rate) / 100;
-  return 0;
+// Preview credit for one document, using the same VAT helper as the server.
+const docCredit = (r: Row) => {
+  if (!r.result) return 0;
+  const h = r.result.header;
+  const { lines } = computeLines(r.result.items, {
+    total_net: h.total_net, total_vat: h.total_vat, total_gross: h.total_gross,
+  });
+  return r.result.items.reduce((a, it, i) => a + (it.take_credit ? lines[i].vat : 0), 0);
 };
-const docCredit = (r: Row) => (r.result ? r.result.items.reduce((a, i) => a + creditValue(i), 0) : 0);
 const engineLabel = (e?: string) => e === "pdf-native" ? "PDF" : e === "gemini-vision" ? "AI" : e === "tesseract" ? "OCR" : "—";
 
 // How many documents are read in parallel. Saving stays sequential — see saveAll().

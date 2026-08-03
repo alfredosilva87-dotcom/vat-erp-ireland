@@ -79,8 +79,14 @@ function suggestCredit(
   category: VatCategory | null,
   ctx: CreditContext
 ): { suggested: boolean | null; rationale: string | null } {
-  const tokens = tokenize(description);
-  const descNorm = norm(description);
+  // Keywords are matched against the item text AND the category the reader
+  // assigned. Receipt descriptions are cryptic ("milesPLUS C", "PRNGLE POP
+  // BBQ"), so the category is often the only place the real nature of the
+  // purchase appears — matching description alone let fuel slip past the
+  // petrol block.
+  const haystack = [description, category?.description ?? ""].filter(Boolean).join(" ");
+  const tokens = tokenize(haystack);
+  const descNorm = norm(haystack);
   const applicable = ctx.rules
     .filter((r) => r.active && (r.activity_code === ctx.activityCode || r.activity_code === "*"))
     // Defensive: ignore any literal catch-all rule (match_keywords === ["*"])

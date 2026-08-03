@@ -1,5 +1,6 @@
 import { randomUUID } from "crypto";
 import { getServerSupabase } from "@/lib/supabase";
+import { computeLines } from "@/lib/vat";
 import type {
   StoredInvoice, StoredItem, MasterItem, Client, ClientWithStats,
   CreditRule, ClientObligation, SalesEntry, AppUser, ChartAccount, Branch, Company,
@@ -181,12 +182,21 @@ export interface SavePayload {
   };
   items: SaveItem[];
 }
-const itemCredit = (it: { take_credit: boolean; vat_amount_on_invoice: number | null; net_amount: number | null; expected_vat_rate: number | null }) => {
-  if (!it.take_credit) return 0;
-  if (it.vat_amount_on_invoice != null) return it.vat_amount_on_invoice;
-  if (it.net_amount != null && it.expected_vat_rate != null) return (it.net_amount * it.expected_vat_rate) / 100;
-  return 0;
-};
+/**
+ * Credit per line for a whole invoice at once.
+ *
+ * This has to see every line plus the document totals: receipts print
+ * VAT-inclusive prices, so the VAT has to be extracted from the amount rather
+ * than added on top, and the lines are then anchored to the VAT the supplier
+ * actually stated. See lib/vat.ts.
+ */
+function creditsForInvoice(
+  items: { take_credit: boolean; vat_amount_on_invoice: number | null; net_amount: number | null; vat_rate_on_invoice?: number | null; expected_vat_rate: number | null }[],
+  totals: { total_net: number | null; total_vat: number | null; total_gross: number | null }
+): number[] {
+  const { lines } = computeLines(items, totals);
+  return items.map((it, i) => (it.take_credit ? lines[i].vat : 0));
+}
 
 export async function saveInvoice(payload: SavePayload, fileBuffer: Buffer | null, ext: string): Promise<StoredInvoice> {
   const id = randomUUID();
@@ -209,11 +219,18 @@ export async function saveInvoice(payload: SavePayload, fileBuffer: Buffer | nul
   // Pre-fill accounting account from the client's learned de-para (item -> account)
   const learned = client ? await learnedAccounts(client.id, payload.items.map((i) => i.description)) : {};
 
+  const credits = creditsForInvoice(payload.items, {
+    total_net: payload.header.total_net,
+    total_vat: payload.header.total_vat,
+    total_gross: payload.header.total_gross,
+  });
+
   let totalCredit = 0;
   const itemRows: any[] = [];
-  for (const it of payload.items) {
+  for (let idx = 0; idx < payload.items.length; idx++) {
+    const it = payload.items[idx];
     const masterId = await findOrCreateMaster(it.description, it.category_code, it.category_name, it.expected_vat_rate);
-    const cv = itemCredit(it);
+    const cv = credits[idx];
     totalCredit += cv;
     const acc = learned[normKey(it.description)] || { code: null, name: null };
     itemRows.push({
@@ -302,12 +319,24 @@ export async function getInvoice(id: string): Promise<{ invoice: StoredInvoice; 
   return { invoice: toInvoice(inv), items: (items ?? []) as StoredItem[] };
 }
 
-async function recomputeInvoiceTotals(id: string) {
-  const { data: items } = await sb().from("invoice_items").select("*").eq("invoice_id", id);
+export async function recomputeInvoiceTotals(id: string) {
+  const [{ data: items }, { data: inv }] = await Promise.all([
+    sb().from("invoice_items").select("*").eq("invoice_id", id).order("id"),
+    sb().from("invoices").select("total_net,total_vat,total_gross").eq("id", id).maybeSingle(),
+  ]);
+  const list = items ?? [];
+  const credits = creditsForInvoice(list as any, {
+    total_net: (inv as any)?.total_net ?? null,
+    total_vat: (inv as any)?.total_vat ?? null,
+    total_gross: (inv as any)?.total_gross ?? null,
+  });
+
   let total = 0;
-  for (const it of items ?? []) {
-    const cv = itemCredit(it);
-    if (Number(it.credit_value) !== Number(cv.toFixed(2))) await sb().from("invoice_items").update({ credit_value: Number(cv.toFixed(2)) }).eq("id", it.id);
+  for (let i = 0; i < list.length; i++) {
+    const cv = Number(credits[i].toFixed(2));
+    if (Number((list[i] as any).credit_value) !== cv) {
+      await sb().from("invoice_items").update({ credit_value: cv }).eq("id", (list[i] as any).id);
+    }
     total += cv;
   }
   await sb().from("invoices").update({ total_credit: Number(total.toFixed(2)) }).eq("id", id);
