@@ -35,6 +35,7 @@ const pt: Dict = {
   "common.edit": "Editar",
   "common.open": "Abrir",
   "common.close": "Fechar",
+  "common.dismiss": "Dispensar",
   "common.clear": "Limpar",
   "common.search": "Buscar",
   "common.loading": "Carregando…",
@@ -390,6 +391,38 @@ const pt: Dict = {
   "login.licenseExpired": "A licença desta empresa expirou. Fale com o administrador.",
   "login.companyInactive": "Esta empresa está inativa. Fale com o administrador.",
   "login.signingIn": "Entrando…",
+  "login.forgotPassword": "Esqueceu sua senha?",
+  "login.forgotTitle": "Redefinir senha",
+  "login.forgotEmail": "E-mail da sua conta",
+  "login.forgotSubmit": "Enviar link de redefinição",
+  "login.forgotSending": "Enviando…",
+  "login.forgotSent": "Se esse e-mail estiver cadastrado, enviamos um link de redefinição. Confira sua caixa de entrada.",
+  "login.forgotCancel": "Voltar para o login",
+
+  // ---- redefinição de senha ----
+  "reset.title": "Escolha uma nova senha",
+  "reset.subtitle": "Este link é de uso único e expira pouco depois de ser enviado.",
+  "reset.newPassword": "Nova senha",
+  "reset.confirmPassword": "Confirmar nova senha",
+  "reset.submit": "Definir nova senha",
+  "reset.submitting": "Salvando…",
+  "reset.success": "Senha atualizada. Você já pode entrar com a nova senha.",
+  "reset.backToLogin": "Ir para o login",
+  "reset.invalidLink": "Este link é inválido ou expirou. Peça um novo na tela de login.",
+  "reset.mismatch": "As senhas não coincidem.",
+  "reset.tooShort": "Use pelo menos 8 caracteres.",
+  "reset.checkingLink": "Verificando seu link…",
+
+  // ---- alerta de licença ----
+  "license.expiringBanner": "A licença da sua empresa vence em {days} dia(s), em {date}.",
+  "license.expiredBanner": "A licença da sua empresa venceu. Fale com o administrador para renovar.",
+  "license.inactiveBanner": "Sua empresa está inativa. Fale com o administrador.",
+  "master.expiringBannerCount": "Alerta de licença: {count} empresa(s) vencida(s) ou vencendo em até 30 dias.",
+
+  // ---- exportação: Sage ----
+  "export.sage": "Sage",
+  "export.sageHint": "Baixa as Vendas em CSV compatível com o Sage 50 Accounts, para o período selecionado.",
+  "clients.exportContacts": "Exportar contatos (Sage)",
 };
 
 export default pt;

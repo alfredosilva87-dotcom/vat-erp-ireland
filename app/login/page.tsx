@@ -13,6 +13,25 @@ export default function Login() {
   const [show, setShow] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [forgotOpen, setForgotOpen] = useState(false);
+  const [forgotEmail, setForgotEmail] = useState("");
+  const [forgotSending, setForgotSending] = useState(false);
+  const [forgotSent, setForgotSent] = useState(false);
+
+  async function submitForgot(e: React.FormEvent) {
+    e.preventDefault();
+    setForgotSending(true);
+    try {
+      await fetch("/api/auth/forgot-password", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email: forgotEmail }),
+      });
+    } finally {
+      setForgotSending(false);
+      setForgotSent(true);
+    }
+  }
 
   async function submit(e: React.FormEvent) {
     e.preventDefault();
@@ -141,7 +160,48 @@ export default function Login() {
             <button className="btn-primary w-full" type="submit" disabled={loading}>
               {loading ? t("login.signingIn") : t("login.signIn")}
             </button>
+
+            <button
+              type="button"
+              className="block w-full text-center text-xs text-muted hover:text-ink"
+              onClick={() => { setForgotOpen((v) => !v); setForgotSent(false); }}
+            >
+              {t("login.forgotPassword")}
+            </button>
           </form>
+
+          {forgotOpen && (
+            <div className="mt-4 rounded-xl border border-line bg-surface-2/50 p-4">
+              {forgotSent ? (
+                <p className="text-sm text-muted">{t("login.forgotSent")}</p>
+              ) : (
+                <form onSubmit={submitForgot} className="space-y-2">
+                  <label className="label" htmlFor="forgot-email">{t("login.forgotEmail")}</label>
+                  <input
+                    id="forgot-email"
+                    type="email"
+                    className="input"
+                    value={forgotEmail}
+                    onChange={(e) => setForgotEmail(e.target.value)}
+                    placeholder="you@company.com"
+                    required
+                  />
+                  <div className="flex items-center gap-2 pt-1">
+                    <button className="btn-primary h-9 flex-1 text-sm" type="submit" disabled={forgotSending}>
+                      {forgotSending ? t("login.forgotSending") : t("login.forgotSubmit")}
+                    </button>
+                    <button
+                      type="button"
+                      className="btn-ghost h-9 px-3 text-sm"
+                      onClick={() => setForgotOpen(false)}
+                    >
+                      {t("login.forgotCancel")}
+                    </button>
+                  </div>
+                </form>
+              )}
+            </div>
+          )}
 
           <p className="mt-8 text-center text-xs text-muted">
             {t("login.protected")}

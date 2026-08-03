@@ -5,6 +5,7 @@ import { useCallback, useEffect, useState } from "react";
 import type { ClientWithStats } from "@/lib/types";
 import { ACTIVITIES } from "@/lib/activities";
 import { getCurrentClient, setCurrentClient } from "@/lib/currentClient";
+import { useT } from "@/lib/i18n";
 
 const money = (n: number) => n.toLocaleString("en-IE", { minimumFractionDigits: 2 });
 const empty = {
@@ -14,6 +15,7 @@ const empty = {
 };
 
 export default function Clients() {
+  const { t } = useT();
   const [clients, setClients] = useState<ClientWithStats[]>([]);
   const [form, setForm] = useState({ ...empty });
   const [editId, setEditId] = useState<string | null>(null);
@@ -92,16 +94,24 @@ export default function Clients() {
             Register the companies you manage. Selecting a client scopes every screen to it.
           </p>
         </div>
-        <button
-          className="btn-primary"
-          onClick={() => {
-            setEditId(null);
-            setForm({ ...empty });
-            setShowForm((v) => !v);
-          }}
-        >
-          {showForm ? "Close" : "New client"}
-        </button>
+        <div className="flex items-center gap-2">
+          <button
+            className="btn-ghost"
+            onClick={() => { window.location.href = "/api/companies/contacts.sage.csv"; }}
+          >
+            {t("clients.exportContacts")}
+          </button>
+          <button
+            className="btn-primary"
+            onClick={() => {
+              setEditId(null);
+              setForm({ ...empty });
+              setShowForm((v) => !v);
+            }}
+          >
+            {showForm ? "Close" : "New client"}
+          </button>
+        </div>
       </div>
 
       {showForm && (

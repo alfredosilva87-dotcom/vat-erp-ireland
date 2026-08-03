@@ -5,7 +5,7 @@ import { createPortal } from "react-dom";
 import { downloadClientPdf } from "@/lib/exportPdf";
 import { useT, type TKey } from "@/lib/i18n";
 
-type Fmt = "xlsx" | "csv" | "pdf";
+type Fmt = "xlsx" | "csv" | "pdf" | "sage";
 type SetKey = "invoices" | "items" | "sales" | "obligations" | "rates" | "accounts";
 
 const SETS: { key: SetKey; label: TKey; hint: TKey }[] = [
@@ -105,7 +105,9 @@ export default function ExportPanel({
     `year=${range.start.slice(0, 4)}&start=${range.start}&end=${range.end}&sets=${sets.join(",")}`;
 
   async function run(fmt: Fmt) {
-    if (!sets.length) { setErr(t("export.pickOne")); return; }
+    // Sage is a fixed-purpose format (always Sales, in the Sage 50 Accounts
+    // layout) — only the period applies, not the dataset checkboxes.
+    if (fmt !== "sage" && !sets.length) { setErr(t("export.pickOne")); return; }
     if (range.start > range.end) { setErr(t("export.badRange")); return; }
     setErr(null);
     setBusy(fmt);
@@ -117,6 +119,8 @@ export default function ExportPanel({
         const data = await res.json();
         if (!res.ok) throw new Error(data.error || t("export.pdfFailed"));
         downloadClientPdf(data);
+      } else if (fmt === "sage") {
+        window.location.href = `/api/clients/${clientId}/export.sage-sales.csv?year=${range.start.slice(0, 4)}&start=${range.start}&end=${range.end}`;
       } else {
         window.location.href = `/api/clients/${clientId}/export.${fmt}?${qs()}`;
       }
@@ -185,7 +189,7 @@ export default function ExportPanel({
 
           {err && <p className="mt-2 text-xs text-danger">{err}</p>}
 
-          <div className="mt-3 grid grid-cols-3 gap-2">
+          <div className="mt-3 grid grid-cols-4 gap-2">
             <button className="btn-primary h-9 px-2 text-xs" onClick={() => run("xlsx")} disabled={!!busy}>
               {busy === "xlsx" ? "…" : "Excel"}
             </button>
@@ -194,6 +198,12 @@ export default function ExportPanel({
             </button>
             <button className="btn-ghost h-9 px-2 text-xs" onClick={() => run("pdf")} disabled={!!busy}>
               {busy === "pdf" ? "…" : "PDF"}
+            </button>
+            <button
+              className="btn-ghost h-9 px-2 text-xs" onClick={() => run("sage")} disabled={!!busy}
+              title={t("export.sageHint")}
+            >
+              {busy === "sage" ? "…" : t("export.sage")}
             </button>
       </div>
     </div>

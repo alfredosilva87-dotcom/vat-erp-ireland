@@ -32,6 +32,7 @@ const en = {
   "common.edit": "Edit",
   "common.open": "Open",
   "common.close": "Close",
+  "common.dismiss": "Dismiss",
   "common.clear": "Clear",
   "common.search": "Search",
   "common.loading": "Loading…",
@@ -387,6 +388,38 @@ const en = {
   "login.licenseExpired": "This company's licence has expired. Contact your administrator.",
   "login.companyInactive": "This company is inactive. Contact your administrator.",
   "login.signingIn": "Signing in…",
+  "login.forgotPassword": "Forgot your password?",
+  "login.forgotTitle": "Reset your password",
+  "login.forgotEmail": "Your account email",
+  "login.forgotSubmit": "Send reset link",
+  "login.forgotSending": "Sending…",
+  "login.forgotSent": "If that email is registered, a reset link is on its way. Check your inbox.",
+  "login.forgotCancel": "Back to sign in",
+
+  // ---- reset password ----
+  "reset.title": "Choose a new password",
+  "reset.subtitle": "This link is single-use and expires shortly after it was sent.",
+  "reset.newPassword": "New password",
+  "reset.confirmPassword": "Confirm new password",
+  "reset.submit": "Set new password",
+  "reset.submitting": "Saving…",
+  "reset.success": "Password updated. You can now sign in with your new password.",
+  "reset.backToLogin": "Go to sign in",
+  "reset.invalidLink": "This link is invalid or has expired. Request a new one from the sign-in page.",
+  "reset.mismatch": "Passwords do not match.",
+  "reset.tooShort": "Use at least 8 characters.",
+  "reset.checkingLink": "Checking your link…",
+
+  // ---- licence alert banner ----
+  "license.expiringBanner": "Your company's licence expires in {days} day(s), on {date}.",
+  "license.expiredBanner": "Your company's licence has expired. Contact your administrator to renew it.",
+  "license.inactiveBanner": "Your company is inactive. Contact your administrator.",
+  "master.expiringBannerCount": "Licence alert: {count} company(ies) expired or expiring within 30 days.",
+
+  // ---- export: Sage ----
+  "export.sage": "Sage",
+  "export.sageHint": "Downloads Sales as a Sage 50 Accounts-compatible CSV, for the selected period.",
+  "clients.exportContacts": "Export contacts (Sage)",
 } as const;
 
 export type Dict = Record<keyof typeof en, string>;

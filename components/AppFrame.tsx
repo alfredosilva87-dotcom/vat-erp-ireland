@@ -4,17 +4,21 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import Sidebar from "@/components/Sidebar";
 import ThemeToggle from "@/components/ThemeToggle";
+import LicenseAlertBanner from "@/components/LicenseAlertBanner";
 import { useT } from "@/lib/i18n";
+
+const PUBLIC_PATHS = ["/login", "/reset-password"];
 
 export default function AppFrame({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
   const { t } = useT();
-  if (pathname === "/login") return <>{children}</>;
+  if (PUBLIC_PATHS.includes(pathname)) return <>{children}</>;
 
   return (
     <div className="flex min-h-dvh">
       <Sidebar />
       <div className="flex min-w-0 flex-1 flex-col">
+        <LicenseAlertBanner />
         <header className="sticky top-0 z-30 border-b border-line bg-paper/85 backdrop-blur">
           <div className="flex h-16 items-center gap-3 px-5">
             <Link

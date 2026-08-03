@@ -4,11 +4,10 @@ import Link from "next/link";
 import { useCallback, useEffect, useState } from "react";
 import { useT } from "@/lib/i18n";
 import type { Company } from "@/lib/types";
+import { licenseStatus } from "@/lib/license";
 
 type Stats = Record<string, { clients: number; users: number }>;
 const emptyForm = { name: "", slug: "", contact_email: "", months: 12 };
-
-const today = () => new Date().toISOString().slice(0, 10);
 
 export default function Master() {
   const { t } = useT();
@@ -55,12 +54,14 @@ export default function Master() {
   }
 
   const licenceState = (c: Company) => {
-    if (!c.active) return { cls: "chip-danger", label: t("master.inactive") };
-    if (!c.license_expires_at) return { cls: "chip bg-surface-2 text-muted", label: t("master.noLicense") };
-    if (c.license_expires_at < today()) return { cls: "chip-danger", label: t("master.expired") };
-    const days = Math.round((new Date(c.license_expires_at).getTime() - Date.now()) / 86400000);
-    if (days <= 30) return { cls: "chip-warn", label: t("master.expiringSoon") };
-    return { cls: "chip-ok", label: t("master.valid") };
+    const state = licenseStatus(c.license_expires_at, c.active);
+    switch (state) {
+      case "inactive": return { cls: "chip-danger", label: t("master.inactive") };
+      case "none": return { cls: "chip bg-surface-2 text-muted", label: t("master.noLicense") };
+      case "expired": return { cls: "chip-danger", label: t("master.expired") };
+      case "expiring": return { cls: "chip-warn", label: t("master.expiringSoon") };
+      case "ok": return { cls: "chip-ok", label: t("master.valid") };
+    }
   };
 
   if (forbidden) {

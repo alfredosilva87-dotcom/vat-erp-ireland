@@ -48,6 +48,8 @@ Aplicativo web (ERP contábil) para **VAT da Irlanda**. Lê notas fiscais (PDF/i
 | v1.3 | Idiomas EN/PT completos (5 no seletor), Configurações, contas de usuário e permissões por perfil |
 | v1.4 | Aba Compras (T2) por cliente e exclusão em lote |
 | v1.5 | Multi-empresa: login por empresa, isolamento de dados e painel master com licença anual |
+| v1.6 | Corrige VAT de recibos com preço já com imposto embutido (extração vs. soma) e regras de item bloqueado (combustível/consumo próprio) |
+| v1.7 | Recuperação de senha por e-mail (via Supabase Auth), alerta de licença a 30 dias (banner) e exportação Sage 50 (Vendas + Contatos) |
 
 **Convenção do projeto**: cada mudança é entregue com uma tag de versão + descrição.
 
