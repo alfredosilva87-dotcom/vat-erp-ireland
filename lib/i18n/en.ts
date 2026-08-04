@@ -206,6 +206,9 @@ const en = {
   "analyze.duplicateHint": "Looks already posted as invoice {number} on {date} — click to open it.",
   "analyze.duplicateOf": "Looks already posted — click to open it.",
   "analyze.saveAnyway": "Save anyway",
+  "analyze.statusDiscarded": "Discarded",
+  "analyze.discard": "Discard",
+  "analyze.selectBranchToSave": "This client has branches/stores set up — pick one before saving. Reading still works, but nothing will save until a branch is chosen.",
   "analyze.footer":
     "Each document becomes an individual invoice under the selected client. After saving, open any of them from Database to review items, fix categories or credit, and see the document.",
 

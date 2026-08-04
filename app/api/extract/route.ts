@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { readDocument } from "@/lib/extractor";
 import { classifyItems } from "@/lib/extractor/gemini";
-import { analyzeExtraction, applyCategoryFromSource } from "@/lib/matching";
+import { analyzeExtraction, applyCategoryFromSource, creditRiskSummary } from "@/lib/matching";
 import type { CreditContext } from "@/lib/matching";
 import { loadBase } from "@/lib/loadBase";
 import { lookupMasterCategories } from "@/lib/store";
@@ -91,12 +91,18 @@ export async function POST(req: NextRequest) {
       }
     }
 
+    // The extraction-level score only checks the read itself (sums reconcile,
+    // dates are sane). It says nothing about whether the items got classified
+    // well enough to trust the credit — that's checked separately so a
+    // confident read with shaky item matches still gets flagged.
+    const risk = creditRiskSummary(items);
+
     return NextResponse.json({
       filename: file.name,
       engine: extraction.engine,
       confidence: extraction.confidence,
-      needs_review: extraction.needs_review,
-      issues: extraction.issues,
+      needs_review: extraction.needs_review || risk.needsReview,
+      issues: [...extraction.issues, ...risk.issues],
       audit: extraction.audit,
       base_source: source,
       cache_matched: cacheUsed,

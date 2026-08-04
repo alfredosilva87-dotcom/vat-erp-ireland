@@ -19,6 +19,13 @@ export const metadata: Metadata = {
 // wrong palette. Defaults to dark when nothing is stored.
 const themeScript = `(function(){try{var t=localStorage.getItem("vat-theme");document.documentElement.dataset.theme=t==="light"?"light":"dark"}catch(e){document.documentElement.dataset.theme="dark"}})()`;
 
+// Supabase's recovery/invite links should land on /reset-password, but if the
+// project's Redirect URLs allowlist doesn't have that exact path it silently
+// falls back to the bare Site URL — dropping the path but keeping the token
+// in the hash. Catch that here and forward to /reset-password so the link
+// still works regardless of the Supabase dashboard config.
+const recoveryRedirectScript = `(function(){try{if(location.hash.indexOf("type=recovery")!==-1&&location.pathname!=="/reset-password"){location.replace("/reset-password"+location.hash)}}catch(e){}})()`;
+
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   const cookieLang = cookies().get(LANG_KEY)?.value;
   const lang = isLang(cookieLang) ? cookieLang : DEFAULT_LANG;
@@ -32,6 +39,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
     >
       <head>
         <script dangerouslySetInnerHTML={{ __html: themeScript }} />
+        <script dangerouslySetInnerHTML={{ __html: recoveryRedirectScript }} />
       </head>
       <body className="min-h-dvh font-sans antialiased">
         <I18nProvider initialLang={lang}>

@@ -18,7 +18,7 @@ type Result = {
   audit?: { engine: string; confidence: number }[]; base_source: string;
   ai_matched?: number; cache_matched?: number; header: Header; items: AnalyzedItem[];
 };
-type RowStatus = "pending" | "reading" | "read" | "error" | "saving" | "saved" | "duplicate";
+type RowStatus = "pending" | "reading" | "read" | "error" | "saving" | "saved" | "duplicate" | "discarded";
 type DuplicateMatch = { id: string; invoice_number: string | null; posting_date: string | null; total_gross: number | null };
 type Row = { file: File; status: RowStatus; result?: Result; error?: string; savedId?: string; duplicate?: DuplicateMatch };
 
@@ -58,6 +58,12 @@ export default function Analyze() {
 
   const selectedClient = clients.find((c) => c.id === clientId);
   const activity = selectedClient?.activity_code || "GENERIC";
+  // Reading never depends on this — a document can be read with no client/branch
+  // picked yet. Saving does: once a client has branches registered, every save
+  // must be tied to one of them, so a batch started before picking a branch
+  // doesn't silently land under the wrong store (or no store at all).
+  const branchRequired = branches.length > 0;
+  const canSave = !branchRequired || Boolean(branchId);
 
   useEffect(() => {
     fetch("/api/clients").then((r) => r.json()).then((d) => setClients(d.clients || []));
@@ -87,7 +93,7 @@ export default function Analyze() {
     setBusy(true); setPhase("reading");
 
     const queue = rows
-      .map((r, i) => (r.status === "read" || r.status === "saved" ? -1 : i))
+      .map((r, i) => (r.status === "read" || r.status === "saved" || r.status === "discarded" ? -1 : i))
       .filter((i) => i >= 0);
     let cursor = 0;
 
@@ -126,6 +132,7 @@ export default function Analyze() {
   async function saveOne(i: number, force = false) {
     const r = rows[i];
     if (!r.result) return;
+    if (!canSave) return; // guarded again at the button level; belt-and-braces here.
     setRows((prev) => prev.map((x, k) => (k === i ? { ...x, status: "saving" } : x)));
     try {
       const h = r.result.header;
@@ -166,12 +173,17 @@ export default function Analyze() {
   }
 
   async function saveAll() {
+    if (!canSave) return;
     setBusy(true); setPhase("saving");
     for (let i = 0; i < rows.length; i++) {
       if (rows[i].status !== "read" || !rows[i].result) continue;
       await saveOne(i);
     }
     setBusy(false); setPhase("idle");
+  }
+
+  function discardRow(i: number) {
+    setRows((prev) => prev.map((x, k) => (k === i ? { ...x, status: "discarded" } : x)));
   }
 
   const readCount = rows.filter((r) => r.status === "read").length;
@@ -253,7 +265,7 @@ export default function Analyze() {
           <button className="btn-primary" onClick={readAll} disabled={busy || !rows.some((r) => r.status === "pending" || r.status === "error")}>
             {phase === "reading" ? t("analyze.reading") : `${t("analyze.readAll")} (${rows.length})`}
           </button>
-          <button className="btn-primary" onClick={saveAll} disabled={busy || readCount === 0}>
+          <button className="btn-primary" onClick={saveAll} disabled={busy || readCount === 0 || !canSave}>
             {phase === "saving" ? t("common.saving") : `${t("analyze.saveAll")} (${readCount})`}
           </button>
           {rows.length > 0 && !busy && (
@@ -267,6 +279,12 @@ export default function Analyze() {
             <span className="chip bg-brand text-white">{t("dash.credit")} {money(totalCredit)}</span>
           </div>
         </div>
+
+        {branchRequired && !branchId && readCount > 0 && (
+          <div className="mt-4 rounded-xl border border-warning/30 bg-warning-50 px-4 py-2.5 text-sm text-warning" role="alert">
+            {t("analyze.selectBranchToSave")}
+          </div>
+        )}
 
         {busy && rows.length > 0 && (
           <div className="mt-4">
@@ -325,7 +343,7 @@ export default function Analyze() {
                       ) : "—"}
                     </td>
                     <td className="px-4 py-3">
-                      <StatusChip r={r} onForceSave={() => saveOne(i, true)} />
+                      <StatusChip r={r} canSave={canSave} onForceSave={() => saveOne(i, true)} onDiscard={() => discardRow(i)} />
                     </td>
                   </tr>
                 ))}
@@ -342,9 +360,10 @@ export default function Analyze() {
   );
 }
 
-function StatusChip({ r, onForceSave }: { r: Row; onForceSave: () => void }) {
+function StatusChip({ r, canSave, onForceSave, onDiscard }: { r: Row; canSave: boolean; onForceSave: () => void; onDiscard: () => void }) {
   const { t: tt } = useT();
   if (r.status === "saved") return <Link href={`/invoice/${r.savedId}`} className="chip-ok">{tt("analyze.statusSaved")}</Link>;
+  if (r.status === "discarded") return <span className="chip bg-surface-2 border border-line text-muted">{tt("analyze.statusDiscarded")}</span>;
   if (r.status === "duplicate") {
     const d = r.duplicate;
     const hint = d
@@ -357,8 +376,13 @@ function StatusChip({ r, onForceSave }: { r: Row; onForceSave: () => void }) {
         ) : (
           <span className="chip-warn">{tt("analyze.statusDuplicate")}</span>
         )}
-        <button onClick={onForceSave} className="text-xs text-brand underline underline-offset-2">
-          {tt("analyze.saveAnyway")}
+        {canSave && (
+          <button onClick={onForceSave} className="text-xs text-brand underline underline-offset-2">
+            {tt("analyze.saveAnyway")}
+          </button>
+        )}
+        <button onClick={onDiscard} className="text-xs text-muted underline underline-offset-2">
+          {tt("analyze.discard")}
         </button>
       </span>
     );

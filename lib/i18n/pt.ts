@@ -209,6 +209,9 @@ const pt: Dict = {
   "analyze.duplicateHint": "Parece já lançada como nota {number} em {date} — clique para abrir.",
   "analyze.duplicateOf": "Parece já lançada — clique para abrir.",
   "analyze.saveAnyway": "Salvar mesmo assim",
+  "analyze.statusDiscarded": "Descartada",
+  "analyze.discard": "Descartar",
+  "analyze.selectBranchToSave": "Este cliente tem filiais/lojas cadastradas — selecione uma antes de salvar. A leitura continua liberada, mas nada será salvo até escolher a filial.",
   "analyze.footer":
     "Cada documento vira uma nota individual do cliente selecionado. Depois de salvar, abra qualquer uma pela Base de dados para revisar itens, corrigir categorias ou crédito, e ver o documento.",
 

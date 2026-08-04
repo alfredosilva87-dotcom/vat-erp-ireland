@@ -201,3 +201,49 @@ export function applyCategoryFromSource(
   const confidence = source === "learned" ? 0.9 : 0.7;
   return build(item, category, confidence, source, invoiceDate, ctx);
 }
+
+// Below this, a category match is a single weak keyword hit rather than a
+// real signal — see matchCategory()'s confidence formula above.
+const LOW_MATCH_CONFIDENCE = 0.55;
+
+export interface CreditRiskSummary {
+  needsReview: boolean;
+  issues: string[];
+}
+
+/**
+ * A credit line is only as trustworthy as the classification behind it.
+ * That classification is cross-checked against the document's own numbers
+ * when a per-line VAT rate is printed — but plenty of Irish receipts
+ * (Tesco, Lidl, Dunnes...) never print one, so on those documents the
+ * category match is the ONLY thing standing between "take_credit: true"
+ * and the actual euro amount. Three situations mean that trust isn't
+ * earned yet, so a human should look before the credit is claimed:
+ *   - no resolvable rate at all -> the line silently computes to €0 credit
+ *     (see blendedRate/lineVat in lib/vat.ts) even though it's flagged for
+ *     credit, which looks like nothing is wrong;
+ *   - the document's own printed rate contradicts the category we picked
+ *     (rate_mismatch) -> we might be claiming the wrong rate confidently;
+ *   - the category came from a single short keyword hit -> a coincidence
+ *     match ("tea" inside a longer word, etc.) is as likely as a real one.
+ */
+export function creditRiskSummary(items: AnalyzedItem[]): CreditRiskSummary {
+  const noRate = items.filter((it) => it.take_credit && it.expected_vat_rate == null).length;
+  const mismatch = items.filter((it) => it.take_credit && it.inconsistency === "rate_mismatch").length;
+  const lowConfidence = items.filter(
+    (it) => it.take_credit && it.matched_category && it.match_confidence < LOW_MATCH_CONFIDENCE
+  ).length;
+
+  const issues: string[] = [];
+  if (noRate > 0) {
+    issues.push(`${noRate} item(s) marked for credit have no resolvable VAT rate — review before saving.`);
+  }
+  if (mismatch > 0) {
+    issues.push(`${mismatch} item(s) marked for credit have a category rate that contradicts the rate printed on the document.`);
+  }
+  if (lowConfidence > 0) {
+    issues.push(`${lowConfidence} item(s) marked for credit were matched on a weak keyword guess — double-check the category.`);
+  }
+
+  return { needsReview: issues.length > 0, issues };
+}
