@@ -188,12 +188,12 @@ export default function ClientDashboard({ params }: { params: { id: string } }) 
           <table className="w-full text-sm">
             <thead>
               <tr className="border-y border-line bg-surface-2/60 text-left text-xs uppercase tracking-wide text-muted">
-                <th className="px-5 py-3 font-medium">Taxa</th>
-                <th className="px-4 py-3 font-medium text-right">Vendas líq. €</th>
-                <th className="px-4 py-3 font-medium text-right">VAT vendas (T1) €</th>
-                <th className="px-4 py-3 font-medium text-right">Compras líq. €</th>
-                <th className="px-4 py-3 font-medium text-right">Crédito (T2) €</th>
-                <th className="px-4 py-3 font-medium text-right">Líquido (T3) €</th>
+                <th className="px-5 py-3 font-medium">Rate</th>
+                <th className="px-4 py-3 font-medium text-right">Net sales €</th>
+                <th className="px-4 py-3 font-medium text-right">VAT sales (T1) €</th>
+                <th className="px-4 py-3 font-medium text-right">Net purchases €</th>
+                <th className="px-4 py-3 font-medium text-right">Credit (T2) €</th>
+                <th className="px-4 py-3 font-medium text-right">Net (T3) €</th>
               </tr>
             </thead>
             <tbody>

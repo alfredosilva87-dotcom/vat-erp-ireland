@@ -42,14 +42,14 @@ export function buildClientCsvs(d: CsvInput): CsvFile[] {
 
   if (has("invoices")) {
     out.push({
-      name: `notas_${suffix}.csv`,
+      name: `invoices_${suffix}.csv`,
       content: toCsv(
-        ["Lancamento", "Emissao", "Fornecedor", "Filial", "Documento", "Tipo", "Liquido", "VAT", "Bruto", "Credito", "Revisar"],
+        ["Posted", "Issued", "Supplier", "Branch", "Document", "Type", "Net", "VAT", "Gross", "Credit", "Review"],
         d.invoices.map((i) => [
           i.posting_date || "", i.invoice_date || "", i.supplier_name || "", i.branch_name || "",
           i.invoice_number || "", i.doc_type || "",
           r2(i.total_net), r2(i.total_vat), r2(i.total_gross), r2(i.total_credit),
-          i.needs_review ? "Sim" : "",
+          i.needs_review ? "Yes" : "",
         ])
       ),
     });
@@ -58,16 +58,16 @@ export function buildClientCsvs(d: CsvInput): CsvFile[] {
   if (has("items")) {
     const byId = new Map(d.invoices.map((i) => [i.id, i]));
     out.push({
-      name: `itens_${suffix}.csv`,
+      name: `items_${suffix}.csv`,
       content: toCsv(
-        ["Data", "Fornecedor", "Item", "Categoria", "Conta", "Nome da conta", "Liquido", "Taxa", "VAT", "Credito", "Toma credito"],
+        ["Date", "Supplier", "Item", "Category", "Account", "Account name", "Net", "Rate", "VAT", "Credit", "Take credit"],
         d.items.map((x) => {
           const i: any = byId.get(x.invoice_id) || {};
           return [
             i.posting_date || i.invoice_date || "", i.supplier_name || "", x.description,
             x.category_name || "", x.account_code || "", x.account_name || "",
             r2(x.net_amount), Number(x.expected_vat_rate ?? 0), r2(x.vat_amount_on_invoice), r2(x.credit_value),
-            x.take_credit ? "Sim" : "Nao",
+            x.take_credit ? "Yes" : "No",
           ];
         })
       ),
@@ -76,9 +76,9 @@ export function buildClientCsvs(d: CsvInput): CsvFile[] {
 
   if (has("sales")) {
     out.push({
-      name: `vendas_${suffix}.csv`,
+      name: `sales_${suffix}.csv`,
       content: toCsv(
-        ["Data", "Documento", "Cliente", "Liquido", "Taxa", "VAT", "Bruto", "Conta"],
+        ["Date", "Document", "Customer", "Net", "Rate", "VAT", "Gross", "Account"],
         (d.sales ?? []).map((s) => [
           s.entry_date || "", s.doc_number || "", s.customer || "",
           r2(s.net_amount), Number(s.vat_rate ?? 0), r2(s.vat_amount),
@@ -91,13 +91,13 @@ export function buildClientCsvs(d: CsvInput): CsvFile[] {
   if (has("obligations")) {
     const today = new Date().toISOString().slice(0, 10);
     out.push({
-      name: `apuracoes_${suffix}.csv`,
+      name: `obligations_${suffix}.csv`,
       content: toCsv(
-        ["Tipo", "Periodo", "Vencimento", "T1 VAT vendas", "T2 VAT compras", "T3 Liquido", "Situacao"],
+        ["Type", "Period", "Due", "T1 VAT sales", "T2 VAT purchases", "T3 Net", "Status"],
         d.obligations.map((o) => [
           o.kind, o.period_label, o.due_date,
           r2(o.vat_on_sales), r2(o.vat_on_purchases), r2(o.net),
-          o.status === "filed" ? "Entregue" : o.due_date < today ? "Vencida" : "Em aberto",
+          o.status === "filed" ? "Filed" : o.due_date < today ? "Overdue" : "Open",
         ])
       ),
     });
@@ -109,9 +109,9 @@ export function buildClientCsvs(d: CsvInput): CsvFile[] {
       ...d.rates.purchases.map((r: any) => r.rate),
     ])).sort((a, b) => b - a);
     out.push({
-      name: `vat-por-aliquota_${suffix}.csv`,
+      name: `vat-by-rate_${suffix}.csv`,
       content: toCsv(
-        ["Taxa", "Vendas liquidas", "VAT vendas T1", "Compras liquidas", "Credito T2", "Liquido T3"],
+        ["Rate", "Net sales", "VAT sales T1", "Net purchases", "Credit T2", "Net T3"],
         allRates.map((rate) => {
           const s = d.rates.sales.find((x: any) => x.rate === rate);
           const p = d.rates.purchases.find((x: any) => x.rate === rate);
@@ -123,10 +123,10 @@ export function buildClientCsvs(d: CsvInput): CsvFile[] {
 
   if (has("accounts")) {
     out.push({
-      name: `plano-de-contas_${slug}.csv`,
+      name: `chart-of-accounts_${slug}.csv`,
       content: toCsv(
-        ["Codigo", "Descricao", "Conta pai", "Ativa"],
-        (d.accounts ?? []).map((a) => [a.code || "", a.description || "", a.parent_code || "", a.active === false ? "Nao" : "Sim"])
+        ["Code", "Description", "Parent account", "Active"],
+        (d.accounts ?? []).map((a) => [a.code || "", a.description || "", a.parent_code || "", a.active === false ? "No" : "Yes"])
       ),
     });
   }

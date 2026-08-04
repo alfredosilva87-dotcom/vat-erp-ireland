@@ -1,12 +1,25 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useT, type TKey } from "@/lib/i18n";
 
 export default function Login() {
   const router = useRouter();
   const { t } = useT();
+
+  // Supabase's own redirect can land here instead of /reset-password when
+  // the target URL isn't in the project's Auth "Redirect URLs" allow-list —
+  // it falls back to the Site URL, and our middleware's own redirect (no
+  // session on "/") preserves the URL fragment along the way. Rescue the
+  // recovery token client-side regardless of that dashboard setting.
+  useEffect(() => {
+    const hash = window.location.hash;
+    if (hash.includes("type=recovery") && hash.includes("access_token=")) {
+      window.location.href = `/reset-password${hash}`;
+    }
+  }, []);
+
   const [company, setCompany] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");

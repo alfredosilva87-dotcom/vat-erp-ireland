@@ -205,6 +205,10 @@ const pt: Dict = {
   "analyze.statusSaving": "Salvando…",
   "analyze.statusReady": "Pronta para salvar",
   "analyze.statusPending": "Aguardando",
+  "analyze.statusDuplicate": "Possível duplicidade",
+  "analyze.duplicateHint": "Parece já lançada como nota {number} em {date} — clique para abrir.",
+  "analyze.duplicateOf": "Parece já lançada — clique para abrir.",
+  "analyze.saveAnyway": "Salvar mesmo assim",
   "analyze.footer":
     "Cada documento vira uma nota individual do cliente selecionado. Depois de salvar, abra qualquer uma pela Base de dados para revisar itens, corrigir categorias ou crédito, e ver o documento.",
 

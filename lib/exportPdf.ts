@@ -48,17 +48,17 @@ export function buildClientPdf(d: PdfInput): jsPDF {
       d.client?.client_code,
       d.client?.activity_label,
       d.client?.vat_number ? `VAT ${d.client.vat_number}` : null,
-      `Período ${d.start} a ${d.end}`,
+      `Period ${d.start} to ${d.end}`,
     ].filter(Boolean).join("  ·  "),
     40, 45
   );
 
   // ---- KPI strip ----
   const kpis: [string, number][] = [
-    ["Faturamento (T1)", d.kpis.salesGross],
-    ["Compras (T2)", d.kpis.purchaseGross],
-    ["VAT a pagar (T3)", d.kpis.vatPayable],
-    ["Crédito de entrada", d.kpis.inputCredit],
+    ["Revenue (T1)", d.kpis.salesGross],
+    ["Purchases (T2)", d.kpis.purchaseGross],
+    ["VAT payable (T3)", d.kpis.vatPayable],
+    ["Input credit", d.kpis.inputCredit],
   ];
   const cardW = (W - 80 - 30) / 4;
   kpis.forEach(([label, value], i) => {
@@ -103,8 +103,8 @@ export function buildClientPdf(d: PdfInput): jsPDF {
       return [`${rate}%`, money(s?.net), money(s?.vat), money(p?.net), money(p?.credit), money((s?.vat ?? 0) - (p?.credit ?? 0))];
     });
     section(
-      "Resumo por taxa de VAT",
-      ["Taxa", "Vendas líq. €", "VAT vendas (T1) €", "Compras líq. €", "Crédito (T2) €", "Líquido (T3) €"],
+      "Summary by VAT rate",
+      ["Rate", "Net sales €", "VAT sales (T1) €", "Net purchases €", "Credit (T2) €", "Net (T3) €"],
       rows,
       [["Total", money(rows.reduce((a, r) => a + Number(String(r[1]).replace(/,/g, "")), 0)),
         money(d.kpis.salesVat), "", money(d.kpis.inputCredit), money(d.kpis.vatPayable)]]
@@ -113,17 +113,17 @@ export function buildClientPdf(d: PdfInput): jsPDF {
 
   if (has("obligations")) {
     const today = new Date().toISOString().slice(0, 10);
-    section("Apurações", ["Tipo", "Período", "Vencimento", "T1 €", "T2 €", "T3 €", "Situação"],
+    section("Obligations", ["Type", "Period", "Due", "T1 €", "T2 €", "T3 €", "Status"],
       d.obligations.map((o) => [
         o.kind, o.period_label, o.due_date,
         money(o.vat_on_sales), money(o.vat_on_purchases), money(o.net),
-        o.status === "filed" ? "Entregue" : o.due_date < today ? "Vencida" : "Em aberto",
+        o.status === "filed" ? "Filed" : o.due_date < today ? "Overdue" : "Open",
       ]));
   }
 
   if (has("invoices")) {
-    section("Notas de entrada (compras)",
-      ["Lançamento", "Emissão", "Fornecedor", "Documento", "Líquido €", "VAT €", "Bruto €", "Crédito €"],
+    section("Purchase invoices",
+      ["Posted", "Issued", "Supplier", "Document", "Net €", "VAT €", "Gross €", "Credit €"],
       d.invoices.map((i) => [
         i.posting_date || "", i.invoice_date || "", i.supplier_name || "", i.invoice_number || "",
         money(i.total_net), money(i.total_vat), money(i.total_gross), money(i.total_credit),
@@ -131,8 +131,8 @@ export function buildClientPdf(d: PdfInput): jsPDF {
   }
 
   if (has("sales")) {
-    section("Vendas (T1)",
-      ["Data", "Documento", "Cliente", "Líquido €", "Taxa %", "VAT €", "Bruto €"],
+    section("Sales (T1)",
+      ["Date", "Document", "Customer", "Net €", "Rate %", "VAT €", "Gross €"],
       (d.sales ?? []).map((s) => [
         s.entry_date || "", s.doc_number || "", s.customer || "",
         money(s.net_amount), String(s.vat_rate ?? 0), money(s.vat_amount),
@@ -142,21 +142,21 @@ export function buildClientPdf(d: PdfInput): jsPDF {
 
   if (has("items")) {
     const byId = new Map(d.invoices.map((i) => [i.id, i]));
-    section("Itens",
-      ["Data", "Fornecedor", "Item", "Categoria", "Líquido €", "Taxa %", "Crédito €", "Toma crédito"],
+    section("Items",
+      ["Date", "Supplier", "Item", "Category", "Net €", "Rate %", "Credit €", "Take credit"],
       d.items.map((x) => {
         const i: any = byId.get(x.invoice_id) || {};
         return [
           i.posting_date || i.invoice_date || "", i.supplier_name || "", x.description,
           x.category_name || "", money(x.net_amount), String(x.expected_vat_rate ?? 0),
-          money(x.credit_value), x.take_credit ? "Sim" : "Não",
+          money(x.credit_value), x.take_credit ? "Yes" : "No",
         ];
       }));
   }
 
   if (has("accounts")) {
-    section("Plano de contas", ["Código", "Descrição", "Conta pai", "Ativa"],
-      (d.accounts ?? []).map((a) => [a.code || "", a.description || "", a.parent_code || "", a.active === false ? "Não" : "Sim"]));
+    section("Chart of accounts", ["Code", "Description", "Parent account", "Active"],
+      (d.accounts ?? []).map((a) => [a.code || "", a.description || "", a.parent_code || "", a.active === false ? "No" : "Yes"]));
   }
 
   // ---- footer on every page ----
@@ -165,7 +165,7 @@ export function buildClientPdf(d: PdfInput): jsPDF {
     doc.setPage(p);
     doc.setTextColor(...MUTED).setFont("helvetica", "normal").setFontSize(7.5);
     doc.text(
-      `VAT Reader — Ireland ERP  ·  gerado em ${new Date().toISOString().slice(0, 10)}  ·  classificação sugerida e editável, não substitui a revisão do contador`,
+      `VAT Reader — Ireland ERP  ·  generated ${new Date().toISOString().slice(0, 10)}  ·  classification suggested and editable, does not replace the accountant's review`,
       40, doc.internal.pageSize.getHeight() - 20
     );
     doc.text(`${p} / ${pages}`, W - 40, doc.internal.pageSize.getHeight() - 20, { align: "right" });

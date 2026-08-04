@@ -239,7 +239,7 @@ export default function Records() {
                     </td>
                     <td className="px-4 py-3">
                       <div className="flex items-center justify-center gap-1">
-                        <Link className="btn-ghost h-7 px-2 text-xs" href={`/invoice/${inv.id}`}>
+                        <Link className="btn-ghost h-7 px-2 text-xs" href={`/invoice/${inv.id}?from=/records`}>
                           Open
                         </Link>
                         {inv.document_file && (

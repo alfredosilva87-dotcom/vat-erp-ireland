@@ -54,7 +54,7 @@ export default function LicenseAlertBanner() {
       if (state === "inactive") {
         setMsg({ text: t("license.inactiveBanner"), danger: true });
       } else if (state === "expired") {
-        setMsg({ text: t("license.expiredBanner"), danger: true });
+        setMsg({ text: t("license.expiredBanner"), danger: true, href: "/settings#license" });
       } else if (me.company.license_expires_at) {
         setMsg({
           text: t("license.expiringBanner", {
@@ -62,6 +62,7 @@ export default function LicenseAlertBanner() {
             date: me.company.license_expires_at,
           }),
           danger: false,
+          href: "/settings#license",
         });
       }
     })();

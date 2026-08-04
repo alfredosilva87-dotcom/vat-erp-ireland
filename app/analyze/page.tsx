@@ -18,8 +18,9 @@ type Result = {
   audit?: { engine: string; confidence: number }[]; base_source: string;
   ai_matched?: number; cache_matched?: number; header: Header; items: AnalyzedItem[];
 };
-type RowStatus = "pending" | "reading" | "read" | "error" | "saving" | "saved";
-type Row = { file: File; status: RowStatus; result?: Result; error?: string; savedId?: string };
+type RowStatus = "pending" | "reading" | "read" | "error" | "saving" | "saved" | "duplicate";
+type DuplicateMatch = { id: string; invoice_number: string | null; posting_date: string | null; total_gross: number | null };
+type Row = { file: File; status: RowStatus; result?: Result; error?: string; savedId?: string; duplicate?: DuplicateMatch };
 
 const money = (n: number | null | undefined) =>
   n === null || n === undefined ? "—" : n.toLocaleString("en-IE", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
@@ -122,43 +123,53 @@ export default function Analyze() {
   // a UNIQUE index on norm_key. Concurrent saves sharing an item description
   // would race and hit that constraint. Saving is only DB writes, so it is
   // fast anyway — the time in a batch is in the reading phase above.
+  async function saveOne(i: number, force = false) {
+    const r = rows[i];
+    if (!r.result) return;
+    setRows((prev) => prev.map((x, k) => (k === i ? { ...x, status: "saving" } : x)));
+    try {
+      const h = r.result.header;
+      const meta = {
+        client_id: clientId || null, branch_id: branchId || null, activity_code: activity, engine: r.result.engine,
+        original_filename: r.result.filename,
+        confidence: r.result.confidence, needs_review: r.result.needs_review, issues: r.result.issues,
+        audit: r.result.audit,
+        header: {
+          supplier_name: h.supplier_name, store_name: h.store_name ?? null, supplier_vat: h.supplier_vat,
+          invoice_number: h.invoice_number, barcode: h.barcode ?? null, invoice_date: h.invoice_date,
+          posting_date: postingDate || null,
+          invoice_time: h.invoice_time ?? null, doc_type: h.doc_type,
+          total_net: h.total_net, total_vat: h.total_vat, total_gross: h.total_gross,
+        },
+        items: r.result.items.map((it) => ({
+          description: it.description, quantity: it.quantity, unit_price: it.unit_price, net_amount: it.net_amount,
+          vat_rate_on_invoice: it.vat_rate_on_invoice, vat_amount_on_invoice: it.vat_amount_on_invoice,
+          expected_vat_rate: it.expected_vat_rate, category_code: it.matched_category?.code ?? null,
+          category_name: it.matched_category?.description ?? null, take_credit: !!it.take_credit,
+        })),
+      };
+      const fd = new FormData();
+      fd.append("file", r.file);
+      fd.append("meta", JSON.stringify(meta));
+      if (force) fd.append("force", "true");
+      const res = await fetch("/api/invoices", { method: "POST", body: fd });
+      const data = await res.json();
+      if (res.status === 409 && data.error === "duplicate") {
+        setRows((prev) => prev.map((x, k) => (k === i ? { ...x, status: "duplicate", duplicate: data.existing } : x)));
+        return;
+      }
+      if (!res.ok) throw new Error(data.error || "Save failed");
+      setRows((prev) => prev.map((x, k) => (k === i ? { ...x, status: "saved", savedId: data.invoice.id } : x)));
+    } catch (e: any) {
+      setRows((prev) => prev.map((x, k) => (k === i ? { ...x, status: "error", error: e.message } : x)));
+    }
+  }
+
   async function saveAll() {
     setBusy(true); setPhase("saving");
     for (let i = 0; i < rows.length; i++) {
-      const r = rows[i];
-      if (r.status !== "read" || !r.result) continue;
-      setRows((prev) => prev.map((x, k) => (k === i ? { ...x, status: "saving" } : x)));
-      try {
-        const h = r.result.header;
-        const meta = {
-          client_id: clientId || null, branch_id: branchId || null, activity_code: activity, engine: r.result.engine,
-          original_filename: r.result.filename,
-          confidence: r.result.confidence, needs_review: r.result.needs_review, issues: r.result.issues,
-          audit: r.result.audit,
-          header: {
-            supplier_name: h.supplier_name, store_name: h.store_name ?? null, supplier_vat: h.supplier_vat,
-            invoice_number: h.invoice_number, barcode: h.barcode ?? null, invoice_date: h.invoice_date,
-            posting_date: postingDate || null,
-            invoice_time: h.invoice_time ?? null, doc_type: h.doc_type,
-            total_net: h.total_net, total_vat: h.total_vat, total_gross: h.total_gross,
-          },
-          items: r.result.items.map((it) => ({
-            description: it.description, quantity: it.quantity, net_amount: it.net_amount,
-            vat_rate_on_invoice: it.vat_rate_on_invoice, vat_amount_on_invoice: it.vat_amount_on_invoice,
-            expected_vat_rate: it.expected_vat_rate, category_code: it.matched_category?.code ?? null,
-            category_name: it.matched_category?.description ?? null, take_credit: !!it.take_credit,
-          })),
-        };
-        const fd = new FormData();
-        fd.append("file", r.file);
-        fd.append("meta", JSON.stringify(meta));
-        const res = await fetch("/api/invoices", { method: "POST", body: fd });
-        const data = await res.json();
-        if (!res.ok) throw new Error(data.error || "Save failed");
-        setRows((prev) => prev.map((x, k) => (k === i ? { ...x, status: "saved", savedId: data.invoice.id } : x)));
-      } catch (e: any) {
-        setRows((prev) => prev.map((x, k) => (k === i ? { ...x, status: "error", error: e.message } : x)));
-      }
+      if (rows[i].status !== "read" || !rows[i].result) continue;
+      await saveOne(i);
     }
     setBusy(false); setPhase("idle");
   }
@@ -314,7 +325,7 @@ export default function Analyze() {
                       ) : "—"}
                     </td>
                     <td className="px-4 py-3">
-                      <StatusChip r={r} />
+                      <StatusChip r={r} onForceSave={() => saveOne(i, true)} />
                     </td>
                   </tr>
                 ))}
@@ -331,9 +342,27 @@ export default function Analyze() {
   );
 }
 
-function StatusChip({ r }: { r: Row }) {
+function StatusChip({ r, onForceSave }: { r: Row; onForceSave: () => void }) {
   const { t: tt } = useT();
   if (r.status === "saved") return <Link href={`/invoice/${r.savedId}`} className="chip-ok">{tt("analyze.statusSaved")}</Link>;
+  if (r.status === "duplicate") {
+    const d = r.duplicate;
+    const hint = d
+      ? tt("analyze.duplicateHint", { number: d.invoice_number || "—", date: d.posting_date || "—" })
+      : tt("analyze.duplicateOf");
+    return (
+      <span className="inline-flex flex-wrap items-center gap-1.5">
+        {d ? (
+          <Link href={`/invoice/${d.id}`} className="chip-warn" title={hint}>{tt("analyze.statusDuplicate")}</Link>
+        ) : (
+          <span className="chip-warn">{tt("analyze.statusDuplicate")}</span>
+        )}
+        <button onClick={onForceSave} className="text-xs text-brand underline underline-offset-2">
+          {tt("analyze.saveAnyway")}
+        </button>
+      </span>
+    );
+  }
   if (r.status === "error") return <span className="chip-danger" title={r.error}>{tt("analyze.statusError")}</span>;
   if (r.status === "reading") return <span className="chip bg-brand-50 text-brand-700">{tt("analyze.statusReading")}</span>;
   if (r.status === "saving") return <span className="chip bg-brand-50 text-brand-700">{tt("analyze.statusSaving")}</span>;

@@ -202,6 +202,10 @@ const en = {
   "analyze.statusSaving": "Saving…",
   "analyze.statusReady": "Ready to save",
   "analyze.statusPending": "Pending",
+  "analyze.statusDuplicate": "Possible duplicate",
+  "analyze.duplicateHint": "Looks already posted as invoice {number} on {date} — click to open it.",
+  "analyze.duplicateOf": "Looks already posted — click to open it.",
+  "analyze.saveAnyway": "Save anyway",
   "analyze.footer":
     "Each document becomes an individual invoice under the selected client. After saving, open any of them from Database to review items, fix categories or credit, and see the document.",
 

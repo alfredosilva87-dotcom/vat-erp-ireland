@@ -128,6 +128,7 @@ export interface StoredItem {
   master_item_id: string;
   description: string;
   quantity: number | null;
+  unit_price: number | null;
   net_amount: number | null;
   vat_rate_on_invoice: number | null;
   vat_amount_on_invoice: number | null;
@@ -244,7 +245,19 @@ export interface Company {
   active: boolean;
   license_key: string | null;
   license_expires_at: string | null;
+  pending_license_key: string | null;
+  pending_license_expires_at: string | null;
   contact_email: string | null;
   notes: string | null;
+  created_at: string;
+}
+
+export interface LicenseEvent {
+  id: string;
+  company_id: string;
+  event_type: string;
+  old_expires_at: string | null;
+  new_expires_at: string | null;
+  actor_email: string | null;
   created_at: string;
 }

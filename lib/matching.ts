@@ -125,18 +125,30 @@ function build(
   invoiceDate: string | null,
   ctx: CreditContext
 ): AnalyzedItem {
+  // Some documents (e.g. TEMU order confirmations) print quantity and a
+  // per-unit price but never an explicit line "net" figure. The extractor
+  // already reads unit_price separately (lib/extractor/prompt.ts); without
+  // this fallback net_amount stays null and lineVat() in lib/vat.ts has
+  // nothing to compute from, so credit silently comes out at zero even with
+  // take_credit on. This is a straight multiplication of two numbers the
+  // model already read off the document, not an invented value.
+  const resolvedItem: RawItem =
+    item.net_amount == null && item.quantity != null && item.unit_price != null
+      ? { ...item, net_amount: Math.round(item.quantity * item.unit_price * 100) / 100 }
+      : item;
+
   const expected = category ? category.vat_rate : null;
 
   let flag: AnalyzedItem["inconsistency"];
   if (!category) flag = "unmatched";
-  else if (item.vat_rate_on_invoice === null) flag = "no_vat_on_doc";
-  else if (Math.abs(item.vat_rate_on_invoice - (expected ?? -999)) > 0.01) flag = "rate_mismatch";
+  else if (resolvedItem.vat_rate_on_invoice === null) flag = "no_vat_on_doc";
+  else if (Math.abs(resolvedItem.vat_rate_on_invoice - (expected ?? -999)) > 0.01) flag = "rate_mismatch";
   else flag = "ok";
 
-  const credit = suggestCredit(item.description, category, ctx);
+  const credit = suggestCredit(resolvedItem.description, category, ctx);
 
   return {
-    ...item,
+    ...resolvedItem,
     matched_category: category,
     expected_vat_rate: expected,
     match_confidence: Number(confidence.toFixed(2)),

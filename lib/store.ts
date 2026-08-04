@@ -166,7 +166,7 @@ async function findOrCreateMaster(description: string, code: string | null, name
 
 // ---------------- Invoices ----------------
 export interface SaveItem {
-  description: string; quantity: number | null; net_amount: number | null;
+  description: string; quantity: number | null; unit_price: number | null; net_amount: number | null;
   vat_rate_on_invoice: number | null; vat_amount_on_invoice: number | null; expected_vat_rate: number | null;
   category_code: string | null; category_name: string | null; take_credit: boolean;
 }
@@ -235,6 +235,7 @@ export async function saveInvoice(payload: SavePayload, fileBuffer: Buffer | nul
     const acc = learned[normKey(it.description)] || { code: null, name: null };
     itemRows.push({
       invoice_id: id, master_item_id: masterId, description: it.description, quantity: it.quantity,
+      unit_price: it.unit_price,
       net_amount: it.net_amount, vat_rate_on_invoice: it.vat_rate_on_invoice, vat_amount_on_invoice: it.vat_amount_on_invoice,
       expected_vat_rate: it.expected_vat_rate, category_code: it.category_code, category_name: it.category_name,
       account_code: acc.code, account_name: acc.name,
@@ -366,7 +367,7 @@ export async function updateInvoice(invoiceId: string, patch: { header?: Partial
     const clientId = invRow?.client_id as string | null;
     for (const upd of patch.items) {
       const row: any = {};
-      for (const k of ["description","quantity","net_amount","vat_rate_on_invoice","expected_vat_rate","category_code","category_name","account_code","account_name","take_credit"])
+      for (const k of ["description","quantity","unit_price","net_amount","vat_rate_on_invoice","expected_vat_rate","category_code","category_name","account_code","account_name","take_credit"])
         if (k in upd) row[k] = (upd as any)[k];
       if (Object.keys(row).length) await sb().from("invoice_items").update(row).eq("id", upd.id);
       if ("category_code" in upd || "category_name" in upd || "expected_vat_rate" in upd) {
@@ -950,18 +951,95 @@ export async function createCompany(input: {
     contact_email: input.contact_email?.trim() || null,
   }).select().single();
   if (error) throw error;
+  await logLicenseEvent(data.id, "created", null, data.license_expires_at);
   return data as Company;
+}
+
+async function logLicenseEvent(
+  companyId: string,
+  eventType: string,
+  oldExpiresAt: string | null,
+  newExpiresAt: string | null,
+  actorEmail?: string | null
+) {
+  await sb().from("license_events").insert({
+    company_id: companyId, event_type: eventType,
+    old_expires_at: oldExpiresAt, new_expires_at: newExpiresAt,
+    actor_email: actorEmail ?? null,
+  });
 }
 
 export async function updateCompany(
   id: string,
-  patch: Partial<Pick<Company, "name" | "active" | "license_expires_at" | "license_key" | "contact_email" | "notes">>
+  patch: Partial<Pick<Company, "name" | "active" | "license_expires_at" | "license_key" | "contact_email" | "notes">>,
+  opts?: { actorEmail?: string | null; eventType?: string }
 ): Promise<Company | null> {
   const row: any = {};
   for (const k of ["name", "active", "license_expires_at", "license_key", "contact_email", "notes"]) {
     if (k in patch) row[k] = (patch as any)[k];
   }
   if (!Object.keys(row).length) return null;
+
+  let before: { license_expires_at: string | null } | null = null;
+  if (opts?.eventType) {
+    const { data } = await sb().from("companies").select("license_expires_at").eq("id", id).maybeSingle();
+    before = (data as any) ?? null;
+  }
+
   const { data } = await sb().from("companies").update(row).eq("id", id).select().maybeSingle();
+  if (data && opts?.eventType) {
+    await logLicenseEvent(id, opts.eventType, before?.license_expires_at ?? null, (data as Company).license_expires_at, opts.actorEmail);
+  }
   return (data as Company) ?? null;
+}
+
+/**
+ * Master generates a renewal without touching the live licence — a new key
+ * and a new expiry (extending from whichever is later: today or the current
+ * expiry, so renewing early doesn't lose the remaining term) sit in
+ * `pending_*` until the client's own admin activates it (see
+ * activateLicense). Returns the key to hand to the client.
+ */
+export async function generatePendingRenewal(
+  companyId: string, actorEmail?: string | null, months = 12
+): Promise<{ key: string; expiresAt: string }> {
+  const { data: company } = await sb().from("companies").select("license_expires_at").eq("id", companyId).maybeSingle();
+  const current = company?.license_expires_at ? new Date(company.license_expires_at) : new Date();
+  const today = new Date();
+  const base = current > today ? current : today;
+  base.setMonth(base.getMonth() + months);
+  const expiresAt = base.toISOString().slice(0, 10);
+  const key = generateLicenseKey();
+  await sb().from("companies").update({ pending_license_key: key, pending_license_expires_at: expiresAt }).eq("id", companyId);
+  await logLicenseEvent(companyId, "renewal_generated", company?.license_expires_at ?? null, expiresAt, actorEmail);
+  return { key, expiresAt };
+}
+
+/**
+ * Company admin self-service activation: promotes a pending renewal to the
+ * live licence when the key they were given matches. Never lets the admin
+ * set an arbitrary expiry themselves — only what master already generated.
+ */
+export async function activateLicense(
+  companyId: string, key: string, actorEmail?: string | null
+): Promise<{ ok: true; expiresAt: string } | { ok: false; error: string }> {
+  const { data: company } = await sb()
+    .from("companies").select("license_expires_at,pending_license_key,pending_license_expires_at").eq("id", companyId).maybeSingle();
+  if (!company?.pending_license_key) return { ok: false, error: "No renewal is pending for this company." };
+  if (key.trim().toUpperCase() !== company.pending_license_key.toUpperCase()) {
+    return { ok: false, error: "That key doesn't match." };
+  }
+  const newExpiry = company.pending_license_expires_at;
+  await sb().from("companies").update({
+    license_key: company.pending_license_key, license_expires_at: newExpiry,
+    pending_license_key: null, pending_license_expires_at: null,
+  }).eq("id", companyId);
+  await logLicenseEvent(companyId, "activated_by_admin", company.license_expires_at, newExpiry, actorEmail);
+  return { ok: true, expiresAt: newExpiry! };
+}
+
+export async function listLicenseEvents(companyId: string) {
+  const { data } = await sb()
+    .from("license_events").select("*").eq("company_id", companyId).order("created_at", { ascending: false }).limit(20);
+  return data ?? [];
 }

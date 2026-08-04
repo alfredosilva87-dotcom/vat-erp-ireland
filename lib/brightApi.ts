@@ -59,7 +59,7 @@ const NOT_AVAILABLE: PushResult = {
   ok: false,
   reason: "api_not_available",
   message:
-    "A API do BrightBooks/Surf não está disponível publicamente. É necessário acesso de parceiro concedido pela Bright. Use a exportação por CSV enquanto isso.",
+    "The BrightBooks/Surf API isn't publicly available. Partner access from Bright is required. Use the CSV export in the meantime.",
   reference: null,
 };
 
@@ -77,7 +77,7 @@ export class SurfConnector implements BrightConnector {
 
   async testConnection(): Promise<PushResult> {
     if (!this.configured) {
-      return { ok: false, reason: "not_configured", message: "Credenciais do Surf não configuradas." };
+      return { ok: false, reason: "not_configured", message: "Surf credentials not configured." };
     }
     // TODO: quando houver API — autenticar em `${baseUrl}/...` e validar sessão.
     return NOT_AVAILABLE;

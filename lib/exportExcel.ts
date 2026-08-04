@@ -178,7 +178,7 @@ export async function buildClientWorkbook(d: WorkbookInput): Promise<Buffer> {
   const clientName = d.client?.name ?? "Client";
   const generated = new Date().toISOString().slice(0, 10);
   const has = (s: string) => !d.sets?.length || d.sets.includes(s);
-  const period = d.start && d.end ? `${d.start} a ${d.end}` : String(d.year);
+  const period = d.start && d.end ? `${d.start} to ${d.end}` : String(d.year);
 
   // ---------------- Sheet 1: Dashboard ----------------
   const dash = wb.addWorksheet("Dashboard", {
@@ -190,26 +190,26 @@ export async function buildClientWorkbook(d: WorkbookInput): Promise<Buffer> {
 
   sheetTitle(
     dash,
-    `${clientName} — Resumo fiscal`,
+    `${clientName} — Fiscal summary`,
     `${d.client?.client_code ?? ""} · ${d.client?.activity_label ?? ""}` +
       `${d.client?.vat_number ? ` · VAT ${d.client.vat_number}` : ""}` +
-      ` · Período ${period} · Gerado em ${generated}`,
+      ` · Period ${period} · Generated ${generated}`,
     "P"
   );
 
-  kpiCard(dash, 2, "Faturamento (T1)", d.kpis.salesGross, `${d.kpis.salesCount} venda(s) lançada(s)`, "accent");
-  kpiCard(dash, 6, "Compras (T2)", d.kpis.purchaseGross, `${d.kpis.invoiceCount} nota(s) processada(s)`, "success");
-  kpiCard(dash, 10, "VAT a pagar (T3)", d.kpis.vatPayable,
-    d.kpis.vatPayable >= 0 ? "A recolher à Revenue" : "A recuperar da Revenue",
+  kpiCard(dash, 2, "Revenue (T1)", d.kpis.salesGross, `${d.kpis.salesCount} sale(s) posted`, "accent");
+  kpiCard(dash, 6, "Purchases (T2)", d.kpis.purchaseGross, `${d.kpis.invoiceCount} invoice(s) processed`, "success");
+  kpiCard(dash, 10, "VAT payable (T3)", d.kpis.vatPayable,
+    d.kpis.vatPayable >= 0 ? "Payable to Revenue" : "Recoverable from Revenue",
     d.kpis.vatPayable >= 0 ? "danger" : "success");
-  kpiCard(dash, 14, "Crédito de entrada", d.kpis.inputCredit, "VAT recuperável aprovado", "warning");
+  kpiCard(dash, 14, "Input credit", d.kpis.inputCredit, "Recoverable VAT approved", "warning");
 
   // Monthly table feeding the chart below it
   const mStart = 13;
-  dash.getCell(`B${mStart - 1}`).value = "Movimento mensal";
+  dash.getCell(`B${mStart - 1}`).value = "Monthly activity";
   dash.getCell(`B${mStart - 1}`).font = { name: FONT, size: 12, bold: true, color: { argb: C.primaryMed } };
 
-  const mHead = ["Mês", "Vendas (T1) €", "Compras (T2) €", "Crédito €", "VAT vendas €", "Notas"];
+  const mHead = ["Month", "Sales (T1) €", "Purchases (T2) €", "Credit €", "VAT sales €", "Invoices"];
   mHead.forEach((h, i) => {
     const c = dash.getCell(mStart, i + 2);
     c.value = h;
@@ -230,12 +230,12 @@ export async function buildClientWorkbook(d: WorkbookInput): Promise<Buffer> {
     });
   });
 
-  // ---------------- Sheet 2: Resumo ----------------
-  const sum = wb.addWorksheet("Resumo", { properties: { tabColor: { argb: C.accent } }, views: [{ showGridLines: false }] });
+  // ---------------- Sheet 2: Summary ----------------
+  const sum = wb.addWorksheet("Summary", { properties: { tabColor: { argb: C.accent } }, views: [{ showGridLines: false }] });
   sum.getColumn(1).width = 2;
   sum.getColumn(2).width = 34;
   sum.getColumn(3).width = 22;
-  sheetTitle(sum, "Resumo executivo", `${clientName} · exercício ${d.year}`, "F");
+  sheetTitle(sum, "Executive summary", `${clientName} · fiscal year ${d.year}`, "F");
 
   const bestMonth = [...d.series].sort((a, b) => b.sales - a.sales)[0];
   const overdue = d.obligations.filter(
@@ -243,15 +243,15 @@ export async function buildClientWorkbook(d: WorkbookInput): Promise<Buffer> {
   ).length;
 
   const facts: [string, any, string?][] = [
-    ["Faturamento total (T1)", d.kpis.salesGross, "money"],
-    ["VAT sobre vendas (T1)", d.kpis.salesVat, "money"],
-    ["Compras totais (T2)", d.kpis.purchaseGross, "money"],
-    ["Crédito de entrada (T2)", d.kpis.inputCredit, "money"],
-    ["Posição líquida (T3)", d.kpis.vatPayable, "money"],
-    ["Notas de compra processadas", d.kpis.invoiceCount],
-    ["Vendas lançadas", d.kpis.salesCount],
-    ["Melhor mês de vendas", bestMonth && bestMonth.sales > 0 ? `${bestMonth.month} (€ ${bestMonth.sales.toFixed(2)})` : "—"],
-    ["Obrigações vencidas em aberto", overdue],
+    ["Total revenue (T1)", d.kpis.salesGross, "money"],
+    ["VAT on sales (T1)", d.kpis.salesVat, "money"],
+    ["Total purchases (T2)", d.kpis.purchaseGross, "money"],
+    ["Input credit (T2)", d.kpis.inputCredit, "money"],
+    ["Net position (T3)", d.kpis.vatPayable, "money"],
+    ["Purchase invoices processed", d.kpis.invoiceCount],
+    ["Sales posted", d.kpis.salesCount],
+    ["Best sales month", bestMonth && bestMonth.sales > 0 ? `${bestMonth.month} (€ ${bestMonth.sales.toFixed(2)})` : "—"],
+    ["Overdue open obligations", overdue],
   ];
   facts.forEach(([label, value, kind], i) => {
     const row = 5 + i;
@@ -270,15 +270,15 @@ export async function buildClientWorkbook(d: WorkbookInput): Promise<Buffer> {
 
   const note = sum.getCell(`B${5 + facts.length + 2}`);
   note.value =
-    "Valores calculados a partir das vendas (T1) e notas de compra (T2) lançadas no sistema. " +
-    "A classificação de crédito é sugerida e editável — não substitui a revisão do contador.";
+    "Figures calculated from sales (T1) and purchase invoices (T2) posted in the system. " +
+    "Credit classification is suggested and editable — it does not replace the accountant's review.";
   note.font = { name: FONT, size: 9, italic: true, color: { argb: C.muted } };
   sum.mergeCells(`B${5 + facts.length + 2}:F${5 + facts.length + 3}`);
   note.alignment = { wrapText: true, vertical: "top" };
 
-  // ---------------- Sheet 3: VAT por alíquota ----------------
+  // ---------------- Sheet 3: VAT by rate ----------------
   if (has("rates")) {
-  const vat = wb.addWorksheet("VAT por aliquota", { properties: { tabColor: { argb: C.accent } } });
+  const vat = wb.addWorksheet("VAT by rate", { properties: { tabColor: { argb: C.accent } } });
   const allRates = Array.from(new Set([
     ...d.rates.sales.map((r: any) => r.rate),
     ...d.rates.purchases.map((r: any) => r.rate),
@@ -295,7 +295,7 @@ export async function buildClientWorkbook(d: WorkbookInput): Promise<Buffer> {
     ];
   });
   table(vat,
-    ["Taxa", "Vendas líq. €", "VAT vendas (T1) €", "Compras líq. €", "Crédito (T2) €", "Líquido (T3) €"],
+    ["Rate", "Net sales €", "VAT sales (T1) €", "Net purchases €", "Credit (T2) €", "Net (T3) €"],
     vatRows,
     {
       moneyCols: [1, 2, 3, 4, 5],
@@ -311,15 +311,15 @@ export async function buildClientWorkbook(d: WorkbookInput): Promise<Buffer> {
   );
   }
 
-  // ---------------- Sheet 4: Apurações ----------------
+  // ---------------- Sheet 4: Obligations ----------------
   if (has("obligations")) {
-  const obl = wb.addWorksheet("Apuracoes", { properties: { tabColor: { argb: C.accent } } });
+  const obl = wb.addWorksheet("Obligations", { properties: { tabColor: { argb: C.accent } } });
   table(obl,
-    ["Tipo", "Período", "Vencimento", "T1 · VAT vendas €", "T2 · VAT compras €", "T3 · Líquido €", "Situação"],
+    ["Type", "Period", "Due", "T1 · VAT sales €", "T2 · VAT purchases €", "T3 · Net €", "Status"],
     d.obligations.map((o: any) => [
       o.kind, o.period_label, o.due_date,
       r2(o.vat_on_sales), r2(o.vat_on_purchases), r2(o.net),
-      o.status === "filed" ? "Entregue" : o.due_date < generated ? "Vencida" : "Em aberto",
+      o.status === "filed" ? "Filed" : o.due_date < generated ? "Overdue" : "Open",
     ]),
     { moneyCols: [3, 4, 5] }
   );
@@ -327,57 +327,57 @@ export async function buildClientWorkbook(d: WorkbookInput): Promise<Buffer> {
     obl.addConditionalFormatting({
       ref: `G2:G${d.obligations.length + 1}`,
       rules: [{
-        type: "containsText", operator: "containsText", text: "Vencida", priority: 1,
+        type: "containsText", operator: "containsText", text: "Overdue", priority: 1,
         style: { fill: { type: "pattern", pattern: "solid", bgColor: { argb: C.dangerSoft } }, font: { color: { argb: C.danger }, bold: true } },
       }],
     });
   }
   }
 
-  // ---------------- Sheet 5: Notas ----------------
+  // ---------------- Sheet 5: Invoices ----------------
   if (has("invoices")) {
-  const inv = wb.addWorksheet("Notas", { properties: { tabColor: { argb: C.accent } } });
+  const inv = wb.addWorksheet("Invoices", { properties: { tabColor: { argb: C.accent } } });
   table(inv,
-    ["Lançamento", "Emissão", "Fornecedor", "Filial", "Documento", "Tipo", "Líquido €", "VAT €", "Bruto €", "Crédito €", "Revisar"],
+    ["Posted", "Issued", "Supplier", "Branch", "Document", "Type", "Net €", "VAT €", "Gross €", "Credit €", "Review"],
     d.invoices.map((i: any) => [
       i.posting_date || "", i.invoice_date || "", i.supplier_name || "", i.branch_name || "",
       i.invoice_number || "", i.doc_type || "",
       r2(i.total_net), r2(i.total_vat), r2(i.total_gross), r2(i.total_credit),
-      i.needs_review ? "Sim" : "",
+      i.needs_review ? "Yes" : "",
     ]),
     { moneyCols: [6, 7, 8, 9] }
   );
   }
 
-  // ---------------- Sheet 6: Itens ----------------
+  // ---------------- Sheet 6: Items ----------------
   if (has("items")) {
-  const it = wb.addWorksheet("Itens", { properties: { tabColor: { argb: C.accent } } });
+  const it = wb.addWorksheet("Items", { properties: { tabColor: { argb: C.accent } } });
   const invById = new Map(d.invoices.map((i: any) => [i.id, i]));
   table(it,
-    ["Data", "Fornecedor", "Item", "Categoria", "Conta", "Nome da conta", "Líquido €", "Taxa %", "VAT €", "Crédito €", "Toma crédito"],
+    ["Date", "Supplier", "Item", "Category", "Account", "Account name", "Net €", "Rate %", "VAT €", "Credit €", "Take credit"],
     d.items.map((x: any) => {
       const i: any = invById.get(x.invoice_id) || {};
       return [
         i.posting_date || i.invoice_date || "", i.supplier_name || "", x.description,
         x.category_name || "", x.account_code || "", x.account_name || "",
         r2(x.net_amount), Number(x.expected_vat_rate ?? 0), r2(x.vat_amount_on_invoice), r2(x.credit_value),
-        x.take_credit ? "Sim" : "Não",
+        x.take_credit ? "Yes" : "No",
       ];
     }),
     { moneyCols: [6, 8, 9] }
   );
   }
 
-  // ---------------- Sheet 7: Vendas (T1) ----------------
+  // ---------------- Sheet 7: Sales (T1) ----------------
   if (has("sales")) {
-    const sl = wb.addWorksheet("Vendas", { properties: { tabColor: { argb: C.accent } } });
+    const sl = wb.addWorksheet("Sales", { properties: { tabColor: { argb: C.accent } } });
     const rows = (d.sales ?? []).map((s: any) => [
       s.entry_date || "", s.doc_number || "", s.customer || "",
       r2(s.net_amount), Number(s.vat_rate ?? 0), r2(s.vat_amount),
       r2((s.net_amount || 0) + (s.vat_amount || 0)), s.account_code || "",
     ]);
     table(sl,
-      ["Data", "Documento", "Cliente", "Líquido €", "Taxa %", "VAT €", "Bruto €", "Conta"],
+      ["Date", "Document", "Customer", "Net €", "Rate %", "VAT €", "Gross €", "Account"],
       rows,
       {
         moneyCols: [3, 5, 6],
@@ -391,13 +391,13 @@ export async function buildClientWorkbook(d: WorkbookInput): Promise<Buffer> {
     );
   }
 
-  // ---------------- Sheet 8: Plano de contas ----------------
+  // ---------------- Sheet 8: Chart of accounts ----------------
   if (has("accounts")) {
-    const acc = wb.addWorksheet("Plano de contas", { properties: { tabColor: { argb: C.accent } } });
+    const acc = wb.addWorksheet("Chart of accounts", { properties: { tabColor: { argb: C.accent } } });
     table(acc,
-      ["Código", "Descrição", "Conta pai", "Ativa"],
+      ["Code", "Description", "Parent account", "Active"],
       (d.accounts ?? []).map((a: any) => [
-        a.code || "", a.description || "", a.parent_code || "", a.active === false ? "Não" : "Sim",
+        a.code || "", a.description || "", a.parent_code || "", a.active === false ? "No" : "Yes",
       ])
     );
   }

@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { saveInvoice, listInvoices, listMasterItems, stats } from "@/lib/store";
 import type { SavePayload } from "@/lib/store";
+import { findDuplicate } from "@/lib/duplicates";
 
 export const runtime = "nodejs";
 
@@ -41,6 +42,20 @@ export async function POST(req: NextRequest) {
       buffer = Buffer.from(await file.arrayBuffer());
       const name = file.name || "";
       ext = name.includes(".") ? name.split(".").pop()! : (file.type.split("/")[1] || "bin");
+    }
+
+    const force = form.get("force") === "true";
+    if (!force) {
+      const existing = await findDuplicate(payload.client_id, {
+        supplier_name: payload.header.supplier_name,
+        invoice_number: payload.header.invoice_number,
+        barcode: payload.header.barcode,
+        invoice_date: payload.header.invoice_date,
+        total_gross: payload.header.total_gross,
+      });
+      if (existing) {
+        return NextResponse.json({ error: "duplicate", existing }, { status: 409 });
+      }
     }
 
     const invoice = await saveInvoice(payload, buffer, ext);

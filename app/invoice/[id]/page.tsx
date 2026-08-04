@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import type { StoredInvoice, StoredItem, ChartAccount, Branch } from "@/lib/types";
 import { computeLines } from "@/lib/vat";
 
@@ -33,6 +33,11 @@ function lineCredits(items: StoredItem[], inv: StoredInvoice | null): number[] {
 
 export default function InvoiceEdit({ params }: { params: { id: string } }) {
   const router = useRouter();
+  const searchParams = useSearchParams();
+  // Where "Database" / post-delete should return to — the screen this
+  // invoice was opened from (client's Purchases/Sales tab, Database, ...),
+  // instead of always landing back on the global Database list.
+  const backTo = searchParams.get("from") || "/records";
   const [inv, setInv] = useState<StoredInvoice | null>(null);
   const [items, setItems] = useState<StoredItem[]>([]);
   const [cats, setCats] = useState<Cat[]>([]);
@@ -97,7 +102,7 @@ export default function InvoiceEdit({ params }: { params: { id: string } }) {
         total_net: inv.total_net, total_vat: inv.total_vat, total_gross: inv.total_gross,
       };
       const payloadItems = items.map((it) => ({
-        id: it.id, description: it.description, quantity: it.quantity, net_amount: it.net_amount,
+        id: it.id, description: it.description, quantity: it.quantity, unit_price: it.unit_price, net_amount: it.net_amount,
         vat_rate_on_invoice: it.vat_rate_on_invoice, expected_vat_rate: it.expected_vat_rate,
         category_code: it.category_code, category_name: it.category_name,
         account_code: it.account_code, account_name: it.account_name, take_credit: it.take_credit,
@@ -119,7 +124,7 @@ export default function InvoiceEdit({ params }: { params: { id: string } }) {
   async function remove() {
     if (!confirm("Delete this invoice and its document permanently?")) return;
     await fetch(`/api/invoices/${params.id}`, { method: "DELETE" });
-    router.push("/records");
+    router.push(backTo);
   }
 
   async function markReviewed() {
@@ -132,13 +137,13 @@ export default function InvoiceEdit({ params }: { params: { id: string } }) {
   }
 
   if (loading) return <p className="text-muted">Loading…</p>;
-  if (!inv) return <p className="text-muted">Invoice not found. <Link href="/records" className="text-brand">Back</Link></p>;
+  if (!inv) return <p className="text-muted">Invoice not found. <Link href={backTo} className="text-brand">Back</Link></p>;
 
   return (
     <div className="space-y-6">
       <div className="rise flex flex-wrap items-start justify-between gap-4">
         <div>
-          <Link href="/records" className="text-sm text-brand">← Database</Link>
+          <Link href={backTo} className="text-sm text-brand">← Database</Link>
           <h1 className="mt-1 font-display text-3xl font-semibold tracking-tight">Edit invoice</h1>
           {inv.client_name && (
             <p className="mt-1 text-sm text-brand-700 font-medium">{inv.client_code} · {inv.client_name}</p>
