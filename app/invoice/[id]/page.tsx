@@ -294,8 +294,8 @@ export default function InvoiceEdit({ params }: { params: { id: string } }) {
                 <th className="whitespace-nowrap px-3 py-3 font-medium">Item</th>
                 <th className="whitespace-nowrap px-3 py-3 font-medium">Category</th>
                 <th className="whitespace-nowrap px-3 py-3 font-medium">Account</th>
-                <th className="whitespace-nowrap px-3 py-3 font-medium text-right">Base rate %</th>
-                <th className="whitespace-nowrap px-3 py-3 font-medium text-right">VAT doc %</th>
+                <th className="whitespace-nowrap px-3 py-3 font-medium text-right" title="Base rate %">Rate %</th>
+                <th className="whitespace-nowrap px-3 py-3 font-medium text-right" title="VAT doc %">VAT %</th>
                 <th className="whitespace-nowrap px-3 py-3 font-medium text-right" title="The amount as printed on the document — net or VAT-inclusive gross, depending on how the supplier prints it.">Amount €</th>
                 <th className="whitespace-nowrap px-3 py-3 font-medium text-right">Gross €</th>
                 <th className="whitespace-nowrap px-3 py-3 font-medium text-right">Net €</th>
@@ -307,7 +307,7 @@ export default function InvoiceEdit({ params }: { params: { id: string } }) {
             <tbody>
               {items.map((it, idx) => (
                 <tr key={it.id} className="border-b border-line/70 align-middle">
-                  <td className="px-3 py-2">
+                  <td className="px-3 py-2 min-w-[240px]">
                     <div className="flex items-center gap-1.5">
                       <input className="input h-9" value={it.description} onChange={(e) => setItem(it.id, { description: e.target.value })} />
                       {isCategoryUnrelated(it.category_code, relatedCategories) && (
@@ -340,10 +340,10 @@ export default function InvoiceEdit({ params }: { params: { id: string } }) {
                     )}
                   </td>
                   <td className="px-3 py-2">
-                    <NumInput className="input h-9 w-20 text-right" value={it.expected_vat_rate} onChange={(v) => setItem(it.id, { expected_vat_rate: v })} />
+                    <NumInput className="input h-9 w-14 text-right" value={it.expected_vat_rate} onChange={(v) => setItem(it.id, { expected_vat_rate: v })} />
                   </td>
                   <td className="px-3 py-2">
-                    <NumInput className="input h-9 w-20 text-right" value={it.vat_rate_on_invoice} onChange={(v) => setItem(it.id, { vat_rate_on_invoice: v })} />
+                    <NumInput className="input h-9 w-14 text-right" value={it.vat_rate_on_invoice} onChange={(v) => setItem(it.id, { vat_rate_on_invoice: v })} />
                   </td>
                   <td className="px-3 py-2">
                     <NumInput className="input h-9 w-24 text-right" value={it.net_amount} onChange={(v) => setItem(it.id, { net_amount: v })} />
@@ -355,9 +355,9 @@ export default function InvoiceEdit({ params }: { params: { id: string } }) {
                     <button
                       onClick={() => setItem(it.id, { take_credit: !it.take_credit })}
                       role="switch" aria-checked={it.take_credit}
-                      className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${it.take_credit ? "bg-brand" : "bg-line"}`}
+                      className={`relative inline-flex h-5 w-9 items-center rounded-full transition-colors ${it.take_credit ? "bg-brand" : "bg-line"}`}
                     >
-                      <span className={`inline-block h-5 w-5 transform rounded-full bg-white shadow transition-transform ${it.take_credit ? "translate-x-5" : "translate-x-0.5"}`} />
+                      <span className={`inline-block h-4 w-4 transform rounded-full bg-white shadow transition-transform ${it.take_credit ? "translate-x-4" : "translate-x-0.5"}`} />
                     </button>
                   </td>
                   <td className="px-2 py-2 text-center">
