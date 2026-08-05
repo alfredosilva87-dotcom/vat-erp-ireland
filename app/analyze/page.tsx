@@ -18,9 +18,21 @@ type Result = {
   audit?: { engine: string; confidence: number }[]; base_source: string;
   ai_matched?: number; cache_matched?: number; header: Header; items: AnalyzedItem[];
 };
-type RowStatus = "pending" | "reading" | "read" | "error" | "saving" | "saved" | "duplicate" | "discarded";
+type ApiDoc = Result & { page_range: [number, number] | null; pdf_base64: string | null };
+type RowStatus = "pending" | "reading" | "read" | "error" | "saving" | "saved" | "duplicate" | "discarded" | "split";
 type DuplicateMatch = { id: string; invoice_number: string | null; posting_date: string | null; total_gross: number | null };
-type Row = { file: File; status: RowStatus; result?: Result; error?: string; savedId?: string; duplicate?: DuplicateMatch };
+type Row = { file: File; status: RowStatus; result?: Result; error?: string; savedId?: string; duplicate?: DuplicateMatch; splitCount?: number };
+
+// A batch PDF (e.g. "40 notas") comes back from /api/extract split into one
+// document per invoice, each carrying its own split-out PDF bytes so it can
+// be saved (and later reopened) as its own document instead of the whole
+// original file.
+function base64ToFile(b64: string, filename: string): File {
+  const bin = atob(b64);
+  const bytes = new Uint8Array(bin.length);
+  for (let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
+  return new File([bytes], filename, { type: "application/pdf" });
+}
 
 const money = (n: number | null | undefined) =>
   n === null || n === undefined ? "—" : n.toLocaleString("en-IE", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
@@ -45,7 +57,7 @@ const READ_CONCURRENCY = 8;
 
 export default function Analyze() {
   const { t } = useT();
-  const [clients, setClients] = useState<{ id: string; name: string; client_code: string; activity_code: string; activity_label: string; default_credit_unmatched: boolean }[]>([]);
+  const [clients, setClients] = useState<{ id: string; name: string; client_code: string; activity_code: string; activity_label: string; default_credit_unmatched: boolean; related_categories: string[] }[]>([]);
   const [clientId, setClientId] = useState("");
   const [branches, setBranches] = useState<{ id: string; name: string; code: string | null }[]>([]);
   const [branchId, setBranchId] = useState("");
@@ -93,7 +105,7 @@ export default function Analyze() {
     setBusy(true); setPhase("reading");
 
     const queue = rows
-      .map((r, i) => (r.status === "read" || r.status === "saved" || r.status === "discarded" ? -1 : i))
+      .map((r, i) => (r.status === "read" || r.status === "saved" || r.status === "discarded" || r.status === "split" ? -1 : i))
       .filter((i) => i >= 0);
     let cursor = 0;
 
@@ -104,10 +116,29 @@ export default function Analyze() {
         fd.append("file", rows[i].file);
         fd.append("activity_code", activity);
         fd.append("default_credit_unmatched", String(selectedClient?.default_credit_unmatched ?? false));
+        fd.append("related_categories", JSON.stringify(selectedClient?.related_categories ?? []));
         const res = await fetch("/api/extract", { method: "POST", body: fd });
         const data = await res.json();
         if (!res.ok) throw new Error(data.error || "Reading failed");
-        setRows((prev) => prev.map((r, k) => (k === i ? { ...r, status: "read", result: data } : r)));
+        const docs: ApiDoc[] = data.documents || [];
+        if (docs.length <= 1 && docs[0]) {
+          setRows((prev) => prev.map((r, k) => (k === i ? { ...r, status: "read", result: docs[0] } : r)));
+          return;
+        }
+        if (!docs.length) throw new Error("Reading failed");
+        // Batch PDF split into several invoices: keep the original row as a
+        // marker (appended children preserve every other in-flight index)
+        // and append one saveable row per detected invoice.
+        const children: Row[] = docs.map((d) => ({
+          file: d.pdf_base64 ? base64ToFile(d.pdf_base64, d.filename) : rows[i].file,
+          status: "read" as RowStatus,
+          result: d,
+        }));
+        setRows((prev) => {
+          const next = prev.slice();
+          next[i] = { ...next[i], status: "split", splitCount: docs.length };
+          return [...next, ...children];
+        });
       } catch (e: any) {
         setRows((prev) => prev.map((r, k) => (k === i ? { ...r, status: "error", error: e.message } : r)));
       }
@@ -323,25 +354,31 @@ export default function Analyze() {
               </thead>
               <tbody>
                 {rows.map((r, i) => (
-                  <tr key={i} className="border-b border-line/70 align-middle">
+                  <tr key={i} className={`border-b border-line/70 align-middle ${r.status === "split" ? "text-muted" : ""}`}>
                     <td className="px-4 py-3 max-w-[220px] truncate" title={r.file.name}>{r.file.name}</td>
-                    <td className="px-4 py-3">{r.result?.header.supplier_name || "—"}</td>
-                    <td className="px-4 py-3 tnum">{r.result?.header.invoice_date || "—"}</td>
-                    <td className="px-4 py-3 tnum text-muted">{postingDate || "—"}</td>
-                    <td className="px-4 py-3 text-right tnum">{money(r.result?.header.total_gross)}</td>
-                    <td className="px-4 py-3 text-right tnum font-semibold text-brand-700">{r.status === "read" || r.status === "saved" ? money(docCredit(r)) : "—"}</td>
-                    <td className="px-4 py-3 text-center">
-                      {r.result ? (
-                        <span className="inline-flex items-center gap-1.5">
-                          <span className="chip bg-surface-2 border border-line text-muted">{engineLabel(r.result.engine)}</span>
-                          {r.result.needs_review && (
-                            <span className="chip-warn" title={r.result.issues.join("; ") || t("analyze.lowConfidence")}>
-                              {t("analyze.needsReview")}
+                    {r.status === "split" ? (
+                      <td className="px-4 py-3 text-xs" colSpan={6}>Split into {r.splitCount} invoice(s) — see the rows below.</td>
+                    ) : (
+                      <>
+                        <td className="px-4 py-3">{r.result?.header.supplier_name || "—"}</td>
+                        <td className="px-4 py-3 tnum">{r.result?.header.invoice_date || "—"}</td>
+                        <td className="px-4 py-3 tnum text-muted">{postingDate || "—"}</td>
+                        <td className="px-4 py-3 text-right tnum">{money(r.result?.header.total_gross)}</td>
+                        <td className="px-4 py-3 text-right tnum font-semibold text-brand-700">{r.status === "read" || r.status === "saved" ? money(docCredit(r)) : "—"}</td>
+                        <td className="px-4 py-3 text-center">
+                          {r.result ? (
+                            <span className="inline-flex items-center gap-1.5">
+                              <span className="chip bg-surface-2 border border-line text-muted">{engineLabel(r.result.engine)}</span>
+                              {r.result.needs_review && (
+                                <span className="chip-warn" title={r.result.issues.join("; ") || t("analyze.lowConfidence")}>
+                                  {t("analyze.needsReview")}
+                                </span>
+                              )}
                             </span>
-                          )}
-                        </span>
-                      ) : "—"}
-                    </td>
+                          ) : "—"}
+                        </td>
+                      </>
+                    )}
                     <td className="px-4 py-3">
                       <StatusChip r={r} canSave={canSave} onForceSave={() => saveOne(i, true)} onDiscard={() => discardRow(i)} />
                     </td>
@@ -364,6 +401,7 @@ function StatusChip({ r, canSave, onForceSave, onDiscard }: { r: Row; canSave: b
   const { t: tt } = useT();
   if (r.status === "saved") return <Link href={`/invoice/${r.savedId}`} className="chip-ok">{tt("analyze.statusSaved")}</Link>;
   if (r.status === "discarded") return <span className="chip bg-surface-2 border border-line text-muted">{tt("analyze.statusDiscarded")}</span>;
+  if (r.status === "split") return <span className="chip bg-surface-2 border border-line text-muted">Split into {r.splitCount}</span>;
   if (r.status === "duplicate") {
     const d = r.duplicate;
     const hint = d

@@ -55,6 +55,7 @@ export async function createClient(input: Partial<Client>): Promise<Client> {
     activity_code: input.activity_code || "GENERIC",
     activity_label: input.activity_label || "Generic business",
     default_credit_unmatched: input.default_credit_unmatched ?? false,
+    related_categories: input.related_categories ?? [],
     company_id: (input as any).company_id ?? null,
     email: input.email?.trim() || null,
     phone: input.phone?.trim() || null,
@@ -67,7 +68,7 @@ export async function createClient(input: Partial<Client>): Promise<Client> {
 }
 export async function updateClient(id: string, patch: Partial<Client>): Promise<Client | null> {
   const row: any = {};
-  for (const k of ["name","vat_number","tax_reg_no","activity_code","activity_label","default_credit_unmatched","email","phone","address","notes"])
+  for (const k of ["name","vat_number","tax_reg_no","activity_code","activity_label","default_credit_unmatched","related_categories","email","phone","address","notes"])
     if (k in patch) row[k] = (patch as any)[k];
   const { data } = await sb().from("clients").update(row).eq("id", id).select().maybeSingle();
   return (data as Client) ?? null;

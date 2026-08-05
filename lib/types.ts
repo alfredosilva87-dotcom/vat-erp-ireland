@@ -182,6 +182,8 @@ export interface Client {
   activity_code: string;
   activity_label: string;
   default_credit_unmatched: boolean;
+  /** vat_categories.code values this client sells/uses — empty = check not configured. */
+  related_categories: string[];
   email: string | null;
   phone: string | null;
   address: string | null;

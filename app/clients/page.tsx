@@ -11,6 +11,7 @@ const money = (n: number) => n.toLocaleString("en-IE", { minimumFractionDigits: 
 const empty = {
   name: "", client_code: "", vat_number: "", tax_reg_no: "",
   activity_code: "RESTAURANT", default_credit_unmatched: false,
+  related_categories: [] as string[],
   email: "", phone: "", address: "", notes: "",
 };
 
@@ -22,6 +23,7 @@ export default function Clients() {
   const [showForm, setShowForm] = useState(false);
   const [msg, setMsg] = useState<string | null>(null);
   const [currentId, setCurrentId] = useState<string | null>(null);
+  const [categories, setCategories] = useState<{ code: string | null; description: string; vat_rate: number }[]>([]);
 
   const load = useCallback(async () => {
     const res = await fetch("/api/clients?stats=1");
@@ -32,7 +34,17 @@ export default function Clients() {
   useEffect(() => {
     load();
     setCurrentId(getCurrentClient()?.id ?? null);
+    fetch("/api/base").then((r) => r.json()).then((d) => setCategories(d.categories || []));
   }, [load]);
+
+  function toggleCategory(code: string) {
+    setForm((f) => ({
+      ...f,
+      related_categories: f.related_categories.includes(code)
+        ? f.related_categories.filter((c) => c !== code)
+        : [...f.related_categories, code],
+    }));
+  }
 
   async function submit() {
     if (!form.name.trim()) {
@@ -65,6 +77,7 @@ export default function Clients() {
       name: c.name, client_code: c.client_code, vat_number: c.vat_number || "",
       tax_reg_no: c.tax_reg_no || "", activity_code: c.activity_code,
       default_credit_unmatched: c.default_credit_unmatched,
+      related_categories: c.related_categories || [],
       email: c.email || "", phone: c.phone || "", address: c.address || "", notes: c.notes || "",
     });
     setShowForm(true);
@@ -149,6 +162,28 @@ export default function Clients() {
             <Field label="Notes">
               <input className="input" value={form.notes} onChange={(e) => setForm({ ...form, notes: e.target.value })} />
             </Field>
+          </div>
+          <div className="mt-4 rounded-xl2 border border-line bg-surface-2 p-3">
+            <div className="text-sm font-medium">Categories this client sells / uses</div>
+            <p className="mt-0.5 text-xs text-muted">
+              Optional. Once you pick at least one, an item on a purchase invoice whose category
+              isn&apos;t in this list gets flagged &quot;verify&quot; on the item line and on the invoice.
+              Leave empty to keep this check off (default).
+            </p>
+            <div className="mt-2 flex max-h-40 flex-wrap gap-x-4 gap-y-1.5 overflow-y-auto">
+              {categories.filter((c) => c.code).map((c) => (
+                <label key={c.code} className="flex cursor-pointer items-center gap-1.5 text-sm">
+                  <input
+                    type="checkbox"
+                    checked={form.related_categories.includes(c.code!)}
+                    onChange={() => toggleCategory(c.code!)}
+                    className="h-3.5 w-3.5 accent-[rgb(var(--c-brand))]"
+                  />
+                  {c.description}
+                </label>
+              ))}
+              {!categories.length && <span className="text-xs text-muted">Loading categories…</span>}
+            </div>
           </div>
           <div className="mt-4 flex items-start gap-3 rounded-xl2 border border-line bg-surface-2 p-3">
             <button

@@ -1,9 +1,10 @@
 import type { ExtractionResult, RawExtraction } from "@/lib/types";
 import { extractPdfText } from "./pdfNative";
-import { structureFromText, structureFromMedia } from "./gemini";
+import { structureFromText, structureFromMedia, detectDocumentBoundaries } from "./gemini";
 import { ocrImage } from "./tesseract";
 import { coerceExtraction } from "./prompt";
 import { scoreExtraction, ESCALATION_THRESHOLD, REVIEW_THRESHOLD } from "./validate";
+import { pdfPageCount, extractPdfPageRange } from "./splitPdf";
 
 const hasGemini = () => Boolean(process.env.GEMINI_API_KEY);
 
@@ -94,6 +95,50 @@ export async function readDocument(
   }
 
   throw new Error(`Unsupported file type: ${mimeType}. Upload a PDF or an image.`);
+}
+
+export interface SplitDocument {
+  result: ExtractionResult;
+  /** 1-indexed, inclusive; null when the source wasn't split (single document). */
+  page_range: [number, number] | null;
+  /** The split-out PDF bytes; null when the source wasn't split — caller reuses the original upload. */
+  buffer: Buffer | null;
+}
+
+/**
+ * Like readDocument, but first checks whether a multi-page PDF is actually a
+ * batch of several invoices/receipts scanned back-to-back (e.g. a client
+ * dropping 40 notes into one file) and, if so, splits it and reads each one
+ * through the same pipeline independently.
+ *
+ * Costs exactly one extra Gemini call, and only for PDFs with more than one
+ * page — a normal single-page receipt or image never touches this path.
+ */
+export async function readDocuments(buffer: Buffer, mimeType: string): Promise<SplitDocument[]> {
+  const single = async (): Promise<SplitDocument[]> => [
+    { result: await readDocument(buffer, mimeType), page_range: null, buffer: null },
+  ];
+
+  if (mimeType !== "application/pdf" || !hasGemini()) return single();
+
+  let pageCount = 1;
+  try {
+    pageCount = await pdfPageCount(buffer);
+  } catch {
+    return single(); // corrupt/encrypted page count — fall back to the normal single-document read.
+  }
+  if (pageCount <= 1) return single();
+
+  const boundaries = await detectDocumentBoundaries(buffer.toString("base64"), mimeType);
+  if (boundaries.length <= 1) return single();
+
+  const out: SplitDocument[] = [];
+  for (const b of boundaries) {
+    const sub = await extractPdfPageRange(buffer, b.page_start, b.page_end);
+    const result = await readDocument(sub, mimeType);
+    out.push({ result, page_range: [b.page_start, b.page_end], buffer: sub });
+  }
+  return out;
 }
 
 // Extremely basic offline fallback: wraps raw text as a single description so

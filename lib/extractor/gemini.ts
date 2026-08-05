@@ -1,5 +1,5 @@
 import { GoogleGenerativeAI, type Part } from "@google/generative-ai";
-import { EXTRACTION_INSTRUCTION, coerceExtraction } from "./prompt";
+import { EXTRACTION_INSTRUCTION, BOUNDARY_INSTRUCTION, coerceExtraction } from "./prompt";
 import type { RawExtraction } from "@/lib/types";
 
 function client() {
@@ -81,6 +81,31 @@ export async function structureFromMedia(
       { inlineData: { data: base64, mimeType } },
     ])
   );
+}
+
+// Detects how many separate invoices a multi-page PDF contains and their page
+// ranges. Empty/single-range results mean "treat it as one document" — the
+// caller falls back to the normal single-document pipeline either way.
+export async function detectDocumentBoundaries(
+  base64: string,
+  mimeType: string
+): Promise<{ page_start: number; page_end: number }[]> {
+  try {
+    const text = await runModels([
+      { text: BOUNDARY_INSTRUCTION },
+      { inlineData: { data: base64, mimeType } },
+    ]);
+    const parsed = JSON.parse(text);
+    const docs = Array.isArray(parsed?.documents) ? parsed.documents : [];
+    return docs
+      .map((d: any) => ({ page_start: Number(d?.page_start), page_end: Number(d?.page_end) }))
+      .filter(
+        (d: { page_start: number; page_end: number }) =>
+          Number.isInteger(d.page_start) && Number.isInteger(d.page_end) && d.page_start >= 1 && d.page_end >= d.page_start
+      );
+  } catch {
+    return [];
+  }
 }
 
 // AI-assisted de-para: map item descriptions to one of our category refs.

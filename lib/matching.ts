@@ -227,6 +227,27 @@ export interface CreditRiskSummary {
  *   - the category came from a single short keyword hit -> a coincidence
  *     match ("tea" inside a longer word, etc.) is as likely as a real one.
  */
+// Whether an item's category falls outside the categories the client
+// registered as things it actually sells/uses. Empty `relatedCategories`
+// means the client hasn't configured the list yet, so the check stays off —
+// existing clients aren't suddenly flooded with warnings. An item with no
+// category at all is already covered by the "unmatched" inconsistency flag,
+// so it isn't double-flagged here.
+export function isCategoryUnrelated(categoryCode: string | null | undefined, relatedCategories: string[]): boolean {
+  if (!relatedCategories.length) return false;
+  if (!categoryCode) return false;
+  return !relatedCategories.includes(categoryCode);
+}
+
+export function categoryRelationSummary(items: AnalyzedItem[], relatedCategories: string[]): CreditRiskSummary {
+  const unrelated = items.filter((it) => isCategoryUnrelated(it.matched_category?.code ?? null, relatedCategories)).length;
+  const issues: string[] = [];
+  if (unrelated > 0) {
+    issues.push(`${unrelated} item(s) have a category that isn't in this client's registered business categories — verify.`);
+  }
+  return { needsReview: unrelated > 0, issues };
+}
+
 export function creditRiskSummary(items: AnalyzedItem[]): CreditRiskSummary {
   const noRate = items.filter((it) => it.take_credit && it.expected_vat_rate == null).length;
   const mismatch = items.filter((it) => it.take_credit && it.inconsistency === "rate_mismatch").length;

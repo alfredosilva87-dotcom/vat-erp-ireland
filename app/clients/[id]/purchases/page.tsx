@@ -1,10 +1,11 @@
 "use client";
 
 import Link from "next/link";
-import { useCallback, useEffect, useMemo, useState } from "react";
-import type { StoredInvoice } from "@/lib/types";
+import { Fragment, useCallback, useEffect, useMemo, useState } from "react";
+import type { StoredInvoice, StoredItem } from "@/lib/types";
 import ExportPanel from "@/components/ExportPanel";
 import { useT } from "@/lib/i18n";
+import { computeLines, rateOf } from "@/lib/vat";
 
 const money = (n: number | null | undefined) =>
   n === null || n === undefined ? "—" : n.toLocaleString("en-IE", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
@@ -31,6 +32,9 @@ export default function Purchases({ params }: { params: { id: string } }) {
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [deleting, setDeleting] = useState(false);
   const [canDelete, setCanDelete] = useState(false);
+  const [expanded, setExpanded] = useState<Set<string>>(new Set());
+  const [itemsCache, setItemsCache] = useState<Record<string, StoredItem[]>>({});
+  const [loadingItems, setLoadingItems] = useState<Set<string>>(new Set());
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -103,6 +107,40 @@ export default function Purchases({ params }: { params: { id: string } }) {
     } finally {
       setDeleting(false);
     }
+  }
+
+  async function toggleExpand(id: string) {
+    setExpanded((prev) => {
+      const next = new Set(prev);
+      next.has(id) ? next.delete(id) : next.add(id);
+      return next;
+    });
+    if (!itemsCache[id]) {
+      setLoadingItems((prev) => new Set(prev).add(id));
+      try {
+        const d = await (await fetch(`/api/invoices/${id}`)).json();
+        setItemsCache((prev) => ({ ...prev, [id]: d.items || [] }));
+      } finally {
+        setLoadingItems((prev) => { const n = new Set(prev); n.delete(id); return n; });
+      }
+    }
+  }
+
+  // Net per VAT rate present on the invoice — the reconciliation check is
+  // sum(net by rate) + total VAT === total gross, so the accountant can spot
+  // a mis-read document without opening it.
+  function rateBreakdown(inv: StoredInvoice, items: StoredItem[]) {
+    const totals = { total_net: inv.total_net, total_vat: inv.total_vat, total_gross: inv.total_gross };
+    const { lines } = computeLines(items, totals);
+    const byRate = new Map<number, number>();
+    items.forEach((it, i) => {
+      const rate = rateOf(it) ?? 0;
+      byRate.set(rate, (byRate.get(rate) || 0) + lines[i].net);
+    });
+    const rates = Array.from(byRate.entries()).map(([rate, net]) => ({ rate, net })).sort((a, b) => b.rate - a.rate);
+    const netSum = rates.reduce((a, r) => a + r.net, 0);
+    const reconciled = Math.abs(netSum + (inv.total_vat || 0) - (inv.total_gross || 0)) <= Math.max(0.05, Math.abs(inv.total_gross || 0) * 0.02);
+    return { rates, reconciled };
   }
 
   function preset(kind: "month" | "prev" | "year") {
@@ -217,6 +255,7 @@ export default function Purchases({ params }: { params: { id: string } }) {
           <table className="w-full text-sm">
             <thead>
               <tr className="border-b border-line bg-surface-2/60 text-left text-xs uppercase tracking-wide text-muted">
+                <th className="px-2 py-3" />
                 {canDelete && (
                   <th className="px-3 py-3">
                     <input
@@ -240,54 +279,100 @@ export default function Purchases({ params }: { params: { id: string } }) {
               </tr>
             </thead>
             <tbody>
-              {invoices.map((inv) => (
-                <tr key={inv.id} className={`border-b border-line/70 align-top ${selected.has(inv.id) ? "bg-brand-50/40" : ""}`}>
-                  {canDelete && (
-                    <td className="px-3 py-3">
-                      <input
-                        type="checkbox" checked={selected.has(inv.id)} onChange={() => toggleOne(inv.id)}
-                        className="h-3.5 w-3.5 accent-[rgb(var(--c-brand))]"
-                      />
-                    </td>
-                  )}
-                  <td className="px-4 py-3">
-                    <div className="flex items-center gap-1.5">
-                      <span className="font-medium">{inv.supplier_name || "—"}</span>
-                      {inv.needs_review && (
-                        <span className="chip-warn" title={inv.review_notes?.join("; ") || t("analyze.lowConfidence")}>
-                          {t("records.review")}
-                        </span>
-                      )}
-                    </div>
-                    {inv.supplier_vat && <div className="font-mono text-xs text-muted">{inv.supplier_vat}</div>}
-                  </td>
-                  <td className="px-4 py-3 text-xs text-muted">{inv.branch_name || "—"}</td>
-                  <td className="px-4 py-3 tnum">{inv.invoice_date || "—"}</td>
-                  <td className="px-4 py-3 tnum text-muted">{inv.posting_date || "—"}</td>
-                  <td className="px-4 py-3 font-mono text-xs">{inv.invoice_number || "—"}</td>
-                  <td className="px-4 py-3 text-right tnum">{inv.item_count}</td>
-                  <td className="px-4 py-3 text-right tnum">{money(inv.total_net)}</td>
-                  <td className="px-4 py-3 text-right tnum">{money(inv.total_vat)}</td>
-                  <td className="px-4 py-3 text-right tnum">{money(inv.total_gross)}</td>
-                  <td className="px-4 py-3 text-right tnum font-semibold text-brand-700">{money(inv.total_credit)}</td>
-                  <td className="px-4 py-3">
-                    <div className="flex items-center justify-center gap-1">
-                      <Link className="btn-ghost h-8 px-3 text-xs" href={`/invoice/${inv.id}?from=/clients/${params.id}/purchases`}>{t("common.open")}</Link>
-                      {inv.document_file && (
-                        <a
-                          className="btn-ghost h-8 px-3 text-xs"
-                          href={`/api/invoices/${inv.id}/document`} target="_blank" rel="noreferrer"
+              {invoices.map((inv) => {
+                const isOpen = expanded.has(inv.id);
+                const items = itemsCache[inv.id];
+                const breakdown = isOpen && items ? rateBreakdown(inv, items) : null;
+                return (
+                  <Fragment key={inv.id}>
+                    <tr className={`border-b border-line/70 align-top ${selected.has(inv.id) ? "bg-brand-50/40" : ""}`}>
+                      <td className="px-2 py-3">
+                        <button
+                          className="text-muted transition-colors hover:text-ink"
+                          onClick={() => toggleExpand(inv.id)}
+                          title="Net / gross by VAT rate"
                         >
-                          {t("records.doc")}
-                        </a>
+                          {isOpen ? "▾" : "▸"}
+                        </button>
+                      </td>
+                      {canDelete && (
+                        <td className="px-3 py-3">
+                          <input
+                            type="checkbox" checked={selected.has(inv.id)} onChange={() => toggleOne(inv.id)}
+                            className="h-3.5 w-3.5 accent-[rgb(var(--c-brand))]"
+                          />
+                        </td>
                       )}
-                    </div>
-                  </td>
-                </tr>
-              ))}
+                      <td className="px-4 py-3">
+                        <div className="flex items-center gap-1.5">
+                          <span className="font-medium">{inv.supplier_name || "—"}</span>
+                          {inv.needs_review && (
+                            <span className="chip-warn" title={inv.review_notes?.join("; ") || t("analyze.lowConfidence")}>
+                              {t("records.review")}
+                            </span>
+                          )}
+                        </div>
+                        {inv.supplier_vat && <div className="font-mono text-xs text-muted">{inv.supplier_vat}</div>}
+                      </td>
+                      <td className="px-4 py-3 text-xs text-muted">{inv.branch_name || "—"}</td>
+                      <td className="px-4 py-3 tnum">{inv.invoice_date || "—"}</td>
+                      <td className="px-4 py-3 tnum text-muted">{inv.posting_date || "—"}</td>
+                      <td className="px-4 py-3 font-mono text-xs">{inv.invoice_number || "—"}</td>
+                      <td className="px-4 py-3 text-right tnum">{inv.item_count}</td>
+                      <td className="px-4 py-3 text-right tnum">{money(inv.total_net)}</td>
+                      <td className="px-4 py-3 text-right tnum">{money(inv.total_vat)}</td>
+                      <td className="px-4 py-3 text-right tnum">{money(inv.total_gross)}</td>
+                      <td className="px-4 py-3 text-right tnum font-semibold text-brand-700">{money(inv.total_credit)}</td>
+                      <td className="px-4 py-3">
+                        <div className="flex items-center justify-center gap-1">
+                          <Link className="btn-ghost h-8 px-3 text-xs" href={`/invoice/${inv.id}?from=/clients/${params.id}/purchases`}>{t("common.open")}</Link>
+                          {inv.document_file && (
+                            <a
+                              className="btn-ghost h-8 px-3 text-xs"
+                              href={`/api/invoices/${inv.id}/document`} target="_blank" rel="noreferrer"
+                            >
+                              {t("records.doc")}
+                            </a>
+                          )}
+                        </div>
+                      </td>
+                    </tr>
+                    {isOpen && (
+                      <tr className="border-b border-line/70 bg-surface-2/40">
+                        <td />
+                        <td colSpan={canDelete ? 11 : 10} className="px-4 py-3">
+                          {loadingItems.has(inv.id) || !breakdown ? (
+                            <span className="text-xs text-muted">Loading…</span>
+                          ) : (
+                            <div className="flex flex-wrap items-center gap-x-6 gap-y-2 text-xs">
+                              <span>
+                                <span className="text-muted">Gross total </span>
+                                <strong className="tnum">€ {money(inv.total_gross)}</strong>
+                              </span>
+                              <span>
+                                <span className="text-muted">VAT total </span>
+                                <strong className="tnum">€ {money(inv.total_vat)}</strong>
+                              </span>
+                              {breakdown.rates.map((r) => (
+                                <span key={r.rate}>
+                                  <span className="text-muted">Net {r.rate}% </span>
+                                  <strong className="tnum">€ {money(r.net)}</strong>
+                                </span>
+                              ))}
+                              <span className={breakdown.reconciled ? "chip-ok" : "chip-warn"}>
+                                {breakdown.reconciled ? "Nets + VAT = Gross" : "Nets + VAT ≠ Gross — check document"}
+                              </span>
+                            </div>
+                          )}
+                        </td>
+                      </tr>
+                    )}
+                  </Fragment>
+                );
+              })}
               {!invoices.length && !loading && (
                 <tr>
-                  <td colSpan={canDelete ? 12 : 11} className="px-4 py-10 text-center text-muted">
+                  <td colSpan={canDelete ? 13 : 12} className="px-4 py-10 text-center text-muted">
                     {filtersOn ? t("purchases.noneFiltered") : t("client.noInvoices")}
                   </td>
                 </tr>
@@ -296,7 +381,7 @@ export default function Purchases({ params }: { params: { id: string } }) {
             {invoices.length > 0 && (
               <tfoot>
                 <tr className="bg-surface-2/60 font-semibold">
-                  <td className="px-4 py-3" colSpan={canDelete ? 7 : 6}>{t("common.total")}</td>
+                  <td className="px-4 py-3" colSpan={canDelete ? 8 : 7}>{t("common.total")}</td>
                   <td className="px-4 py-3 text-right tnum">{money(totals.gross - totals.vat)}</td>
                   <td className="px-4 py-3 text-right tnum">{money(totals.vat)}</td>
                   <td className="px-4 py-3 text-right tnum">{money(totals.gross)}</td>

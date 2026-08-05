@@ -28,6 +28,7 @@ const vatOf = (d: Draft) => {
   const net = numOrNull(d.net), rate = numOrNull(d.rate);
   return net != null && rate != null ? (net * rate) / 100 : 0;
 };
+const grossOf = (d: Draft) => (numOrNull(d.net) ?? 0) + vatOf(d);
 
 export default function SalesEntryPage({ params }: { params: { id: string } }) {
   const [client, setClient] = useState<Client | null>(null);
@@ -185,6 +186,7 @@ export default function SalesEntryPage({ params }: { params: { id: string } }) {
                 <th className="px-2 py-2 font-medium text-right">Net €</th>
                 <th className="px-2 py-2 font-medium text-right">VAT %</th>
                 <th className="px-2 py-2 font-medium text-right">VAT €</th>
+                <th className="px-2 py-2 font-medium text-right">Gross €</th>
               </tr>
             </thead>
             <tbody>
@@ -196,6 +198,7 @@ export default function SalesEntryPage({ params }: { params: { id: string } }) {
                   <td className="px-2 py-1.5"><input className="input h-9 w-28 text-right" value={d.net} onChange={(e) => setDraft(i, { net: e.target.value })} /></td>
                   <td className="px-2 py-1.5"><input className="input h-9 w-20 text-right" value={d.rate} onChange={(e) => setDraft(i, { rate: e.target.value })} /></td>
                   <td className="px-2 py-1.5 text-right tnum">{money(vatOf(d))}</td>
+                  <td className="px-2 py-1.5 text-right tnum font-medium">{money(grossOf(d))}</td>
                 </tr>
               ))}
             </tbody>
@@ -247,6 +250,7 @@ export default function SalesEntryPage({ params }: { params: { id: string } }) {
                 <th className="px-4 py-3 font-medium text-right">Net €</th>
                 <th className="px-4 py-3 font-medium text-right">VAT %</th>
                 <th className="px-4 py-3 font-medium text-right">VAT €</th>
+                <th className="px-4 py-3 font-medium text-right">Gross €</th>
                 <th className="px-4 py-3 font-medium text-center">—</th>
               </tr>
             </thead>
@@ -259,10 +263,11 @@ export default function SalesEntryPage({ params }: { params: { id: string } }) {
                   <td className="px-4 py-2 text-right tnum">{money(s.net_amount)}</td>
                   <td className="px-4 py-2 text-right tnum">{s.vat_rate ?? "—"}</td>
                   <td className="px-4 py-2 text-right tnum font-semibold">{money(s.vat_amount)}</td>
+                  <td className="px-4 py-2 text-right tnum font-semibold">{money((s.net_amount || 0) + (s.vat_amount || 0))}</td>
                   <td className="px-4 py-2 text-center"><button className="btn-ghost h-8 px-3 text-xs text-danger" onClick={() => remove(s.id)}>Delete</button></td>
                 </tr>
               ))}
-              {!sales.length && <tr><td colSpan={7} className="px-4 py-8 text-center text-muted">No sales recorded yet.</td></tr>}
+              {!sales.length && <tr><td colSpan={8} className="px-4 py-8 text-center text-muted">No sales recorded yet.</td></tr>}
             </tbody>
           </table>
         </div>

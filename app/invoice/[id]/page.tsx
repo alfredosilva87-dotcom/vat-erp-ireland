@@ -1,10 +1,11 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import type { StoredInvoice, StoredItem, ChartAccount, Branch } from "@/lib/types";
 import { computeLines } from "@/lib/vat";
+import { isCategoryUnrelated } from "@/lib/matching";
 
 type Cat = { code: string | null; description: string; vat_rate: number };
 
@@ -18,17 +19,29 @@ const numOrNull = (v: string): number | null => {
 };
 
 /**
- * Per-line VAT for the whole invoice at once — receipts price VAT-inclusive,
- * so the figure depends on the other lines and on the document totals.
- * Same helper the server uses when saving, so screen and database agree.
+ * Controlled number input that keeps whatever the user is typing (including a
+ * trailing "." or trailing zeros) instead of re-deriving its text from the
+ * parsed number on every keystroke — otherwise typing "100." collapses back
+ * to "100" before the next digit lands, and a decimal point can never be typed.
  */
-function lineCredits(items: StoredItem[], inv: StoredInvoice | null): number[] {
-  const { lines } = computeLines(items, {
-    total_net: inv?.total_net ?? null,
-    total_vat: inv?.total_vat ?? null,
-    total_gross: inv?.total_gross ?? null,
-  });
-  return items.map((it, i) => (it.take_credit ? lines[i].vat : 0));
+function NumInput({ value, onChange, className, placeholder }: {
+  value: number | null; onChange: (v: number | null) => void; className?: string; placeholder?: string;
+}) {
+  const [text, setText] = useState(value == null ? "" : String(value));
+  const focused = useRef(false);
+  useEffect(() => {
+    if (!focused.current) setText(value == null ? "" : String(value));
+  }, [value]);
+  return (
+    <input
+      className={className}
+      placeholder={placeholder}
+      value={text}
+      onFocus={() => { focused.current = true; }}
+      onBlur={() => { focused.current = false; setText(value == null ? "" : String(value)); }}
+      onChange={(e) => { setText(e.target.value); onChange(numOrNull(e.target.value)); }}
+    />
+  );
 }
 
 export default function InvoiceEdit({ params }: { params: { id: string } }) {
@@ -43,6 +56,7 @@ export default function InvoiceEdit({ params }: { params: { id: string } }) {
   const [cats, setCats] = useState<Cat[]>([]);
   const [accounts, setAccounts] = useState<ChartAccount[]>([]);
   const [branches, setBranches] = useState<Branch[]>([]);
+  const [relatedCategories, setRelatedCategories] = useState<string[]>([]);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [dirty, setDirty] = useState(false);
@@ -57,9 +71,10 @@ export default function InvoiceEdit({ params }: { params: { id: string } }) {
   }, [params.id]);
 
   useEffect(() => {
-    if (!inv?.client_id) { setAccounts([]); setBranches([]); return; }
+    if (!inv?.client_id) { setAccounts([]); setBranches([]); setRelatedCategories([]); return; }
     fetch(`/api/clients/${inv.client_id}/accounts`).then((r) => r.json()).then((d) => setAccounts(d.accounts || []));
     fetch(`/api/clients/${inv.client_id}/branches`).then((r) => r.json()).then((d) => setBranches(d.branches || []));
+    fetch(`/api/clients/${inv.client_id}`).then((r) => r.json()).then((d) => setRelatedCategories(d.client?.related_categories || []));
   }, [inv?.client_id]);
 
   function setHdr<K extends keyof StoredInvoice>(k: K, v: StoredInvoice[K]) {
@@ -87,7 +102,14 @@ export default function InvoiceEdit({ params }: { params: { id: string } }) {
     setDirty(true);
   }
 
-  const credits = useMemo(() => lineCredits(items, inv), [items, inv]);
+  const unrelatedCount = useMemo(
+    () => items.filter((it) => isCategoryUnrelated(it.category_code, relatedCategories)).length,
+    [items, relatedCategories]
+  );
+  const computed = useMemo(() => computeLines(items, {
+    total_net: inv?.total_net ?? null, total_vat: inv?.total_vat ?? null, total_gross: inv?.total_gross ?? null,
+  }), [items, inv]);
+  const credits = useMemo(() => items.map((it, i) => (it.take_credit ? computed.lines[i].vat : 0)), [items, computed]);
   const totalCredit = useMemo(() => credits.reduce((a, v) => a + v, 0), [credits]);
 
   async function save() {
@@ -177,6 +199,14 @@ export default function InvoiceEdit({ params }: { params: { id: string } }) {
         </div>
       )}
 
+      {unrelatedCount > 0 && (
+        <div className="rounded-xl2 border border-warning bg-warning-50 p-4">
+          <p className="font-medium text-warning">
+            {unrelatedCount} item(s) have a category outside {inv.client_name || "this client"}&apos;s registered business categories — verify below.
+          </p>
+        </div>
+      )}
+
       {/* Header edit */}
       <div className="card p-5">
         <h2 className="font-display text-lg font-semibold">Document details</h2>
@@ -207,9 +237,9 @@ export default function InvoiceEdit({ params }: { params: { id: string } }) {
             </F>
           )}
           <div className="grid grid-cols-3 gap-2 sm:col-span-2 lg:col-span-1">
-            <F label="Net €"><input className="input" value={inv.total_net ?? ""} onChange={(e) => setHdr("total_net", numOrNull(e.target.value))} /></F>
-            <F label="VAT €"><input className="input" value={inv.total_vat ?? ""} onChange={(e) => setHdr("total_vat", numOrNull(e.target.value))} /></F>
-            <F label="Gross €"><input className="input" value={inv.total_gross ?? ""} onChange={(e) => setHdr("total_gross", numOrNull(e.target.value))} /></F>
+            <F label="Net €"><NumInput className="input" value={inv.total_net} onChange={(v) => setHdr("total_net", v)} /></F>
+            <F label="VAT €"><NumInput className="input" value={inv.total_vat} onChange={(v) => setHdr("total_vat", v)} /></F>
+            <F label="Gross €"><NumInput className="input" value={inv.total_gross} onChange={(v) => setHdr("total_gross", v)} /></F>
           </div>
         </div>
       </div>
@@ -228,21 +258,29 @@ export default function InvoiceEdit({ params }: { params: { id: string } }) {
           <table className="w-full text-sm">
             <thead>
               <tr className="border-b border-line bg-surface-2/60 text-left text-xs uppercase tracking-wide text-muted">
-                <th className="px-3 py-3 font-medium">Item</th>
-                <th className="px-3 py-3 font-medium">Category</th>
-                <th className="px-3 py-3 font-medium">Account</th>
-                <th className="px-3 py-3 font-medium text-right">Base rate %</th>
-                <th className="px-3 py-3 font-medium text-right">VAT doc %</th>
-                <th className="px-3 py-3 font-medium text-right">Net €</th>
-                <th className="px-3 py-3 font-medium text-right">Credit €</th>
-                <th className="px-3 py-3 font-medium text-center">Credit</th>
+                <th className="whitespace-nowrap px-3 py-3 font-medium">Item</th>
+                <th className="whitespace-nowrap px-3 py-3 font-medium">Category</th>
+                <th className="whitespace-nowrap px-3 py-3 font-medium">Account</th>
+                <th className="whitespace-nowrap px-3 py-3 font-medium text-right">Base rate %</th>
+                <th className="whitespace-nowrap px-3 py-3 font-medium text-right">VAT doc %</th>
+                <th className="whitespace-nowrap px-3 py-3 font-medium text-right">Gross €</th>
+                <th className="whitespace-nowrap px-3 py-3 font-medium text-right">Net €</th>
+                <th className="whitespace-nowrap px-3 py-3 font-medium text-right">Credit €</th>
+                <th className="whitespace-nowrap px-3 py-3 font-medium text-center">Credit</th>
               </tr>
             </thead>
             <tbody>
               {items.map((it, idx) => (
                 <tr key={it.id} className="border-b border-line/70 align-middle">
                   <td className="px-3 py-2">
-                    <input className="input h-9" value={it.description} onChange={(e) => setItem(it.id, { description: e.target.value })} />
+                    <div className="flex items-center gap-1.5">
+                      <input className="input h-9" value={it.description} onChange={(e) => setItem(it.id, { description: e.target.value })} />
+                      {isCategoryUnrelated(it.category_code, relatedCategories) && (
+                        <span className="chip-warn shrink-0" title="This item's category isn't in the client's registered business categories — verify.">
+                          Verify
+                        </span>
+                      )}
+                    </div>
                   </td>
                   <td className="px-3 py-2">
                     <select className="input h-9" value={it.category_code || ""} onChange={(e) => pickCategory(it.id, e.target.value)}>
@@ -267,13 +305,14 @@ export default function InvoiceEdit({ params }: { params: { id: string } }) {
                     )}
                   </td>
                   <td className="px-3 py-2">
-                    <input className="input h-9 w-20 text-right" value={it.expected_vat_rate ?? ""} onChange={(e) => setItem(it.id, { expected_vat_rate: numOrNull(e.target.value) })} />
+                    <NumInput className="input h-9 w-20 text-right" value={it.expected_vat_rate} onChange={(v) => setItem(it.id, { expected_vat_rate: v })} />
                   </td>
                   <td className="px-3 py-2">
-                    <input className="input h-9 w-20 text-right" value={it.vat_rate_on_invoice ?? ""} onChange={(e) => setItem(it.id, { vat_rate_on_invoice: numOrNull(e.target.value) })} />
+                    <NumInput className="input h-9 w-20 text-right" value={it.vat_rate_on_invoice} onChange={(v) => setItem(it.id, { vat_rate_on_invoice: v })} />
                   </td>
+                  <td className="px-3 py-2 text-right tnum">{money((computed.lines[idx]?.net ?? 0) + (computed.lines[idx]?.vat ?? 0))}</td>
                   <td className="px-3 py-2">
-                    <input className="input h-9 w-24 text-right" value={it.net_amount ?? ""} onChange={(e) => setItem(it.id, { net_amount: numOrNull(e.target.value) })} />
+                    <NumInput className="input h-9 w-24 text-right" value={it.net_amount} onChange={(v) => setItem(it.id, { net_amount: v })} />
                   </td>
                   <td className="px-3 py-2 text-right tnum">{it.take_credit ? money(credits[idx]) : "—"}</td>
                   <td className="px-3 py-2 text-center">
