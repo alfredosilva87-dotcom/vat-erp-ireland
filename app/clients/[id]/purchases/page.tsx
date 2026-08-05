@@ -6,6 +6,7 @@ import type { StoredInvoice, StoredItem } from "@/lib/types";
 import ExportPanel from "@/components/ExportPanel";
 import { useT } from "@/lib/i18n";
 import { computeLines, rateOf } from "@/lib/vat";
+import { rememberOpenedRow, useScrollToRow } from "@/lib/useScrollToRow";
 
 const money = (n: number | null | undefined) =>
   n === null || n === undefined ? "—" : n.toLocaleString("en-IE", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
@@ -35,6 +36,7 @@ export default function Purchases({ params }: { params: { id: string } }) {
   const [expanded, setExpanded] = useState<Set<string>>(new Set());
   const [itemsCache, setItemsCache] = useState<Record<string, StoredItem[]>>({});
   const [loadingItems, setLoadingItems] = useState<Set<string>>(new Set());
+  const [copiedId, setCopiedId] = useState<string | null>(null);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -72,6 +74,8 @@ export default function Purchases({ params }: { params: { id: string } }) {
     credit: invoices.reduce((a, i) => a + (i.total_credit || 0), 0),
     review: invoices.filter((i) => i.needs_review).length,
   }), [invoices]);
+
+  const highlightId = useScrollToRow(invoices.map((i) => i.id));
 
   const filtersOn = !!(start || end || onlyReview || branchId || query);
   function clearFilters() {
@@ -141,6 +145,21 @@ export default function Purchases({ params }: { params: { id: string } }) {
     const netSum = rates.reduce((a, r) => a + r.net, 0);
     const reconciled = Math.abs(netSum + (inv.total_vat || 0) - (inv.total_gross || 0)) <= Math.max(0.05, Math.abs(inv.total_gross || 0) * 0.02);
     return { rates, reconciled };
+  }
+
+  // Tab-separated so it pastes as a row into Excel/Sheets, not a copyright-free
+  // markdown table only useful in a chat window.
+  function copyBreakdown(inv: StoredInvoice, breakdown: { rates: { rate: number; net: number }[] }) {
+    const cols = [
+      `Supplier: ${inv.supplier_name || "—"}`,
+      `Doc: ${inv.invoice_number || "—"}`,
+      `Gross total\t${money(inv.total_gross)}`,
+      `VAT total\t${money(inv.total_vat)}`,
+      ...breakdown.rates.map((r) => `Net ${r.rate}%\t${money(r.net)}`),
+    ];
+    navigator.clipboard.writeText(cols.join("\n"));
+    setCopiedId(inv.id);
+    setTimeout(() => setCopiedId((c) => (c === inv.id ? null : c)), 1500);
   }
 
   function preset(kind: "month" | "prev" | "year") {
@@ -285,7 +304,10 @@ export default function Purchases({ params }: { params: { id: string } }) {
                 const breakdown = isOpen && items ? rateBreakdown(inv, items) : null;
                 return (
                   <Fragment key={inv.id}>
-                    <tr className={`border-b border-line/70 align-top ${selected.has(inv.id) ? "bg-brand-50/40" : ""}`}>
+                    <tr
+                      id={`row-${inv.id}`}
+                      className={`border-b border-line/70 align-top transition-colors ${selected.has(inv.id) ? "bg-brand-50/40" : highlightId === inv.id ? "bg-brand-50/70" : ""}`}
+                    >
                       <td className="px-2 py-3">
                         <button
                           className="text-muted transition-colors hover:text-ink"
@@ -325,7 +347,7 @@ export default function Purchases({ params }: { params: { id: string } }) {
                       <td className="px-4 py-3 text-right tnum font-semibold text-brand-700">{money(inv.total_credit)}</td>
                       <td className="px-4 py-3">
                         <div className="flex items-center justify-center gap-1">
-                          <Link className="btn-ghost h-8 px-3 text-xs" href={`/invoice/${inv.id}?from=/clients/${params.id}/purchases`}>{t("common.open")}</Link>
+                          <Link className="btn-ghost h-8 px-3 text-xs" href={`/invoice/${inv.id}?from=/clients/${params.id}/purchases`} onClick={() => rememberOpenedRow(inv.id)}>{t("common.open")}</Link>
                           {inv.document_file && (
                             <a
                               className="btn-ghost h-8 px-3 text-xs"
@@ -362,6 +384,9 @@ export default function Purchases({ params }: { params: { id: string } }) {
                               <span className={breakdown.reconciled ? "chip-ok" : "chip-warn"}>
                                 {breakdown.reconciled ? "Nets + VAT = Gross" : "Nets + VAT ≠ Gross — check document"}
                               </span>
+                              <button className="btn-ghost h-7 px-2 text-xs" onClick={() => copyBreakdown(inv, breakdown)}>
+                                {copiedId === inv.id ? "Copied!" : "Copy"}
+                              </button>
                             </div>
                           )}
                         </td>

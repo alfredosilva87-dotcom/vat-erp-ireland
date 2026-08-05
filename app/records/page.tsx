@@ -3,9 +3,11 @@
 import { useCallback, useEffect, useState } from "react";
 import type { StoredInvoice, MasterItem } from "@/lib/types";
 import Link from "next/link";
+import { useSearchParams } from "next/navigation";
 import { getCurrentClient } from "@/lib/currentClient";
 import ExportPanel from "@/components/ExportPanel";
 import { useT } from "@/lib/i18n";
+import { rememberOpenedRow, useScrollToRow } from "@/lib/useScrollToRow";
 
 type Stats = { invoices: number; items: number; unique_items: number; total_credit: number };
 
@@ -16,6 +18,10 @@ const money = (n: number | null) =>
 
 export default function Records() {
   const { t } = useT();
+  const searchParams = useSearchParams();
+  // A just-imported batch (see Analyze's "Review this batch") locks the list
+  // to exactly those invoices, ignoring the usual filters, until cleared.
+  const batchIds = searchParams.get("ids");
   const [tab, setTab] = useState<"invoices" | "items">("invoices");
   const [q, setQ] = useState("");
   const [query, setQuery] = useState("");
@@ -35,11 +41,15 @@ export default function Records() {
     setLoading(true);
     try {
       const p = new URLSearchParams({ q: query });
-      if (clientId) p.set("client", clientId);
-      if (branchId) p.set("branch", branchId);
-      if (start) p.set("start", start);
-      if (end) p.set("end", end);
-      if (onlyReview) p.set("review", "1");
+      if (batchIds) {
+        p.set("ids", batchIds);
+      } else {
+        if (clientId) p.set("client", clientId);
+        if (branchId) p.set("branch", branchId);
+        if (start) p.set("start", start);
+        if (end) p.set("end", end);
+        if (onlyReview) p.set("review", "1");
+      }
       if (tab === "items") p.set("view", "items");
       const res = await fetch(`/api/invoices?${p.toString()}`);
       const data = await res.json();
@@ -49,7 +59,9 @@ export default function Records() {
     } finally {
       setLoading(false);
     }
-  }, [tab, query, clientId, branchId, start, end, onlyReview]);
+  }, [tab, query, clientId, branchId, start, end, onlyReview, batchIds]);
+
+  const highlightId = useScrollToRow(invoices.map((i) => i.id));
 
   const filtersOn = !!(start || end || onlyReview || clientId || branchId || query);
   function clearFilters() {
@@ -89,6 +101,13 @@ export default function Records() {
           </div>
         )}
       </div>
+
+      {batchIds && (
+        <div className="flex flex-wrap items-center gap-3 rounded-xl border border-brand/40 bg-brand-50 px-4 py-2.5 text-sm">
+          Showing only the {batchIds.split(",").filter(Boolean).length} invoice(s) just imported.
+          <Link className="btn-ghost ml-auto h-8 px-3 text-xs" href="/records">Show all invoices</Link>
+        </div>
+      )}
 
       {/* Tabs + search */}
       <div className="flex flex-wrap items-center justify-between gap-3">
@@ -211,7 +230,10 @@ export default function Records() {
               </thead>
               <tbody>
                 {invoices.map((inv) => (
-                  <tr key={inv.id} className="border-b border-line/70 align-top">
+                  <tr
+                    key={inv.id} id={`row-${inv.id}`}
+                    className={`border-b border-line/70 align-top transition-colors ${highlightId === inv.id ? "bg-brand-50/70" : ""}`}
+                  >
                     <td className="px-4 py-3">
                       <div className="flex items-center gap-1.5">
                         <span className="font-medium">{inv.supplier_name || "Unknown"}</span>
@@ -239,7 +261,7 @@ export default function Records() {
                     </td>
                     <td className="px-4 py-3">
                       <div className="flex items-center justify-center gap-1">
-                        <Link className="btn-ghost h-7 px-2 text-xs" href={`/invoice/${inv.id}?from=/records`}>
+                        <Link className="btn-ghost h-7 px-2 text-xs" href={`/invoice/${inv.id}?from=/records`} onClick={() => rememberOpenedRow(inv.id)}>
                           Open
                         </Link>
                         {inv.document_file && (

@@ -271,6 +271,8 @@ export interface InvoiceFilter {
   start?: string;
   end?: string;
   needsReview?: boolean;
+  /** Restrict to exactly these invoices — used to review a just-imported batch. */
+  ids?: string[];
 }
 
 export async function listInvoices(
@@ -285,6 +287,7 @@ export async function listInvoices(
   if (f.clientId) query = query.eq("client_id", f.clientId);
   if (f.branchId) query = query.eq("branch_id", f.branchId);
   if (f.needsReview) query = query.eq("needs_review", true);
+  if (f.ids?.length) query = query.in("id", f.ids);
   const { data } = await query;
 
   let list = (data ?? []).map(toInvoice);
@@ -341,7 +344,7 @@ export async function recomputeInvoiceTotals(id: string) {
     }
     total += cv;
   }
-  await sb().from("invoices").update({ total_credit: Number(total.toFixed(2)) }).eq("id", id);
+  await sb().from("invoices").update({ total_credit: Number(total.toFixed(2)), item_count: list.length }).eq("id", id);
 }
 
 export async function updateInvoiceCredits(invoiceId: string, credits: Record<string, boolean>) {
@@ -367,6 +370,17 @@ export async function updateInvoice(invoiceId: string, patch: { header?: Partial
     const { data: invRow } = await sb().from("invoices").select("client_id").eq("id", invoiceId).maybeSingle();
     const clientId = invRow?.client_id as string | null;
     for (const upd of patch.items) {
+      // Lines added on the invoice-edit screen (e.g. to compensate for a
+      // missing page/item) carry a client-generated "new-" id instead of a
+      // real invoice_items id — insert them instead of updating.
+      if (upd.id.startsWith("new-")) {
+        const row: any = { invoice_id: invoiceId, take_credit: false };
+        for (const k of ["description","quantity","unit_price","net_amount","vat_rate_on_invoice","expected_vat_rate","category_code","category_name","account_code","account_name","take_credit"])
+          if (k in upd) row[k] = (upd as any)[k];
+        if (!row.description) continue; // nothing to save yet
+        await sb().from("invoice_items").insert(row);
+        continue;
+      }
       const row: any = {};
       for (const k of ["description","quantity","unit_price","net_amount","vat_rate_on_invoice","expected_vat_rate","category_code","category_name","account_code","account_name","take_credit"])
         if (k in upd) row[k] = (upd as any)[k];
@@ -592,6 +606,63 @@ export async function vatByRate(clientId: string, start: string, end: string): P
   return { purchases, sales: salesByRate };
 }
 
+export interface InvoiceRateRow {
+  id: string;
+  date: string | null;
+  supplier: string | null;
+  doc_number: string | null;
+  gross: number;
+  vat: number;
+  /** Net for each VAT rate present on this invoice, keyed by rate as a string (e.g. "23"). */
+  netByRate: Record<string, number>;
+  /** Whether sum(netByRate) + vat reconciles with gross — same check as the Purchases screen. */
+  reconciled: boolean;
+}
+
+/**
+ * Per-invoice Gross/VAT/Net-by-rate breakdown for a client's purchases in a
+ * period — the same figures the Purchases screen shows per expanded row
+ * (lib/vat.ts computeLines, basis-aware), one row per invoice instead of one
+ * expandable panel, for the dedicated export sheet.
+ */
+export async function invoiceRateBreakdowns(clientId: string, start: string, end: string): Promise<InvoiceRateRow[]> {
+  const { data: invs } = await sb().from("invoices")
+    .select("id,supplier_name,invoice_number,invoice_date,posting_date,total_net,total_vat,total_gross").eq("client_id", clientId);
+  const inPeriod = (invs ?? []).filter((i: any) => { const d = i.posting_date || i.invoice_date; return d && d >= start && d <= end; });
+  const invMap = new Map(inPeriod.map((i: any) => [i.id, i]));
+  const ids = inPeriod.map((i: any) => i.id);
+  let items: any[] = [];
+  if (ids.length) {
+    const { data } = await sb().from("invoice_items")
+      .select("invoice_id,net_amount,vat_amount_on_invoice,expected_vat_rate,vat_rate_on_invoice").in("invoice_id", ids);
+    items = data ?? [];
+  }
+
+  const itemsByInvoice = new Map<string, any[]>();
+  for (const it of items) itemsByInvoice.set(it.invoice_id, [...(itemsByInvoice.get(it.invoice_id) || []), it]);
+
+  const rows: InvoiceRateRow[] = [];
+  for (const inv of inPeriod as any[]) {
+    const its = itemsByInvoice.get(inv.id) || [];
+    const totals = { total_net: inv.total_net ?? null, total_vat: inv.total_vat ?? null, total_gross: inv.total_gross ?? null };
+    const { lines } = computeLines(its, totals);
+    const netByRate: Record<string, number> = {};
+    its.forEach((it, i) => {
+      const rate = String(Number(it.expected_vat_rate ?? it.vat_rate_on_invoice ?? 0));
+      netByRate[rate] = r2((netByRate[rate] || 0) + lines[i].net);
+    });
+    const netSum = Object.values(netByRate).reduce((a, v) => a + v, 0);
+    const gross = Number(inv.total_gross || 0);
+    const vat = Number(inv.total_vat || 0);
+    rows.push({
+      id: inv.id, date: inv.posting_date || inv.invoice_date || null, supplier: inv.supplier_name || null,
+      doc_number: inv.invoice_number || null, gross: r2(gross), vat: r2(vat), netByRate,
+      reconciled: Math.abs(netSum + vat - gross) <= Math.max(0.05, Math.abs(gross) * 0.02),
+    });
+  }
+  return rows.sort((a, b) => (a.date || "").localeCompare(b.date || ""));
+}
+
 /** Datasets an export can include. */
 export type ExportSet = "invoices" | "items" | "sales" | "obligations" | "rates" | "accounts";
 export const ALL_EXPORT_SETS: ExportSet[] = ["invoices", "items", "sales", "obligations", "rates", "accounts"];
@@ -649,12 +720,13 @@ export async function exportData(clientId: string, year: number, opts: ExportOpt
 
   const obligations = sets.has("obligations") ? await getObligations(clientId, year) : [];
   const rates = sets.has("rates") ? await vatByRate(clientId, start, end) : { purchases: [], sales: [] };
+  const invoiceRates = sets.has("rates") ? await invoiceRateBreakdowns(clientId, start, end) : [];
   const series = await monthlySeries(clientId, year);
 
   return {
     client, year, start, end, sets: Array.from(sets),
     invoices: sets.has("invoices") ? invoices : [],
-    items, sales, accounts, obligations, rates, series,
+    items, sales, accounts, obligations, rates, invoiceRates, series,
   };
 }
 

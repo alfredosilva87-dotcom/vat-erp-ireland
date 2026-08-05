@@ -13,12 +13,14 @@ export async function GET(req: NextRequest) {
   const start = searchParams.get("start") || undefined;
   const end = searchParams.get("end") || undefined;
   const needsReview = searchParams.get("review") === "1";
+  const idsParam = searchParams.get("ids");
+  const ids = idsParam ? idsParam.split(",").filter(Boolean) : undefined;
   const view = searchParams.get("view"); // "items" for de-para master
   if (view === "items") {
     return NextResponse.json({ items: await listMasterItems(q), stats: await stats(clientId) });
   }
   return NextResponse.json({
-    invoices: await listInvoices({ q, clientId, branchId, start, end, needsReview }),
+    invoices: await listInvoices({ q, clientId, branchId, start, end, needsReview, ids }),
     stats: await stats(clientId),
   });
 }

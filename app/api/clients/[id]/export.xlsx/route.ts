@@ -33,6 +33,7 @@ export async function GET(req: NextRequest, { params }: { params: { id: string }
     kpis: dash.kpis,
     series: dash.series,
     rates: data.rates,
+    invoiceRates: data.invoiceRates,
     obligations: data.obligations,
     invoices: data.invoices,
     items: data.items,

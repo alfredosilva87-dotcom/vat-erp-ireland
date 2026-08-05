@@ -219,6 +219,7 @@ export default function Analyze() {
 
   const readCount = rows.filter((r) => r.status === "read").length;
   const savedCount = rows.filter((r) => r.status === "saved").length;
+  const savedIds = rows.filter((r) => r.status === "saved" && r.savedId).map((r) => r.savedId as string);
   const totalCredit = rows.reduce((a, r) => a + (r.status === "saved" || r.status === "read" ? docCredit(r) : 0), 0);
   const aiCount = rows.reduce((a, r) => a + (r.result?.ai_matched || 0), 0);
   const cacheCount = rows.reduce((a, r) => a + (r.result?.cache_matched || 0), 0);
@@ -301,6 +302,11 @@ export default function Analyze() {
           </button>
           {rows.length > 0 && !busy && (
             <button className="btn-ghost" onClick={() => setRows([])}>{t("common.clear")}</button>
+          )}
+          {savedIds.length > 0 && (
+            <Link className="btn-ghost" href={`/records?ids=${savedIds.join(",")}`}>
+              Review this batch ({savedIds.length})
+            </Link>
           )}
           <div className="ml-auto flex flex-wrap gap-2 text-sm">
             {cacheCount > 0 && <span className="chip bg-brand-50 text-brand-700">{cacheCount} {t("analyze.fromCache")}</span>}

@@ -163,6 +163,7 @@ export interface WorkbookInput {
   };
   series: { month: string; gross: number; credit: number; sales: number; salesVat: number; count: number }[];
   rates: { purchases: any[]; sales: any[] };
+  invoiceRates: any[];
   obligations: any[];
   invoices: any[];
   items: any[];
@@ -308,6 +309,30 @@ export async function buildClientWorkbook(d: WorkbookInput): Promise<Buffer> {
         r2(d.kpis.vatPayable),
       ],
     }
+  );
+  }
+
+  // ---------------- Sheet 3b: VAT by rate — per invoice ----------------
+  // One row per purchase invoice: same Gross/VAT/Net-by-rate breakdown as the
+  // expandable row on the Purchases screen, so it doesn't have to be copied
+  // one invoice at a time.
+  if (has("rates") && d.invoiceRates.length) {
+  const perInv = wb.addWorksheet("VAT by rate (per invoice)", { properties: { tabColor: { argb: C.accent } } });
+  const invRateSet = new Set<number>();
+  d.invoiceRates.forEach((r: any) => Object.keys(r.netByRate).forEach((k) => invRateSet.add(Number(k))));
+  const invRates = Array.from(invRateSet).sort((a, b) => b - a);
+
+  const rows = d.invoiceRates.map((r: any) => [
+    r.date || "", r.supplier || "", r.doc_number || "",
+    r2(r.gross), r2(r.vat),
+    ...invRates.map((rate) => r2(r.netByRate[String(rate)] ?? 0)),
+    r.reconciled ? "Yes" : "Check document",
+  ]);
+  const moneyCols = [3, 4, ...invRates.map((_, i) => 5 + i)];
+  table(perInv,
+    ["Date", "Supplier", "Document", "Gross €", "VAT €", ...invRates.map((r) => `Net ${r}% €`), "Reconciled"],
+    rows,
+    { moneyCols }
   );
   }
 

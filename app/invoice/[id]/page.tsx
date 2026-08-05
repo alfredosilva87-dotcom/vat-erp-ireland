@@ -102,6 +102,38 @@ export default function InvoiceEdit({ params }: { params: { id: string } }) {
     setDirty(true);
   }
 
+  // Compensates for a page/item missing from the read (e.g. a supplier PDF
+  // cut short) — an extra line the accountant fills in by hand, on the same
+  // gross-inclusive basis as everything else, instead of a special wizard.
+  function addItem() {
+    setItems((prev) => [
+      ...prev,
+      {
+        id: `new-${Date.now()}-${Math.random().toString(36).slice(2)}`,
+        invoice_id: inv?.id || "",
+        master_item_id: "",
+        description: "",
+        quantity: null,
+        unit_price: null,
+        net_amount: null,
+        vat_rate_on_invoice: null,
+        vat_amount_on_invoice: null,
+        expected_vat_rate: null,
+        category_code: null,
+        category_name: null,
+        account_code: null,
+        account_name: null,
+        take_credit: false,
+        credit_value: 0,
+      },
+    ]);
+    setDirty(true);
+  }
+  function removeDraftItem(id: string) {
+    setItems((prev) => prev.filter((it) => it.id !== id));
+    setDirty(true);
+  }
+
   const unrelatedCount = useMemo(
     () => items.filter((it) => isCategoryUnrelated(it.category_code, relatedCategories)).length,
     [items, relatedCategories]
@@ -248,6 +280,7 @@ export default function InvoiceEdit({ params }: { params: { id: string } }) {
       <div className="flex flex-wrap items-center justify-between gap-3">
         <span className="chip bg-brand text-white">Credit (live) € {money(totalCredit)}</span>
         <div className="flex gap-2">
+          <button className="btn-ghost" onClick={addItem} title="e.g. a page/item missing from the read — enter the amount as printed and pick a category">+ Add item</button>
           <button className="btn-ghost" onClick={() => setAll(true)}>Credit all</button>
           <button className="btn-ghost" onClick={() => setAll(false)}>Uncredit all</button>
         </div>
@@ -268,6 +301,7 @@ export default function InvoiceEdit({ params }: { params: { id: string } }) {
                 <th className="whitespace-nowrap px-3 py-3 font-medium text-right">Net €</th>
                 <th className="whitespace-nowrap px-3 py-3 font-medium text-right">Credit €</th>
                 <th className="whitespace-nowrap px-3 py-3 font-medium text-center">Credit</th>
+                <th className="px-2 py-3" />
               </tr>
             </thead>
             <tbody>
@@ -325,6 +359,11 @@ export default function InvoiceEdit({ params }: { params: { id: string } }) {
                     >
                       <span className={`inline-block h-5 w-5 transform rounded-full bg-white shadow transition-transform ${it.take_credit ? "translate-x-5" : "translate-x-0.5"}`} />
                     </button>
+                  </td>
+                  <td className="px-2 py-2 text-center">
+                    {it.id.startsWith("new-") && (
+                      <button className="text-xs text-muted hover:text-danger" title="Remove this line" onClick={() => removeDraftItem(it.id)}>✕</button>
+                    )}
                   </td>
                 </tr>
               ))}
