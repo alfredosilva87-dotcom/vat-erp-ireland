@@ -55,6 +55,17 @@ export function detectBasis(lines: VatLine[], totals: DocTotals): Basis {
   if (nearNet && nearGross) return "net";
   if (nearGross) return "gross";
   if (nearNet) return "net";
+  // Neither total reconciles cleanly with the line sum — extraction missed
+  // something (a line, a discount, a quantity) and we can't anchor exactly.
+  // But retail/e-commerce receipts (supermarkets, fuel stations, Temu-style
+  // orders) print the VAT-inclusive line price far more often than a bare
+  // net figure, which is the whole reason this file exists (see header
+  // comment) — so when the document's own gross total is at least known,
+  // read the lines as gross rather than silently defaulting to net. Guessing
+  // net when the lines are actually gross overclaims VAT by the rate itself;
+  // guessing gross when they're actually net only underclaims — the safer
+  // direction to be wrong in.
+  if (gross != null) return "gross";
   return "unknown";
 }
 
