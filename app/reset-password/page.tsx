@@ -17,29 +17,59 @@ export default function ResetPassword() {
   const [submitting, setSubmitting] = useState(false);
 
   useEffect(() => {
-    const sb = getBrowserSupabase();
+    // Supabase redirects an expired/already-used link back here with
+    // "error=...&error_code=otp_expired" in the hash instead of a token —
+    // the hash itself already tells us the link is dead, so handle that
+    // directly rather than asking the SDK to make sense of an error hash.
+    if (location.hash.includes("error=")) {
+      console.warn("reset-password: recovery link error in URL —", location.hash);
+      setStage("invalid");
+      return;
+    }
 
-    // The recovery link puts the token in the URL; the SDK parses it on load
-    // and fires this event once the recovery session is established.
-    const { data: sub } = sb.auth.onAuthStateChange((event, session) => {
-      if (event === "PASSWORD_RECOVERY" && session?.access_token) {
-        setAccessToken(session.access_token);
-        setStage("ready");
-      }
-    });
+    let sub: { unsubscribe: () => void } | null = null;
+    let cancelled = false;
 
-    // Some browsers restore the session before the listener attaches — check
-    // directly too, and give up after a few seconds if neither fires.
-    sb.auth.getSession().then(({ data }) => {
-      if (data.session?.access_token) {
-        setAccessToken(data.session.access_token);
-        setStage("ready");
-      }
-    });
+    // A prior recovery attempt (or an SDK upgrade) can leave a stale/corrupt
+    // entry in localStorage under this project's auth-token key. Letting
+    // that throw here used to take the whole page down with it (Next's
+    // generic "Application error" screen, no way back) — degrade to the
+    // same "invalid" state instead, exactly like a bad link would.
+    try {
+      const sb = getBrowserSupabase();
+
+      // The recovery link puts the token in the URL; the SDK parses it on
+      // load and fires this event once the recovery session is established.
+      const { data } = sb.auth.onAuthStateChange((event, session) => {
+        if (event === "PASSWORD_RECOVERY" && session?.access_token) {
+          setAccessToken(session.access_token);
+          setStage("ready");
+        }
+      });
+      sub = data.subscription;
+
+      // Some browsers restore the session before the listener attaches —
+      // check directly too, and give up after a few seconds if neither fires.
+      sb.auth.getSession().then(({ data }) => {
+        if (!cancelled && data.session?.access_token) {
+          setAccessToken(data.session.access_token);
+          setStage("ready");
+        }
+      }).catch((e) => {
+        console.warn("reset-password: getSession failed —", e);
+        if (!cancelled) setStage((s) => (s === "checking" ? "invalid" : s));
+      });
+    } catch (e) {
+      console.warn("reset-password: Supabase client failed to initialise —", e);
+      setStage("invalid");
+      return;
+    }
+
     const timeout = setTimeout(() => setStage((s) => (s === "checking" ? "invalid" : s)), 5000);
 
     return () => {
-      sub.subscription.unsubscribe();
+      cancelled = true;
+      sub?.unsubscribe();
       clearTimeout(timeout);
     };
   }, []);
