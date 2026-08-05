@@ -80,9 +80,7 @@ export default function Login() {
           }}
         />
         <div className="relative flex items-center gap-3">
-          <span className="flex h-11 w-11 items-center justify-center rounded-xl bg-gradient-to-b from-brand-400 to-brand-700 font-display text-2xl leading-none text-white shadow-brand">
-            V
-          </span>
+          <img src="/logo.png" alt="VAT Reader" className="h-11 w-11 shrink-0 rounded-xl shadow-brand" />
           <div>
             <div className="font-display text-xl font-semibold text-white">VAT Reader</div>
             <div className="text-xs font-medium tracking-wide text-night-muted">Ireland · Accounting ERP</div>

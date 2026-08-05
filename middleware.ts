@@ -13,7 +13,16 @@ export async function middleware(req: NextRequest) {
     pathname === "/reset-password" ||
     pathname.startsWith("/api/auth") ||
     pathname.startsWith("/_next") ||
-    pathname === "/favicon.ico"
+    pathname === "/favicon.ico" ||
+    // Icons/manifest have to be reachable while logged out — the login page
+    // itself shows the logo, and browsers fetch the manifest to decide
+    // whether the app is installable before there's any session at all.
+    pathname === "/manifest.webmanifest" ||
+    pathname === "/icon.png" ||
+    pathname === "/apple-icon.png" ||
+    pathname === "/logo.png" ||
+    pathname === "/icon-192.png" ||
+    pathname === "/icon-512.png"
   ) {
     return NextResponse.next();
   }

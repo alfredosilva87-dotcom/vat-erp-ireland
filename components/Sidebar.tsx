@@ -70,9 +70,7 @@ export default function Sidebar() {
     >
       {/* Brand */}
       <Link href="/" className="mb-6 flex items-center gap-2.5 px-1" title="VAT Reader">
-        <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-gradient-to-b from-brand-400 to-brand-700 font-display text-lg leading-none text-white shadow-brand">
-          V
-        </span>
+        <img src="/logo.png" alt="VAT Reader" className="h-9 w-9 shrink-0 rounded-xl shadow-brand" />
         <span className={showLabel}>
           <span className="block font-display text-lg font-semibold leading-none text-white">
             VAT Reader

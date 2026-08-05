@@ -52,6 +52,7 @@ Aplicativo web (ERP contábil) para **VAT da Irlanda**. Lê notas fiscais (PDF/i
 | v1.7 | Recuperação de senha por e-mail (via Supabase Auth), alerta de licença a 30 dias (banner) e exportação Sage 50 (Vendas + Contatos) |
 | v1.8 | Detecção de duplicidade no lançamento (aviso + salvar mesmo assim), correção de crédito zerado quando só há preço unitário, redirecionamento pós-salvar/excluir para a tela de origem, licença self-service por chave, exports em inglês |
 | v1.9 | Importação em lote não salva mais sem filial/loja selecionada (evita nota órfã) e permite descartar duplicata individualmente; recuperação de senha resiliente a redirect mal configurado no Supabase; revisão automática quando item creditado tem alíquota não resolvida, contradiz a nota, ou veio de match fraco de keyword — fecha o ciclo com o aprendizado já existente em `items_master` |
+| v1.10 | Logo/favicon reais (substitui o "V" digitado), app instalável como PWA no desktop (manifest + ícones, sem service worker de propósito — dado financeiro não deve parecer disponível offline); corrige middleware bloqueando os próprios arquivos públicos (logo/ícones/manifest) do usuário deslogado |
 
 **Convenção do projeto**: cada mudança é entregue com uma tag de versão + descrição.
 

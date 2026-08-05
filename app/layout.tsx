@@ -1,4 +1,4 @@
-import type { Metadata } from "next";
+import type { Metadata, Viewport } from "next";
 import { Fraunces, IBM_Plex_Sans, IBM_Plex_Mono } from "next/font/google";
 import "./globals.css";
 import { cookies } from "next/headers";
@@ -13,6 +13,11 @@ const mono = IBM_Plex_Mono({ subsets: ["latin"], weight: ["400", "500"], variabl
 export const metadata: Metadata = {
   title: "VAT Reader — Ireland ERP",
   description: "Read invoices, check Irish VAT, manage clients, credits and records.",
+  appleWebApp: { capable: true, statusBarStyle: "black-translucent", title: "VAT Reader" },
+};
+
+export const viewport: Viewport = {
+  themeColor: "#0E0A20",
 };
 
 // Runs before first paint so the saved theme is applied without a flash of the
