@@ -263,6 +263,7 @@ export default function InvoiceEdit({ params }: { params: { id: string } }) {
                 <th className="whitespace-nowrap px-3 py-3 font-medium">Account</th>
                 <th className="whitespace-nowrap px-3 py-3 font-medium text-right">Base rate %</th>
                 <th className="whitespace-nowrap px-3 py-3 font-medium text-right">VAT doc %</th>
+                <th className="whitespace-nowrap px-3 py-3 font-medium text-right" title="The amount as printed on the document — net or VAT-inclusive gross, depending on how the supplier prints it.">Amount €</th>
                 <th className="whitespace-nowrap px-3 py-3 font-medium text-right">Gross €</th>
                 <th className="whitespace-nowrap px-3 py-3 font-medium text-right">Net €</th>
                 <th className="whitespace-nowrap px-3 py-3 font-medium text-right">Credit €</th>
@@ -310,10 +311,11 @@ export default function InvoiceEdit({ params }: { params: { id: string } }) {
                   <td className="px-3 py-2">
                     <NumInput className="input h-9 w-20 text-right" value={it.vat_rate_on_invoice} onChange={(v) => setItem(it.id, { vat_rate_on_invoice: v })} />
                   </td>
-                  <td className="px-3 py-2 text-right tnum">{money((computed.lines[idx]?.net ?? 0) + (computed.lines[idx]?.vat ?? 0))}</td>
                   <td className="px-3 py-2">
                     <NumInput className="input h-9 w-24 text-right" value={it.net_amount} onChange={(v) => setItem(it.id, { net_amount: v })} />
                   </td>
+                  <td className="px-3 py-2 text-right tnum">{money((computed.lines[idx]?.net ?? 0) + (computed.lines[idx]?.vat ?? 0))}</td>
+                  <td className="px-3 py-2 text-right tnum">{money(computed.lines[idx]?.net)}</td>
                   <td className="px-3 py-2 text-right tnum">{it.take_credit ? money(credits[idx]) : "—"}</td>
                   <td className="px-3 py-2 text-center">
                     <button
@@ -333,7 +335,9 @@ export default function InvoiceEdit({ params }: { params: { id: string } }) {
 
       <p className="text-xs text-muted">
         Everything here is editable: header fields (including the date), each item&apos;s description,
-        category, base rate, the rate on the document, net amount, and the credit decision. Picking a
+        category, base rate, the rate on the document, the amount, and the credit decision. Amount is the
+        figure as printed on the document (net or VAT-inclusive gross, depending on the supplier) — Gross,
+        Net and Credit are calculated from it and always reconcile (Net + VAT = Gross). Picking a
         category fills the base rate; you can still override it. Save changes updates the invoice total
         and the client balance.
       </p>

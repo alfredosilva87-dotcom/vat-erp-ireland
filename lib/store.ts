@@ -534,7 +534,7 @@ export interface RateGroup { rate: number; net: number; vat: number; credit?: nu
 export async function vatByRate(clientId: string, start: string, end: string): Promise<{ purchases: RateGroup[]; sales: RateGroup[] }> {
   // ---- Purchases (entradas): group invoice_items by expected rate ----
   const { data: invs } = await sb().from("invoices")
-    .select("id,supplier_name,invoice_number,invoice_date,posting_date").eq("client_id", clientId);
+    .select("id,supplier_name,invoice_number,invoice_date,posting_date,total_net,total_vat,total_gross").eq("client_id", clientId);
   const inPeriod = (invs ?? []).filter((i: any) => { const d = i.posting_date || i.invoice_date; return d && d >= start && d <= end; });
   const invMap = new Map(inPeriod.map((i: any) => [i.id, i]));
   const ids = inPeriod.map((i: any) => i.id);
@@ -545,15 +545,26 @@ export async function vatByRate(clientId: string, start: string, end: string): P
     items = data ?? [];
   }
   const pMap = new Map<number, { rate: number; net: number; vat: number; credit: number; docs: Map<string, { net: number; vat: number }> }>();
-  for (const it of items) {
-    const rate = Number(it.expected_vat_rate ?? it.vat_rate_on_invoice ?? 0);
-    const net = Number(it.net_amount || 0);
-    const vat = it.vat_amount_on_invoice != null ? Number(it.vat_amount_on_invoice)
-      : (it.net_amount != null && it.expected_vat_rate != null ? net * Number(it.expected_vat_rate) / 100 : 0);
-    const g = pMap.get(rate) || { rate, net: 0, vat: 0, credit: 0, docs: new Map() };
-    g.net += net; g.vat += vat; g.credit += Number(it.credit_value || 0);
-    const d = g.docs.get(it.invoice_id) || { net: 0, vat: 0 }; d.net += net; d.vat += vat; g.docs.set(it.invoice_id, d);
-    pMap.set(rate, g);
+  // Grouped per invoice (not computed line-by-line) so each line's VAT is
+  // resolved on the SAME basis (net vs VAT-inclusive gross) as the invoice
+  // edit screen and the credit calc — see lib/vat.ts. Doing this per line in
+  // isolation, as before, silently treated every VAT-inclusive receipt price
+  // as if it were already net and taxed it again on top, overstating T2.
+  const itemsByInvoice = new Map<string, any[]>();
+  for (const it of items) itemsByInvoice.set(it.invoice_id, [...(itemsByInvoice.get(it.invoice_id) || []), it]);
+  for (const [invId, its] of itemsByInvoice) {
+    const inv: any = invMap.get(invId);
+    const totals = { total_net: inv?.total_net ?? null, total_vat: inv?.total_vat ?? null, total_gross: inv?.total_gross ?? null };
+    const { lines } = computeLines(its, totals);
+    its.forEach((it, i) => {
+      const rate = Number(it.expected_vat_rate ?? it.vat_rate_on_invoice ?? 0);
+      const net = lines[i].net;
+      const vat = lines[i].vat;
+      const g = pMap.get(rate) || { rate, net: 0, vat: 0, credit: 0, docs: new Map() };
+      g.net += net; g.vat += vat; g.credit += Number(it.credit_value || 0);
+      const d = g.docs.get(invId) || { net: 0, vat: 0 }; d.net += net; d.vat += vat; g.docs.set(invId, d);
+      pMap.set(rate, g);
+    });
   }
   const purchases: RateGroup[] = Array.from(pMap.values()).sort((a, b) => b.rate - a.rate).map((g) => ({
     rate: g.rate, net: r2(g.net), vat: r2(g.vat), credit: r2(g.credit), count: g.docs.size,
@@ -607,6 +618,23 @@ export async function exportData(clientId: string, year: number, opts: ExportOpt
   if (sets.has("items") && invoices.length) {
     const { data } = await sb().from("invoice_items").select("*").in("invoice_id", invoices.map((i) => i.id));
     items = (data ?? []) as StoredItem[];
+    // Correct net/VAT per line for VAT-inclusive receipts before export —
+    // the raw stored net_amount is the printed line price, which for most
+    // supermarket/retail receipts IS the gross (VAT-inclusive) price, not
+    // net. Exporting it unmodified as "Net" makes Net+VAT stop reconciling
+    // to Gross for whoever reads the file. See lib/vat.ts.
+    const invById = new Map(invoices.map((i) => [i.id, i]));
+    const byInvoice = new Map<string, StoredItem[]>();
+    for (const it of items) byInvoice.set(it.invoice_id, [...(byInvoice.get(it.invoice_id) || []), it]);
+    for (const [invId, its] of byInvoice) {
+      const inv = invById.get(invId);
+      const totals = { total_net: inv?.total_net ?? null, total_vat: inv?.total_vat ?? null, total_gross: inv?.total_gross ?? null };
+      const { lines } = computeLines(its, totals);
+      its.forEach((it, i) => {
+        (it as any).net_amount = lines[i].net;
+        (it as any).vat_amount_on_invoice = lines[i].vat;
+      });
+    }
   }
 
   let sales: SalesEntry[] = [];
