@@ -1,0 +1,41 @@
+# Two adjustments to the stock Supabase self-hosted stack.
+#
+# 1. Unused services go behind a profile, which keeps them out of a plain
+#    `docker compose up`. The app talks to PostgREST (rest), Storage, GoTrue
+#    (auth, for password reset) and Studio only, and nothing in the compose
+#    file depends_on the three below. On a modest office PC that is roughly
+#    500 MB of RAM back.
+#    Need one anyway?  docker compose --profile extras up -d
+#
+# 2. Every service is renamed with a `vat-erp-` prefix. The stock file pins
+#    container_name to `supabase-*`, which is global to the Docker daemon —
+#    a second Supabase stack on the same machine (a dev copy, another product)
+#    fails to start with a name conflict, no matter what COMPOSE_PROJECT_NAME
+#    says.
+services:
+  realtime:
+    profiles: ["extras"]
+    container_name: vat-erp-realtime
+  supavisor:
+    profiles: ["extras"]
+    container_name: vat-erp-pooler
+  functions:
+    profiles: ["extras"]
+    container_name: vat-erp-functions
+
+  studio:
+    container_name: vat-erp-studio
+  kong:
+    container_name: vat-erp-kong
+  auth:
+    container_name: vat-erp-auth
+  rest:
+    container_name: vat-erp-rest
+  storage:
+    container_name: vat-erp-storage
+  imgproxy:
+    container_name: vat-erp-imgproxy
+  meta:
+    container_name: vat-erp-meta
+  db:
+    container_name: vat-erp-db

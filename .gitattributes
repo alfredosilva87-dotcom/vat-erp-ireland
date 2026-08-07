@@ -1,0 +1,7 @@
+# Windows batch files must keep CRLF — cmd.exe mis-parses multi-line blocks
+# (if/else, parenthesised groups) when the file has bare LF endings.
+*.bat text eol=crlf
+
+# Shell launchers must stay LF even when checked out on Windows.
+*.command text eol=lf
+*.sh      text eol=lf

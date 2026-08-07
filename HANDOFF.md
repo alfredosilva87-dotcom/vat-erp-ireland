@@ -74,6 +74,49 @@ funcionando; fase 2 é migrar isso pro servidor real do escritório.
   usuário antes de ativar. Depois: migrar essa mesma receita pro servidor
   real do escritório (specs ainda não levantadas).
 
+## Instalador self-hosted (2026-08-07 — fase 2)
+
+A receita da fase 1 (que era manual, em `~/Documents/vat-erp-selfhosted-infra/`,
+fora do git) virou um **pacote de instalação versionado em `selfhost/`**, para
+rodar em outro PC — Windows ou Mac. Decisão do usuário: **cada PC é standalone**
+(app + banco + storage próprios, dados não sincronizam entre máquinas) e o
+banco novo nasce só com **estrutura + dados de referência + admin**, sem dado
+real de cliente.
+
+- `selfhost/install.bat` / `.command` → `scripts/install.js`: escolhe portas
+  livres, gera as chaves, sobe o Docker, aplica o schema, cria o admin com a
+  senha digitada na hora e faz o build. Node puro, mesmo código nos dois SOs.
+- `selfhost/start.*` / `stop.*`: uso diário. O app roda em build de produção
+  (`next start`), não `next dev`.
+- `selfhost/docker/`: cópia do compose oficial da Supabase +
+  `docker-compose.override.yml` (desliga realtime/supavisor/functions, renomeia
+  containers para `vat-erp-*`).
+- `selfhost/schema/`: mesmo SQL da fase 1, agora **idempotente** (enums em
+  `do $$ ... exception when duplicate_object $$`, `add column if not exists`) e
+  **sem o hash de senha hardcoded** — o admin é criado pelo instalador com
+  `pgcrypto crypt(..., gen_salt('bf'))`, que o `bcryptjs` do app valida.
+- Guia: `selfhost/README.md`. Roteiro de teste: `selfhost/TESTE.md`.
+- Instalação sem perguntas (servidor): `VATERP_ADMIN_EMAIL`,
+  `VATERP_ADMIN_PASSWORD`, `VATERP_GEMINI_KEY`.
+
+**Achados que só apareceram por testar a instalação de ponta a ponta** (todos
+já corrigidos):
+1. `container_name: supabase-*` é global no daemon — dois stacks Supabase na
+   mesma máquina colidem, mesmo com `COMPOSE_PROJECT_NAME` diferente.
+2. `COMPOSE_FILE` no `.env.example` faz o Compose **ignorar** o
+   `docker-compose.override.yml`; precisa listar os dois arquivos, com
+   `COMPOSE_PATH_SEPARATOR=:` explícito para o Windows.
+3. `storage.buckets` nega escrita ao papel `postgres` (não é superusuário na
+   imagem da Supabase) — o 003 tem que rodar como `supabase_admin`.
+4. `next build` type-checava os exemplos Deno que vêm dentro de
+   `selfhost/docker/volumes/functions/` e quebrava; `tsconfig.json` agora
+   exclui `selfhost`.
+
+**Testado no Mac em 07/08/2026**, ciclo completo: instalar → logar → criar
+cliente → salvar nota com PDF → sair → parar tudo → subir de novo → reentrar,
+com cliente, nota, itens, totais e PDF preservados. **Falta validar no Windows
+real** (Docker Desktop + WSL2).
+
 ## Histórico de versões (git log)
 
 | Versão | Descrição |

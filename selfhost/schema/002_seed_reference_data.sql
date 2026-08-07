@@ -1,0 +1,129 @@
+-- =====================================================================
+-- Reference data (vat_categories + credit_rules) — national Irish VAT
+-- rate table and credit rules, pulled from production migrations
+-- (seed_vat_base, seed_credit_rules_more_activities,
+-- remove_credit_rules_catch_all, irish_blocked_items_rules,
+-- fix_fuel_rule_precedence), applied in that order. No client data.
+-- =====================================================================
+
+-- ============ 20260727085320_seed_vat_base (part 1: vat_categories) ============
+insert into vat_categories (code,description,keywords,vat_rate,rate_type,effective_from,active) values ('FOOD-MEAT','Meat & poultry (raw)',ARRAY['meat','beef','steak','ribeye','sirloin','mince','roast','chicken','wings','breast','thigh','drumstick','turkey','duck','pork','bacon','lardons','ham','gammon','sausage','sausages','lamb','chop','fillet','rasher','rashers','meatballs']::text[],0,'zero','2000-01-01',true) on conflict (code) do nothing;
+insert into vat_categories (code,description,keywords,vat_rate,rate_type,effective_from,active) values ('FOOD-FISH','Fish & seafood (raw)',ARRAY['fish','salmon','cod','haddock','tuna','prawn','prawns','shrimp','mackerel','seafood','pollock','hake','sardine','sardines']::text[],0,'zero','2000-01-01',true) on conflict (code) do nothing;
+insert into vat_categories (code,description,keywords,vat_rate,rate_type,effective_from,active) values ('FOOD-VEG','Fresh vegetables',ARRAY['vegetable','vegetables','veg','potato','potatoes','onion','onions','carrot','carrots','tomato','tomatoes','salad','lettuce','cucumber','pepper','peppers','broccoli','cauliflower','mushroom','mushrooms','garlic','spinach','cabbage','courgette','celery','leek','leeks','corn','peas','beans','scallion','ginger','beetroot','kale']::text[],0,'zero','2000-01-01',true) on conflict (code) do nothing;
+insert into vat_categories (code,description,keywords,vat_rate,rate_type,effective_from,active) values ('FOOD-FRUIT','Fresh fruit',ARRAY['fruit','apple','apples','banana','bananas','orange','oranges','grape','grapes','berry','berries','strawberry','strawberries','blueberry','raspberry','lemon','lime','melon','pear','pineapple','mango','avocado','kiwi','peach','plum']::text[],0,'zero','2000-01-01',true) on conflict (code) do nothing;
+insert into vat_categories (code,description,keywords,vat_rate,rate_type,effective_from,active) values ('FOOD-DAIRY','Dairy & eggs',ARRAY['milk','cheese','cheddar','mozzarella','butter','yogurt','yoghurt','cream','egg','eggs','brie','feta','parmesan']::text[],0,'zero','2000-01-01',true) on conflict (code) do nothing;
+insert into vat_categories (code,description,keywords,vat_rate,rate_type,effective_from,active) values ('FOOD-BAKERY','Bread & bakery',ARRAY['bread','baguette','roll','rolls','bagel','bagels','wrap','wraps','tortilla','pitta','naan','croissant','loaf','brioche','bun','buns','garlic bread']::text[],0,'zero','2000-01-01',true) on conflict (code) do nothing;
+insert into vat_categories (code,description,keywords,vat_rate,rate_type,effective_from,active) values ('FOOD-GRAINS','Rice, pasta, grains & flour',ARRAY['rice','basmati','pasta','spaghetti','penne','noodle','noodles','flour','oats','oat','cereal','cornflakes','couscous','quinoa','lentil','lentils']::text[],0,'zero','2000-01-01',true) on conflict (code) do nothing;
+insert into vat_categories (code,description,keywords,vat_rate,rate_type,effective_from,active) values ('FOOD-OILS','Cooking oils & fats',ARRAY['oil','olive oil','sunflower oil','vegetable oil','rapeseed oil','coconut oil','lard','ghee']::text[],0,'zero','2000-01-01',true) on conflict (code) do nothing;
+insert into vat_categories (code,description,keywords,vat_rate,rate_type,effective_from,active) values ('FOOD-CONDIMENT','Condiments, sauces & seasonings',ARRAY['mayo','mayonnaise','ketchup','mustard','sauce','vinegar','dressing','salt','pepper','herb','herbs','spice','spices','stock','gravy','olive','olives','pesto','honey','jam','marmalade','relish','chutney','paste']::text[],0,'zero','2000-01-01',true) on conflict (code) do nothing;
+insert into vat_categories (code,description,keywords,vat_rate,rate_type,effective_from,active) values ('FOOD-TINNED','Tinned & packaged staples',ARRAY['tinned','tin','canned','can','soup','chickpeas','kidney beans','baked beans','sweetcorn']::text[],0,'zero','2000-01-01',true) on conflict (code) do nothing;
+insert into vat_categories (code,description,keywords,vat_rate,rate_type,effective_from,active) values ('FOOD-WATER','Bottled water (still)',ARRAY['water','still water','spring water','mineral water']::text[],0,'zero','2000-01-01',true) on conflict (code) do nothing;
+insert into vat_categories (code,description,keywords,vat_rate,rate_type,effective_from,active) values ('FOOD-TEACOFFEE','Tea & coffee',ARRAY['tea','teabags','coffee','espresso','cappuccino']::text[],0,'zero','2000-01-01',true) on conflict (code) do nothing;
+insert into vat_categories (code,description,keywords,vat_rate,rate_type,effective_from,active) values ('CONFECTIONERY','Confectionery & chocolate',ARRAY['chocolate','sweets','candy','sweet','haribo','biscuit','biscuits','cookie','cookies','wafer','chocolate bar','sweet bar']::text[],23,'standard','2000-01-01',true) on conflict (code) do nothing;
+insert into vat_categories (code,description,keywords,vat_rate,rate_type,effective_from,active) values ('SNACKS','Savoury snacks',ARRAY['crisps','popcorn','pretzel','pretzels','snack','snacks','tortilla chips','nachos','roasted nuts']::text[],23,'standard','2000-01-01',true) on conflict (code) do nothing;
+insert into vat_categories (code,description,keywords,vat_rate,rate_type,effective_from,active) values ('ICE-CREAM','Ice cream & frozen desserts',ARRAY['ice cream','icecream','gelato','lolly','sorbet']::text[],23,'standard','2000-01-01',true) on conflict (code) do nothing;
+insert into vat_categories (code,description,keywords,vat_rate,rate_type,effective_from,active) values ('SOFTDRINK','Soft drinks & sugary juices',ARRAY['soft drink','cola','coke','pepsi','fanta','sprite','soda','lemonade','juice','energy drink','redbull','minerals','fizzy']::text[],23,'standard','2000-01-01',true) on conflict (code) do nothing;
+insert into vat_categories (code,description,keywords,vat_rate,rate_type,effective_from,active) values ('ALCOHOL','Alcoholic drinks',ARRAY['beer','lager','wine','spirits','guinness','vodka','whiskey','whisky','gin','cider','prosecco','rum','champagne']::text[],23,'standard','2000-01-01',true) on conflict (code) do nothing;
+insert into vat_categories (code,description,keywords,vat_rate,rate_type,effective_from,active) values ('HOUSEHOLD','Household & cleaning products',ARRAY['detergent','cleaner','bleach','washing','dishwasher','sponge','bin bags','foil','cling film','kitchen roll','toilet roll','tissue','tissues','fabric softener','washing up']::text[],23,'standard','2000-01-01',true) on conflict (code) do nothing;
+insert into vat_categories (code,description,keywords,vat_rate,rate_type,effective_from,active) values ('TOILETRIES','Toiletries & cosmetics',ARRAY['shampoo','soap','toothpaste','deodorant','shower gel','razor','cosmetic','makeup','moisturiser','conditioner','sanitary','shaving']::text[],23,'standard','2000-01-01',true) on conflict (code) do nothing;
+insert into vat_categories (code,description,keywords,vat_rate,rate_type,effective_from,active) values ('SUPPLEMENTS','Food supplements & vitamins',ARRAY['vitamin','vitamins','supplement','supplements','protein powder','whey']::text[],23,'standard','2000-01-01',true) on conflict (code) do nothing;
+insert into vat_categories (code,description,keywords,vat_rate,rate_type,effective_from,active) values ('PETFOOD','Pet food & supplies',ARRAY['dog food','cat food','pet','whiskas','pedigree','kibble','cat litter']::text[],23,'standard','2000-01-01',true) on conflict (code) do nothing;
+insert into vat_categories (code,description,keywords,vat_rate,rate_type,effective_from,active) values ('ELECTRONIC','Electronics & appliances',ARRAY['electronics','laptop','phone','appliance','computer','charger','cable','battery','batteries','headphones']::text[],23,'standard','2000-01-01',true) on conflict (code) do nothing;
+insert into vat_categories (code,description,keywords,vat_rate,rate_type,effective_from,active) values ('ADULT-CLOTH','Adult clothing & footwear',ARRAY['clothing','shirt','trousers','jeans','jacket','shoes','socks','adult clothing']::text[],23,'standard','2000-01-01',true) on conflict (code) do nothing;
+insert into vat_categories (code,description,keywords,vat_rate,rate_type,effective_from,active) values ('FURNITURE','Furniture & homeware',ARRAY['furniture','table','chair','desk','sofa','shelf','lamp','mattress']::text[],23,'standard','2000-01-01',true) on conflict (code) do nothing;
+insert into vat_categories (code,description,keywords,vat_rate,rate_type,effective_from,active) values ('STATIONERY','Stationery & office supplies',ARRAY['stationery','paper','pen','pens','notebook','printer ink','envelope','envelopes','stapler']::text[],23,'standard','2000-01-01',true) on conflict (code) do nothing;
+insert into vat_categories (code,description,keywords,vat_rate,rate_type,effective_from,active) values ('FUEL-AUTO','Vehicle fuel (petrol/diesel)',ARRAY['petrol','diesel','fuel','unleaded']::text[],23,'standard','2000-01-01',true) on conflict (code) do nothing;
+insert into vat_categories (code,description,keywords,vat_rate,rate_type,effective_from,active) values ('FUEL-DOM','Domestic fuel: coal, peat, heating oil',ARRAY['coal','peat','heating oil','briquettes','turf','firewood']::text[],13.5,'reduced','2000-01-01',true) on conflict (code) do nothing;
+insert into vat_categories (code,description,keywords,vat_rate,rate_type,effective_from,active) values ('ELEC-GAS','Electricity & gas (general use)',ARRAY['electricity','gas','esb','energy bill']::text[],13.5,'reduced','2000-01-01',true) on conflict (code) do nothing;
+insert into vat_categories (code,description,keywords,vat_rate,rate_type,effective_from,active) values ('CONSTRUCT','Construction & repair services',ARRAY['construction','building work','repair service','plumber','electrician','painting','carpentry']::text[],13.5,'reduced','2000-01-01',true) on conflict (code) do nothing;
+insert into vat_categories (code,description,keywords,vat_rate,rate_type,effective_from,active) values ('CLEANING-SVC','Cleaning & maintenance services',ARRAY['cleaning service','maintenance','window cleaning','laundry service']::text[],13.5,'reduced','2000-01-01',true) on conflict (code) do nothing;
+insert into vat_categories (code,description,keywords,vat_rate,rate_type,effective_from,active) values ('CATERING','Restaurant & catering services (prepared meals)',ARRAY['restaurant','catering','meal','food service','hot food','takeaway','lunch','dinner','cafe','coffee shop']::text[],9,'second_reduced','2026-07-01',true) on conflict (code) do nothing;
+insert into vat_categories (code,description,keywords,vat_rate,rate_type,effective_from,active) values ('HAIRDRESS','Hairdressing services',ARRAY['hairdresser','hairdressing','haircut','salon','barber','blow dry']::text[],9,'second_reduced','2026-07-01',true) on conflict (code) do nothing;
+insert into vat_categories (code,description,keywords,vat_rate,rate_type,effective_from,active) values ('NEWS','Newspapers, periodicals, e-books',ARRAY['newspaper','magazine','ebook','e-book','periodical']::text[],9,'second_reduced','2000-01-01',true) on conflict (code) do nothing;
+insert into vat_categories (code,description,keywords,vat_rate,rate_type,effective_from,active) values ('SPORT','Sporting facilities (use)',ARRAY['gym','sports facility','leisure centre','swimming pool','membership']::text[],9,'second_reduced','2000-01-01',true) on conflict (code) do nothing;
+insert into vat_categories (code,description,keywords,vat_rate,rate_type,effective_from,active) values ('LIVESTOCK','Live livestock (cattle, sheep, horses, greyhounds)',ARRAY['cattle','sheep','livestock','horse','greyhound','heifer','bullock','ewe']::text[],4.8,'livestock','2000-01-01',true) on conflict (code) do nothing;
+insert into vat_categories (code,description,keywords,vat_rate,rate_type,effective_from,active) values ('CHILD-CLOTH','Children''s clothing & footwear',ARRAY['children clothing','kids shoes','baby clothes','baby vest','infant']::text[],0,'zero','2000-01-01',true) on conflict (code) do nothing;
+insert into vat_categories (code,description,keywords,vat_rate,rate_type,effective_from,active) values ('MED-ORAL','Oral medicines',ARRAY['oral medicine','tablets','medication','paracetamol','ibuprofen']::text[],0,'zero','2000-01-01',true) on conflict (code) do nothing;
+insert into vat_categories (code,description,keywords,vat_rate,rate_type,effective_from,active) values ('BOOKS','Printed books',ARRAY['book','books','textbook','paperback']::text[],0,'zero','2000-01-01',true) on conflict (code) do nothing;
+insert into vat_categories (code,description,keywords,vat_rate,rate_type,effective_from,active) values ('FINANCE','Financial services & insurance',ARRAY['insurance','financial service','bank fee','loan interest']::text[],0,'exempt','2000-01-01',true) on conflict (code) do nothing;
+insert into vat_categories (code,description,keywords,vat_rate,rate_type,effective_from,active) values ('MEDICAL','Medical & health services',ARRAY['doctor','medical service','dental','gp visit','physio']::text[],0,'exempt','2000-01-01',true) on conflict (code) do nothing;
+insert into vat_categories (code,description,keywords,vat_rate,rate_type,effective_from,active) values ('EDUCATION','Education services',ARRAY['education','training course','school fees','tuition']::text[],0,'exempt','2000-01-01',true) on conflict (code) do nothing;
+
+-- ============ 20260727085320_seed_vat_base (part 2: credit_rules) ============
+insert into credit_rules (activity_code,match_keywords,deductible_default,rationale,priority,active) values ('*',ARRAY['entertainment','client entertainment','hospitality event']::text[],false,'Entertainment is not deductible in Ireland (legal block).',10,true);
+insert into credit_rules (activity_code,match_keywords,deductible_default,rationale,priority,active) values ('*',ARRAY['petrol']::text[],false,'Passenger-car petrol is generally not deductible.',11,true);
+insert into credit_rules (activity_code,match_keywords,deductible_default,rationale,priority,active) values ('*',ARRAY['hotel','accommodation']::text[],false,'Accommodation/meals out may be restricted — review.',12,true);
+insert into credit_rules (activity_code,match_keywords,deductible_default,rationale,priority,active) values ('RESTAURANT',ARRAY['prawn','prawns','shrimp','fish','salmon','meat','beef','steak','chicken','wings','pork','bacon','lardons','lamb','vegetable','potato','onion','tomato','carrot','garlic','rice','pasta','flour','oil','milk','cheese','egg','eggs','salt','spice','sauce','bread','ingredient']::text[],true,'Kitchen input for the restaurant — used in the taxable activity, gives credit.',50,true);
+insert into credit_rules (activity_code,match_keywords,deductible_default,rationale,priority,active) values ('RESTAURANT',ARRAY['kitchen equipment','oven','fridge','utensil','cookware']::text[],true,'Kitchen equipment used in operations — deductible.',51,true);
+insert into credit_rules (activity_code,match_keywords,deductible_default,rationale,priority,active) values ('RESTAURANT',ARRAY['cleaning product','detergent','packaging','napkin','foil']::text[],true,'Operational consumables — deductible.',52,true);
+insert into credit_rules (activity_code,match_keywords,deductible_default,rationale,priority,active) values ('RETAIL',ARRAY['stock','goods for resale','inventory']::text[],true,'Goods for resale — direct input, gives credit.',50,true);
+insert into credit_rules (activity_code,match_keywords,deductible_default,rationale,priority,active) values ('*',ARRAY['*']::text[],false,'No specific rule — review manually before taking credit.',999,true);
+
+-- ============ 20260731232706_seed_credit_rules_more_activities ============
+insert into credit_rules (activity_code, match_keywords, deductible_default, rationale, priority) values
+('WHOLESALE', array['stock','goods for resale','inventory','pallet','warehouse'], true,
+ 'Goods for resale / warehousing — direct input, gives credit.', 50);
+
+insert into credit_rules (activity_code, match_keywords, deductible_default, rationale, priority) values
+('HOSPITALITY', array['linen','towel','bedding','laundry','toiletries','cleaning product','detergent'], true,
+ 'Guest-room consumables — deductible.', 50),
+('HOSPITALITY', array['prawn','prawns','shrimp','fish','meat','vegetable','flour','oil','ingredient'], true,
+ 'Kitchen input for the hotel restaurant — used in the taxable activity, gives credit.', 51),
+('HOSPITALITY', array['kitchen equipment','oven','fridge','utensil','cookware'], true,
+ 'Kitchen equipment used in operations — deductible.', 52);
+
+insert into credit_rules (activity_code, match_keywords, deductible_default, rationale, priority) values
+('CONSTRUCTION', array['cement','timber','brick','steel','plumbing','electrical','insulation','tile','paint','scaffolding','ppe','safety','tool','plant hire','machinery'], true,
+ 'Building materials/tools/plant used directly in construction works — deductible.', 50);
+
+insert into credit_rules (activity_code, match_keywords, deductible_default, rationale, priority) values
+('PROFESSIONAL', array['software','subscription','stationery','office supplies','printer','laptop','computer','license'], true,
+ 'Office/IT costs used in the professional service activity — deductible.', 50);
+
+insert into credit_rules (activity_code, match_keywords, deductible_default, rationale, priority) values
+('TRANSPORT', array['diesel','fuel','tyre','tire','vehicle part','maintenance','spare part','freight','haulage','pallet'], true,
+ 'Commercial vehicle/logistics running costs — deductible. Does not affect the general block on passenger-car petrol.', 50);
+
+insert into credit_rules (activity_code, match_keywords, deductible_default, rationale, priority) values
+('AGRICULTURE', array['feed','fertilizer','seed','seeds','livestock','veterinary','vet','tractor','fencing'], true,
+ 'Farm inputs used in the agricultural activity — deductible. Assumes normal VAT registration (not the Flat-Rate Farmers Scheme).', 50);
+
+insert into credit_rules (activity_code, match_keywords, deductible_default, rationale, priority) values
+('MANUFACTURING', array['raw material','component','parts','machinery','factory equipment','packaging','maintenance'], true,
+ 'Raw materials/production equipment used directly in manufacturing — deductible.', 50);
+
+insert into credit_rules (activity_code, match_keywords, deductible_default, rationale, priority) values
+('HEALTHCARE', array['medical supplies','ppe','pharmaceutical','clinical equipment'], false,
+ 'Healthcare services are typically VAT-exempt in Ireland, which restricts input VAT recovery — review with the client''s tax advisor before taking credit (apportionment may apply).', 50);
+
+-- ============ 20260731233122_remove_credit_rules_catch_all ============
+delete from credit_rules where activity_code = '*' and match_keywords = array['*'];
+
+-- ============ 20260803224851_irish_blocked_items_rules ============
+insert into credit_rules (activity_code, match_keywords, deductible_default, rationale, priority) values
+('*', array['petrol'], false,
+ 'Petrol is a blocked item in Ireland — input VAT is never recoverable, regardless of business use.', 5);
+
+insert into credit_rules (activity_code, match_keywords, deductible_default, rationale, priority) values
+('*', array['vehicle fuel','diesel','fuel card','forecourt'], false,
+ 'Fuel: diesel for a commercial vehicle is recoverable, petrol never is. Confirm the grade and the business use before claiming.', 6);
+
+insert into credit_rules (activity_code, match_keywords, deductible_default, rationale, priority) values
+('*', array['confectionery','chocolate','savoury snack','crisps','soft drink','biscuit','sweets','snack'], false,
+ 'Food and drink for own or staff consumption is a blocked item. Only claim if this was bought as stock for resale.', 7);
+
+insert into credit_rules (activity_code, match_keywords, deductible_default, rationale, priority) values
+('*', array['restaurant meal','takeaway','catering service','personal service'], false,
+ 'Meals and personal services are blocked items for input VAT in Ireland.', 8);
+
+delete from credit_rules
+where activity_code = '*' and match_keywords = array['petrol'] and priority = 11;
+
+-- ============ 20260803225053_fix_fuel_rule_precedence ============
+delete from credit_rules where activity_code = '*' and priority in (5, 6);
+
+insert into credit_rules (activity_code, match_keywords, deductible_default, rationale, priority) values
+('*', array['unleaded','super unleaded','petrol 95'], false,
+ 'Petrol is a blocked item in Ireland — input VAT is never recoverable, regardless of business use.', 5),
+('*', array['diesel','vehicle fuel','fuel card','forecourt','petrol'], false,
+ 'Fuel: diesel for a commercial vehicle is recoverable, petrol never is. Confirm the grade and the business use before claiming.', 6);

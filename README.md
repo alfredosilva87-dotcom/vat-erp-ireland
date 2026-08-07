@@ -80,6 +80,18 @@ engine was unit-tested against real scenarios:
 2. `cp .env.local.example .env.local` and fill in `GEMINI_API_KEY` (Supabase keys optional to start).
 3. `npm run dev` → http://localhost:3000
 
+## Install it on a machine (self-hosted, no cloud)
+
+For a real install — app, Postgres and file storage all on the same computer,
+Windows or Mac — use the packaged installer instead of the steps above:
+
+- Guide: [`selfhost/README.md`](selfhost/README.md)
+- Test checklist: [`selfhost/TESTE.md`](selfhost/TESTE.md)
+
+Double-click `selfhost/install.bat` (Windows) or `selfhost/install.command`
+(Mac). It brings up the Supabase stack in Docker, applies the schema and the
+reference base, creates the admin account and builds the app.
+
 Without Supabase the app uses the **bundled base** (read-only) so you can test reading
 immediately with only a Gemini key. With Supabase configured, apply `db/schema.sql` +
 the two seed files and the Rate base screen becomes editable.
