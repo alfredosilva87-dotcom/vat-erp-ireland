@@ -18,7 +18,7 @@ const os = require("os");
 
 const {
   ROOT, DOCKER_DIR,
-  bold, dim, cyan,
+  bold, dim, cyan, yellow,
   step, ok, warn, fail,
   npmRun, capture, compose, composeBase,
 
@@ -266,7 +266,10 @@ ${bold("Instalacao concluida.")}
   Painel do banco (Supabase Studio): ${apiUrl(ports)}
   usuario ${dockerEnv.DASHBOARD_USERNAME} / senha em selfhost/docker/.env (DASHBOARD_PASSWORD)
 
-${dim("Os dados ficam em selfhost/docker/volumes/. Nao apague essa pasta.")}
+${geminiKey ? "" : `${yellow("ATENCAO: sem chave Gemini — ler notas nao vai funcionar.")}
+  Preencha GEMINI_API_KEY= no arquivo .env.local e inicie o app de novo.
+`}
+${dim("Os dados ficam no Docker (volumes vat-erp_db-data e vat-erp_storage-data).")}
 `);
 }
 

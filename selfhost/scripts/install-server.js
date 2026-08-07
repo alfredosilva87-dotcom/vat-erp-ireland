@@ -17,7 +17,7 @@ const path = require("path");
 
 const {
   DOCKER_DIR,
-  bold, dim, cyan,
+  bold, dim, cyan, yellow,
   step, ok, warn, fail,
   capture, compose, composeBase,
   ask,
@@ -219,6 +219,10 @@ ${bold("Servidor instalado.")}
   O servidor sobe sozinho quando a maquina liga (enquanto o Docker Desktop
   estiver configurado para iniciar junto com o Windows).
 
+${geminiKey ? "" : `${yellow("ATENCAO: sem chave Gemini — ler notas nao vai funcionar.")}
+  Depois de pegar a chave em https://aistudio.google.com, edite a linha
+  GEMINI_API_KEY= em selfhost/docker/.env e rode: docker compose up -d app
+`}
 ${bold("Falta um passo em CADA computador que vai usar o sistema:")}
   ${caOk ? `instalar o certificado ${cyan("selfhost/server/root-ca.crt")}` : "exportar e instalar o certificado raiz"}
   Sem isso o navegador mostra aviso de site nao seguro.

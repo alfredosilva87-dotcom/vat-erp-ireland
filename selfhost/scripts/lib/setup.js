@@ -5,7 +5,7 @@ const path = require("path");
 
 const {
   ROOT, DOCKER_DIR, PROJECT_NAME,
-  step, ok, warn, fail, capture, psql, dollarQuote, waitFor, ask,
+  step, ok, warn, fail, capture, psql, dollarQuote, waitFor, ask, confirm,
 } = require("./proc");
 
 const SCHEMA_DIR = path.join(ROOT, "selfhost", "schema");
@@ -202,12 +202,22 @@ async function collectCredentials({ dim }) {
 
     step("Chave de leitura das notas (Google Gemini)");
     console.log(dim("    Pegue uma chave gratuita em https://aistudio.google.com -> Get API key"));
-    console.log(dim("    Pode deixar em branco agora e preencher depois."));
+    console.log(dim("    No console do Windows, cole com o BOTAO DIREITO do mouse — Ctrl+V"));
+    console.log(dim("    costuma nao funcionar, e a chave fica vazia sem voce perceber."));
     geminiKey = await ask("  GEMINI_API_KEY: ", { required: false });
+
+    // A warning here scrolls away during a 20-minute install, and the install
+    // then looks perfectly successful — the gap only shows up later, when
+    // somebody tries to read an invoice and gets an error. Make it a decision.
+    while (!geminiKey) {
+      warn("A chave ficou VAZIA. Sem ela, ler notas nao vai funcionar.");
+      const goOn = await confirm("  Continuar assim mesmo?");
+      if (goOn) break;
+      geminiKey = await ask("  GEMINI_API_KEY: ", { required: false });
+    }
   }
 
   geminiKey = geminiKey || "";
-  if (!geminiKey) warn("Sem a chave Gemini, a leitura automatica de notas nao funciona (o resto funciona).");
   return { email, password, geminiKey };
 }
 
