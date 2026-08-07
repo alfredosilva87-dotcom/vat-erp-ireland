@@ -117,6 +117,37 @@ cliente → salvar nota com PDF → sair → parar tudo → subir de novo → re
 com cliente, nota, itens, totais e PDF preservados. **Falta validar no Windows
 real** (Docker Desktop + WSL2).
 
+### Acesso pela rede — NÃO está pronto (medido, não presumido)
+
+Levantado em 07/08/2026 quando o usuário informou que o uso real é **várias
+pessoas com os mesmos dados**. Dois bloqueios comprovados:
+
+1. **Cookie `Secure`.** `lib/auth.ts:97` usa
+   `secure: process.env.NODE_ENV === "production"`. O instalador roda
+   `next start` (produção), então a flag liga. Medido: login em
+   `http://192.168.0.175:3010` responde 200, o cookie **não** é armazenado, e
+   `/api/auth/me` volta `user: null` — loop na tela de login. Em `localhost`
+   funciona (origem confiável). **Com HTTPS de verdade isso deixa de ser
+   problema e nenhuma mudança de código é necessária** — só sobre HTTP puro é
+   que trava.
+2. **`NEXT_PUBLIC_SUPABASE_URL` é inlinado no bundle** (confirmado em
+   `.next/static/chunks/app/reset-password/*.js`). Único consumidor no
+   navegador é `app/reset-password/page.tsx` via `lib/supabaseBrowser.ts`; o
+   resto passa pelo servidor. Publicar num endereço exige rebuild com a URL
+   correta, senão só a recuperação de senha quebra.
+
+**Correção já aplicada**: o Kong passou a escutar em `127.0.0.1` em vez de
+`0.0.0.0` (`ports: !override` no `docker-compose.override.yml`). Antes, o
+Studio e a API do banco respondiam para toda a rede, protegidos só pela senha
+básica do Studio e pela RLS. Medido antes: `401`/`403` pelo IP da LAN; depois:
+conexão recusada. O app (mesma máquina) continua funcionando.
+
+**Achado no stack da fase 1** (`~/Documents/vat-erp-selfhosted-infra/`, que
+ainda roda com o `supavisor` ligado): ele publica o **Postgres na porta 5432
+para toda a rede** (`supabase-pooler  0.0.0.0:5432->5432`). O pacote `selfhost/`
+não faz isso — o `supavisor` está desligado e o `vat-erp-db` só existe dentro
+da rede do Docker.
+
 ## Histórico de versões (git log)
 
 | Versão | Descrição |

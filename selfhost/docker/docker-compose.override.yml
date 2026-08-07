@@ -25,8 +25,22 @@ services:
 
   studio:
     container_name: vat-erp-studio
+
+  # 3. Kong is bound to the loopback instead of every interface.
+  #
+  # Kong is the front door to the database API AND to Supabase Studio, and the
+  # stock file publishes it on 0.0.0.0 — reachable from the whole network,
+  # behind nothing but Studio's basic-auth password and Postgres RLS. Nothing
+  # off-machine needs it: the Next.js server talks to it over localhost, and
+  # an admin who needs Studio from elsewhere should tunnel in (ssh -L) rather
+  # than leave the panel listening on the LAN.
+  #
+  # `!override` replaces the stock ports list instead of appending to it.
   kong:
     container_name: vat-erp-kong
+    ports: !override
+      - 127.0.0.1:${KONG_HTTP_PORT}:8000/tcp
+      - 127.0.0.1:${KONG_HTTPS_PORT}:8443/tcp
   auth:
     container_name: vat-erp-auth
   rest:

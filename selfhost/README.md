@@ -122,12 +122,49 @@ O Supabase Studio sobe junto, no endereço da API (`http://localhost:8000` por
 padrão). Usuário `supabase`, senha no `DASHBOARD_PASSWORD` de
 `selfhost/docker/.env`.
 
+Ele só responde **na própria máquina** — de propósito (veja
+[Exposição na rede](#exposição-na-rede)). Para abrir o Studio de outro
+computador, faça um túnel em vez de publicar a porta:
+
+```bash
+ssh -L 8000:127.0.0.1:8000 usuario@maquina-do-servidor
+```
+
+**Outras pessoas conseguem acessar o sistema pela rede?**
+Como está, não com segurança. Leia [Exposição na rede](#exposição-na-rede).
+
 **Deu erro — onde vejo o motivo?**
 ```bash
 node selfhost/scripts/logs.js
 ```
 
 ---
+
+## Exposição na rede
+
+Esta instalação foi feita para **uma máquina, um usuário**. Ela não está pronta
+para outras pessoas acessarem, e há duas razões técnicas concretas:
+
+**1. O cookie de sessão exige HTTPS.** Em build de produção o cookie sai com a
+flag `Secure`, e o navegador só aceita cookie `Secure` em `https://` ou em
+`localhost`. Se alguém abrir `http://192.168.x.x:3000`, o login responde OK, o
+navegador descarta o cookie e a pessoa fica presa na tela de login. Não é bug:
+é o navegador se recusando a trafegar sessão em claro.
+
+**2. O endereço do banco entra no JavaScript no momento do build.** Só a tela de
+recuperação de senha fala direto com o banco pelo navegador; num acesso remoto
+ela apontaria para o `localhost` de quem está acessando. Se o sistema for
+publicado num endereço, `NEXT_PUBLIC_SUPABASE_URL` precisa ser esse endereço e
+o app precisa ser recompilado.
+
+Por isso o Kong (a porta que dá acesso ao Studio e à API do banco) escuta
+**apenas em `127.0.0.1`** — veja o comentário em
+`docker/docker-compose.override.yml`. O Postgres não é publicado no host de
+forma alguma: só existe dentro da rede do Docker.
+
+Para várias pessoas usando os mesmos dados, o desenho certo é **um servidor
+central com HTTPS**, e não uma cópia por PC — cada instalação tem o seu próprio
+banco.
 
 ## Mac antigo (Ventura ou anterior)
 
