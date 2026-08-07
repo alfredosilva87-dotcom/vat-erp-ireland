@@ -25,7 +25,8 @@ E de dois programas, instalados **nesta ordem**:
 
 1. **Node.js** — versão LTS, em <https://nodejs.org>
 2. **Docker Desktop** — em <https://docs.docker.com/desktop/>
-   - Windows: o instalador liga o WSL2 sozinho; ele pede para reiniciar o PC. Reinicie.
+   - Windows: precisa do WSL2. Se o Docker abrir dizendo **"WSL is not
+     installed"**, veja [Windows: WSL primeiro](#windows-wsl-primeiro).
    - Mac com macOS 13 (Ventura) ou mais antigo: o Docker Desktop **não** funciona.
      Use o Colima no lugar (veja [Mac antigo](#mac-antigo-ventura-ou-anterior)).
 
@@ -170,6 +171,28 @@ forma alguma: só existe dentro da rede do Docker.
 Para várias pessoas usando os mesmos dados, o desenho certo é **um servidor
 central com HTTPS**, e não uma cópia por PC — cada instalação tem o seu próprio
 banco.
+
+## Windows: WSL primeiro
+
+O Docker Desktop no Windows roda sobre o WSL2, e é comum ele abrir com
+**"WSL is not installed"**.
+
+1. **Virtualização ligada?** Ctrl+Shift+Esc → Desempenho → CPU → *Virtualização*
+   precisa dizer **Habilitada**. Se não, ative na BIOS (F2 ou Del na
+   inicialização → Advanced → *Intel Virtualization Technology* / *VT-x*).
+2. No **PowerShell como Administrador**:
+
+   ```powershell
+   wsl --install --no-distribution
+   ```
+
+   (`--no-distribution` evita instalar o Ubuntu junto, que seriam 1-2 GB à toa —
+   o Docker Desktop traz o próprio ambiente Linux. Se a opção não for aceita,
+   use `wsl --install`.)
+3. **Reinicie o computador.**
+4. `wsl --status` deve mostrar versão padrão 2. Se mostrar 1:
+   `wsl --set-default-version 2`.
+5. Abra o Docker Desktop e espere ficar verde (*Running*).
 
 ## Mac antigo (Ventura ou anterior)
 

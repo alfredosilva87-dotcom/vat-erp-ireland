@@ -29,6 +29,33 @@ escritório — o sistema continua sem endereço público.
 - Node.js LTS (só para rodar o instalador)
 - **IP fixo** ou reserva de DHCP para essa máquina
 
+### Windows: o WSL vem antes do Docker
+
+O Docker Desktop no Windows roda sobre o WSL2, e é comum ele abrir com
+**"WSL is not installed"**. Resolva antes de tentar instalar o sistema.
+
+1. **Confira a virtualização**: Ctrl+Shift+Esc → Desempenho → CPU →
+   *Virtualização* precisa estar **Habilitada**. Se não estiver, ligue na BIOS
+   (ASUS/Dell: F2 ou Del na inicialização → Advanced → *Intel Virtualization
+   Technology* / *VT-x*).
+2. **PowerShell como Administrador**:
+
+   ```powershell
+   wsl --install --no-distribution
+   ```
+
+   O `--no-distribution` evita instalar o Ubuntu junto — o Docker Desktop traz
+   o próprio ambiente Linux, e o Ubuntu seriam 1-2 GB à toa. Se a sua versão do
+   `wsl.exe` não aceitar a opção, use `wsl --install`.
+3. **Reinicie o computador.** O WSL só passa a existir depois disso.
+4. Confirme com `wsl --status` (deve dizer versão padrão 2; se disser 1, rode
+   `wsl --set-default-version 2`).
+5. Abra o Docker Desktop e espere ficar verde (*Running*).
+
+Depois disso, em **Settings → Resources → Memory** deixe 4 GB se a máquina tem
+8 GB no total, e em **Settings → General** ligue *Start Docker Desktop when you
+sign in* — é isso que faz o servidor voltar sozinho depois de um reboot.
+
 ### Antes de instalar
 
 1. **Criptografe o disco** (BitLocker no Windows Pro, FileVault no Mac). O
