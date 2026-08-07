@@ -51,6 +51,7 @@ services:
       - "${CADDY_HTTPS_PORT:-443}:443"
     environment:
       SERVER_HOST: ${SERVER_HOST}
+      PUBLIC_ORIGIN: ${PUBLIC_ORIGIN}
     volumes:
       - ../server/Caddyfile:/etc/caddy/Caddyfile:ro
       # Holds the internal CA and the issued certificates. Losing this volume

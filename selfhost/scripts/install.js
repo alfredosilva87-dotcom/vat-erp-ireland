@@ -27,6 +27,7 @@ const { generate, applyToEnvFile } = require("./lib/secrets");
 const { pickPort, readConfig, writeConfig } = require("./lib/ports");
 const {
   readEnvValues, waitForDatabase, applySchema, createAdmin, collectCredentials,
+  refuseIfDataWithoutEnv, DB_DATA_DIR,
 } = require("./lib/setup");
 
 const ENV_EXAMPLE = path.join(DOCKER_DIR, ".env.example");
@@ -124,6 +125,8 @@ async function resolvePorts() {
 
 async function ensureDockerEnv(ports) {
   step("Preparando as chaves de seguranca");
+
+  refuseIfDataWithoutEnv({ envFile: ENV_DOCKER, dataDir: DB_DATA_DIR });
 
   if (fs.existsSync(ENV_DOCKER)) {
     ok("docker/.env ja existe — reaproveitando as chaves atuais");

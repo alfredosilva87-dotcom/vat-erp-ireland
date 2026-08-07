@@ -23,8 +23,23 @@ services:
     profiles: ["extras"]
     container_name: vat-erp-functions
 
+  # 4. Studio gets longer to become healthy, and Kong no longer waits for it.
+  #
+  # The stock file gives Studio ~35s (start_period 20s + 3 retries) to answer
+  # its healthcheck, and makes Kong depend on `service_healthy`. Studio is a
+  # Next.js app: on a laptop that is also booting Postgres, PostgREST, GoTrue
+  # and Storage, it routinely needs longer than that on the first start —
+  # measured here, it came up healthy only after the deadline had passed, and
+  # the whole install aborted with "container vat-erp-studio is unhealthy".
+  #
+  # Kong does not need Studio for anything; it only routes to it. Waiting for
+  # it to be *started* keeps the ordering without letting a slow admin panel
+  # take the entire system down.
   studio:
     container_name: vat-erp-studio
+    healthcheck:
+      start_period: 180s
+      retries: 20
 
   # 3. Kong is bound to the loopback instead of every interface.
   #
@@ -38,6 +53,9 @@ services:
   # `!override` replaces the stock ports list instead of appending to it.
   kong:
     container_name: vat-erp-kong
+    depends_on: !override
+      studio:
+        condition: service_started
     ports: !override
       - 127.0.0.1:${KONG_HTTP_PORT}:8000/tcp
       - 127.0.0.1:${KONG_HTTPS_PORT}:8443/tcp

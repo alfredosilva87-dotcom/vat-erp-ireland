@@ -3,9 +3,36 @@
 const fs = require("fs");
 const path = require("path");
 
-const { ROOT, step, ok, warn, fail, psql, dollarQuote, waitFor, ask } = require("./proc");
+const { ROOT, DOCKER_DIR, step, ok, warn, fail, psql, dollarQuote, waitFor, ask } = require("./proc");
 
 const SCHEMA_DIR = path.join(ROOT, "selfhost", "schema");
+const DB_DATA_DIR = path.join(DOCKER_DIR, "volumes", "db", "data");
+
+/**
+ * Refuses to generate fresh secrets on top of an existing database.
+ *
+ * The Postgres superuser password lives in docker/.env, and the data directory
+ * was initialised with it. If the .env is gone but the data is not, a new
+ * install writes a new password and every service then fails authentication —
+ * with errors ("password authentication failed for user supabase_auth_admin",
+ * containers restart-looping) that give no hint that the cause is a lost file.
+ * Better to stop here and say so.
+ */
+function refuseIfDataWithoutEnv({ envFile, dataDir }) {
+  if (!fs.existsSync(dataDir) || fs.existsSync(envFile)) return;
+
+  fail(
+    "Existe um banco de dados nesta pasta, mas o arquivo de chaves sumiu.\n\n" +
+    `  Banco:  ${dataDir}\n` +
+    `  Chaves: ${envFile} (nao encontrado)\n\n` +
+    "  A senha do Postgres estava nesse arquivo. Gerar chaves novas agora\n" +
+    "  deixaria o banco inacessivel. Escolha um caminho:\n\n" +
+    "  1. Restaure o docker/.env do backup, se existir  (mantem os dados)\n" +
+    "  2. Apague a pasta do banco e instale do zero     (PERDE os dados)\n\n" +
+    `     Para o caminho 2:  rm -rf "${dataDir}"`
+  );
+  process.exit(1);
+}
 
 /** Reads `KEY=value` lines out of an .env-style file. */
 function readEnvValues(file) {
@@ -140,6 +167,8 @@ async function collectCredentials({ dim }) {
 
 module.exports = {
   SCHEMA_DIR,
+  DB_DATA_DIR,
+  refuseIfDataWithoutEnv,
   readEnvValues,
   applySqlFile,
   waitForDatabase,

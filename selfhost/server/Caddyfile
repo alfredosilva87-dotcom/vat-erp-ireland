@@ -14,6 +14,13 @@
 	# No ACME account, no outbound calls: this server is not on the internet.
 	admin off
 	auto_https disable_redirects
+
+	# Browsers do not send SNI when the address is a bare IP, and without SNI
+	# Caddy cannot pick a certificate — the handshake dies with "tlsv1 alert
+	# internal error" and the page simply never loads. Since a small office is
+	# most likely to reach this server by IP, tell Caddy which certificate to
+	# serve when the client asks for nothing in particular.
+	default_sni {$SERVER_HOST}
 }
 
 {$SERVER_HOST} {
@@ -46,6 +53,10 @@
 
 # Anyone who types the bare http:// address gets sent to https://, so a
 # mistyped address is not mistaken for the app being down.
+#
+# The target is the full public origin, not just the host: when the proxy is
+# not on 443, redirecting to `https://host` alone would send people to a port
+# nothing is listening on.
 http://{$SERVER_HOST} {
-	redir https://{$SERVER_HOST}{uri} permanent
+	redir {$PUBLIC_ORIGIN}{uri} permanent
 }

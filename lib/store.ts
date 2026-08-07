@@ -427,14 +427,43 @@ export async function deleteInvoice(id: string): Promise<boolean> {
   return !error;
 }
 
-export async function getDocumentDownload(id: string): Promise<{ bytes: Buffer; ext: string } | null> {
+/**
+ * "No document", "document is gone" and "the file service is not answering"
+ * are three different things, and collapsing them into one `null` made the
+ * last one look like the first: right after the server reboots, storage takes
+ * a few seconds longer than the app, and an invoice that is perfectly fine
+ * would report its PDF as missing. Telling an accountant a fiscal document is
+ * gone when it is merely not ready yet is the wrong answer to give.
+ */
+export type DocumentDownload =
+  | { kind: "ok"; bytes: Buffer; ext: string }
+  | { kind: "none" }
+  | { kind: "unavailable"; reason: string };
+
+export async function getDocumentDownload(id: string): Promise<DocumentDownload> {
   const { data: inv } = await sb().from("invoices").select("document_path").eq("id", id).maybeSingle();
-  if (!inv?.document_path) return null;
-  const { data, error } = await sb().storage.from(BUCKET).download(inv.document_path);
-  if (error || !data) return null;
+  if (!inv?.document_path) return { kind: "none" };
+
+  let data: Blob | null = null;
+  let error: { message?: string } | null = null;
+  try {
+    ({ data, error } = await sb().storage.from(BUCKET).download(inv.document_path));
+  } catch (e: any) {
+    // Connection refused / DNS failure while the storage container is booting.
+    return { kind: "unavailable", reason: e?.message || "storage unreachable" };
+  }
+
+  if (error || !data) {
+    const message = error?.message || "";
+    // Storage says the object genuinely is not there; anything else (service
+    // down, timeout) is a temporary condition worth retrying.
+    if (/not found|does not exist/i.test(message)) return { kind: "none" };
+    return { kind: "unavailable", reason: message || "storage returned no data" };
+  }
+
   const ext = inv.document_path.split(".").pop()?.toLowerCase() || "bin";
   const bytes = Buffer.from(await data.arrayBuffer());
-  return { bytes, ext };
+  return { kind: "ok", bytes, ext };
 }
 
 // ---------------- Obligations ----------------

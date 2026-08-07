@@ -25,9 +25,11 @@ const {
 const { generate, applyToEnvFile } = require("./lib/secrets");
 const {
   readEnvValues, waitForDatabase, applySchema, createAdmin, collectCredentials,
+  refuseIfDataWithoutEnv, DB_DATA_DIR,
 } = require("./lib/setup");
 const { exportCa } = require("./lib/ca");
 const { openWindowsPort } = require("./lib/firewall");
+const { pickPort } = require("./lib/ports");
 
 const ENV_EXAMPLE = path.join(DOCKER_DIR, ".env.example");
 const ENV_DOCKER = path.join(DOCKER_DIR, ".env");
@@ -84,13 +86,39 @@ async function askServerHost() {
   return await ask("  Endereco: ", { defaultValue: os.hostname().split(".")[0].toLowerCase() });
 }
 
+/**
+ * Kong is published on the loopback only, so an admin can open Supabase Studio
+ * on the server itself. The stock 8000/8443 are a common collision (another
+ * Supabase stack, another dev tool), and a collision here aborts the whole
+ * install after the image build — so the ports are picked free, and never the
+ * ones Caddy is about to take.
+ */
+async function resolveKongPorts(taken) {
+  const free = async (from) => {
+    let port = from;
+    for (;;) {
+      port = await pickPort(port, { step: 1 });
+      if (!taken.includes(port)) return port;
+      port += 1;
+    }
+  };
+  const http = await free(8000);
+  const https = await free(Math.max(8443, http + 1));
+  if (http !== 8000 || https !== 8443) {
+    warn(`portas 8000/8443 ocupadas — Studio local em 127.0.0.1:${http}`);
+  }
+  return { http, https };
+}
+
 /** `https://host`, or `https://host:porta` quando o proxy nao esta na 443. */
 function publicUrlFor(serverHost, httpsPort) {
   return httpsPort === 443 ? `https://${serverHost}` : `https://${serverHost}:${httpsPort}`;
 }
 
-function ensureDockerEnv({ serverHost, geminiKey, httpPort, httpsPort }) {
+function ensureDockerEnv({ serverHost, geminiKey, httpPort, httpsPort, kongPorts }) {
   step("Preparando as chaves de seguranca");
+
+  refuseIfDataWithoutEnv({ envFile: ENV_DOCKER, dataDir: DB_DATA_DIR });
 
   const fresh = !fs.existsSync(ENV_DOCKER);
   let body;
@@ -124,8 +152,11 @@ function ensureDockerEnv({ serverHost, geminiKey, httpPort, httpsPort }) {
     COMPOSE_PROJECT_NAME: "vat-erp",
     COMPOSE_PATH_SEPARATOR: ":",
     SERVER_HOST: serverHost,
+    PUBLIC_ORIGIN: publicUrl,
     CADDY_HTTP_PORT: String(httpPort),
     CADDY_HTTPS_PORT: String(httpsPort),
+    KONG_HTTP_PORT: String(kongPorts.http),
+    KONG_HTTPS_PORT: String(kongPorts.https),
     AUTH_SECRET: secrets.AUTH_SECRET,
     GEMINI_API_KEY: geminiKey,
     GEMINI_MODEL: "gemini-flash-latest",
@@ -169,7 +200,8 @@ async function main() {
   const httpsPort = Number(process.env.VATERP_HTTPS_PORT || 443);
   const { email, password, geminiKey } = await collectCredentials({ dim });
 
-  ensureDockerEnv({ serverHost, geminiKey, httpPort, httpsPort });
+  const kongPorts = await resolveKongPorts([httpPort, httpsPort]);
+  ensureDockerEnv({ serverHost, geminiKey, httpPort, httpsPort, kongPorts });
   openWindowsPort(httpsPort);
   startStack();
   await waitForDatabase();
