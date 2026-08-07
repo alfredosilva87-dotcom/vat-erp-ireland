@@ -27,7 +27,7 @@ const { generate, applyToEnvFile } = require("./lib/secrets");
 const { pickPort, readConfig, writeConfig } = require("./lib/ports");
 const {
   readEnvValues, waitForDatabase, applySchema, createAdmin, collectCredentials,
-  refuseIfDataWithoutEnv, DB_DATA_DIR,
+  refuseIfDataWithoutEnv, DB_DATA_DIR, resolveDataSources,
 } = require("./lib/setup");
 
 const ENV_EXAMPLE = path.join(DOCKER_DIR, ".env.example");
@@ -147,13 +147,18 @@ async function ensureDockerEnv(ports) {
     API_EXTERNAL_URL: `${apiUrl(ports)}/auth/v1`,
     SITE_URL: appUrl(ports),
   });
+  const sources = resolveDataSources();
   body +=
     "\n# Fixado pelo instalador do VAT ERP.\n" +
     "# COMPOSE_PROJECT_NAME isola estes containers de qualquer outro stack Supabase\n" +
     "# na mesma maquina (sem isto o Compose usaria o nome da pasta, \"docker\").\n" +
     "COMPOSE_PROJECT_NAME=vat-erp\n" +
     "# Explicito para a lista em COMPOSE_FILE ser lida igual no Windows.\n" +
-    "COMPOSE_PATH_SEPARATOR=:\n";
+    "COMPOSE_PATH_SEPARATOR=:\n" +
+    "# Onde ficam os dados. Volume Docker por padrao; caminho ./volumes/... se\n" +
+    "# uma instalacao anterior ja tiver dados la.\n" +
+    `PGDATA_SOURCE=${sources.PGDATA_SOURCE}\n` +
+    `STORAGE_SOURCE=${sources.STORAGE_SOURCE}\n`;
 
   fs.writeFileSync(ENV_DOCKER, body, { mode: 0o600 });
   ok("chaves geradas em selfhost/docker/.env (nunca vai para o git)");

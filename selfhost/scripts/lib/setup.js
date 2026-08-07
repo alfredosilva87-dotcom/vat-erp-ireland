@@ -3,10 +3,46 @@
 const fs = require("fs");
 const path = require("path");
 
-const { ROOT, DOCKER_DIR, step, ok, warn, fail, psql, dollarQuote, waitFor, ask } = require("./proc");
+const {
+  ROOT, DOCKER_DIR, PROJECT_NAME,
+  step, ok, warn, fail, capture, psql, dollarQuote, waitFor, ask,
+} = require("./proc");
 
 const SCHEMA_DIR = path.join(ROOT, "selfhost", "schema");
 const DB_DATA_DIR = path.join(DOCKER_DIR, "volumes", "db", "data");
+
+/**
+ * Decides where Postgres and Storage keep their data.
+ *
+ * New installs use Docker named volumes: on Windows a bind mount into the
+ * project folder cannot express the ownership Postgres demands of its data
+ * directory, and the database refuses to start. Installs made before that
+ * change already have data in ./volumes/..., so those keep the bind mount —
+ * an upgrade must never leave a working database behind and silently start an
+ * empty one.
+ */
+function resolveDataSources() {
+  const hasData = (dir) => {
+    try {
+      return fs.readdirSync(dir).length > 0;
+    } catch {
+      return false;
+    }
+  };
+
+  const legacyDb = path.join(DOCKER_DIR, "volumes", "db", "data");
+  const legacyStorage = path.join(DOCKER_DIR, "volumes", "storage");
+
+  const sources = {
+    PGDATA_SOURCE: hasData(legacyDb) ? "./volumes/db/data" : "db-data",
+    STORAGE_SOURCE: hasData(legacyStorage) ? "./volumes/storage" : "storage-data",
+  };
+
+  if (sources.PGDATA_SOURCE !== "db-data") {
+    warn("Banco existente encontrado em volumes/db/data — mantendo onde esta.");
+  }
+  return sources;
+}
 
 /**
  * Refuses to generate fresh secrets on top of an existing database.
@@ -19,17 +55,27 @@ const DB_DATA_DIR = path.join(DOCKER_DIR, "volumes", "db", "data");
  * Better to stop here and say so.
  */
 function refuseIfDataWithoutEnv({ envFile, dataDir }) {
-  if (!fs.existsSync(dataDir) || fs.existsSync(envFile)) return;
+  if (fs.existsSync(envFile)) return;
+
+  // The database may live in the old bind mount or in the Docker volume.
+  const inFolder = fs.existsSync(dataDir) && fs.readdirSync(dataDir).length > 0;
+  const inVolume = capture("docker", ["volume", "inspect", `${PROJECT_NAME}_db-data`]).status === 0;
+  if (!inFolder && !inVolume) return;
+
+  const where = inFolder ? dataDir : `volume Docker "${PROJECT_NAME}_db-data"`;
+  const howToWipe = inFolder
+    ? `rm -rf "${dataDir}"`
+    : `docker volume rm ${PROJECT_NAME}_db-data`;
 
   fail(
-    "Existe um banco de dados nesta pasta, mas o arquivo de chaves sumiu.\n\n" +
-    `  Banco:  ${dataDir}\n` +
+    "Existe um banco de dados, mas o arquivo de chaves sumiu.\n\n" +
+    `  Banco:  ${where}\n` +
     `  Chaves: ${envFile} (nao encontrado)\n\n` +
     "  A senha do Postgres estava nesse arquivo. Gerar chaves novas agora\n" +
     "  deixaria o banco inacessivel. Escolha um caminho:\n\n" +
     "  1. Restaure o docker/.env do backup, se existir  (mantem os dados)\n" +
-    "  2. Apague a pasta do banco e instale do zero     (PERDE os dados)\n\n" +
-    `     Para o caminho 2:  rm -rf "${dataDir}"`
+    "  2. Apague o banco e instale do zero              (PERDE os dados)\n\n" +
+    `     Para o caminho 2:  ${howToWipe}`
   );
   process.exit(1);
 }
@@ -167,6 +213,7 @@ async function collectCredentials({ dim }) {
 
 module.exports = {
   SCHEMA_DIR,
+  resolveDataSources,
   DB_DATA_DIR,
   refuseIfDataWithoutEnv,
   readEnvValues,

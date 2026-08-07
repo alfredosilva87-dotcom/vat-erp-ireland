@@ -52,14 +52,28 @@ function dumpDatabase(target) {
   ok(`banco.sql (${mb} MB)`);
 }
 
+/**
+ * Pulls the invoice files out of the storage container.
+ *
+ * Copying from the container rather than from a folder on disk is what makes
+ * this work regardless of where the data actually lives — a Docker named
+ * volume (the default) or the older ./volumes/storage bind mount.
+ */
 function copyFiles(target) {
-  const source = path.join(DOCKER_DIR, "volumes", "storage");
-  if (!fs.existsSync(source)) {
-    warn("Ainda nao ha arquivos de nota para copiar.");
+  const base = composeBase();
+  const dest = path.join(target, "arquivos");
+  fs.mkdirSync(dest, { recursive: true });
+
+  const r = capture(
+    base[0],
+    [...base[1], "cp", "storage:/var/lib/storage/.", dest],
+    { cwd: DOCKER_DIR }
+  );
+  if (r.status !== 0) {
+    warn(`Nao consegui copiar os arquivos das notas: ${r.stderr || r.stdout}`);
     return;
   }
-  const dest = path.join(target, "arquivos");
-  fs.cpSync(source, dest, { recursive: true });
+
   let count = 0;
   const walk = (dir) => {
     for (const entry of fs.readdirSync(dir, { withFileTypes: true })) {
@@ -68,7 +82,8 @@ function copyFiles(target) {
     }
   };
   walk(dest);
-  ok(`arquivos/ (${count} arquivo(s))`);
+  if (count === 0) warn("Ainda nao ha arquivos de nota para copiar.");
+  else ok(`arquivos/ (${count} arquivo(s))`);
 }
 
 /** Keeps the backup folder from growing without bound. */

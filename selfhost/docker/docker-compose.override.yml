@@ -1,17 +1,47 @@
-# Two adjustments to the stock Supabase self-hosted stack.
+# Adjustments to the stock Supabase self-hosted stack, so it survives being
+# installed on an ordinary office computer.
 #
-# 1. Unused services go behind a profile, which keeps them out of a plain
+# 1. UNUSED SERVICES go behind a profile, keeping them out of a plain
 #    `docker compose up`. The app talks to PostgREST (rest), Storage, GoTrue
 #    (auth, for password reset) and Studio only, and nothing in the compose
-#    file depends_on the three below. On a modest office PC that is roughly
-#    500 MB of RAM back.
+#    file depends_on the three below. Roughly 500 MB of RAM back.
 #    Need one anyway?  docker compose --profile extras up -d
 #
-# 2. Every service is renamed with a `vat-erp-` prefix. The stock file pins
-#    container_name to `supabase-*`, which is global to the Docker daemon —
-#    a second Supabase stack on the same machine (a dev copy, another product)
-#    fails to start with a name conflict, no matter what COMPOSE_PROJECT_NAME
-#    says.
+# 2. CONTAINER NAMES get a `vat-erp-` prefix. The stock file pins
+#    container_name to `supabase-*`, which is global to the Docker daemon — a
+#    second Supabase stack on the same machine fails to start with a name
+#    conflict, no matter what COMPOSE_PROJECT_NAME says.
+#
+# 3. KONG BINDS TO THE LOOPBACK. Kong is the front door to the database API and
+#    to Supabase Studio, and the stock file publishes it on 0.0.0.0 — reachable
+#    from the whole network, behind nothing but Studio's basic-auth password
+#    and Postgres RLS. Nothing off-machine needs it: the app talks to it over
+#    localhost, and an admin who wants Studio from elsewhere should tunnel in
+#    (ssh -L) rather than leave the panel listening on the LAN.
+#
+# 4. HEALTHCHECKS GET A GRACE PERIOD. The stock file gives most services no
+#    `start_period` at all, so failures count from the instant the container
+#    starts: Postgres gets 10 tries at 5s, and auth/rest/imgproxy get three —
+#    fifteen seconds. Fine on a fast workstation, a coin flip on a laptop.
+#    Measured on a Windows i5 with 8 GB: Postgres finished initdb and the whole
+#    Supabase migration set and logged "ready for start up", but Compose had
+#    already given up at 56s and aborted with "container vat-erp-db is
+#    unhealthy" — nothing was actually wrong.
+#    `start_period` weakens nothing: failures during it do not count toward
+#    `retries`, and a service is healthy the moment it first answers. It only
+#    stops a slow boot from being read as a broken one.
+#    Kong additionally stops requiring Studio to be *healthy* — it only routes
+#    to Studio, so a slow admin panel must not take the whole system down.
+#
+# 5. POSTGRES AND STORAGE WRITE TO DOCKER VOLUMES, not to a folder inside the
+#    project. On Docker Desktop for Windows a bind mount lives on the Windows
+#    drive and reaches the container through a translation layer that is both
+#    slow and unable to express POSIX ownership — which is what made the boot
+#    above miss its deadline. A named volume lives on the Linux filesystem
+#    inside the VM. It is also faster on macOS and Linux.
+#    PGDATA_SOURCE/STORAGE_SOURCE default to the named volumes; the installer
+#    points them back at ./volumes/... when it finds data already there, so an
+#    upgrade never orphans an existing database.
 services:
   realtime:
     profiles: ["extras"]
@@ -23,34 +53,13 @@ services:
     profiles: ["extras"]
     container_name: vat-erp-functions
 
-  # 4. Studio gets longer to become healthy, and Kong no longer waits for it.
-  #
-  # The stock file gives Studio ~35s (start_period 20s + 3 retries) to answer
-  # its healthcheck, and makes Kong depend on `service_healthy`. Studio is a
-  # Next.js app: on a laptop that is also booting Postgres, PostgREST, GoTrue
-  # and Storage, it routinely needs longer than that on the first start —
-  # measured here, it came up healthy only after the deadline had passed, and
-  # the whole install aborted with "container vat-erp-studio is unhealthy".
-  #
-  # Kong does not need Studio for anything; it only routes to it. Waiting for
-  # it to be *started* keeps the ordering without letting a slow admin panel
-  # take the entire system down.
-  studio:
-    container_name: vat-erp-studio
+  db:
+    container_name: vat-erp-db
+    volumes:
+      - ${PGDATA_SOURCE:-db-data}:/var/lib/postgresql/data:Z
     healthcheck:
-      start_period: 180s
-      retries: 20
+      start_period: 300s
 
-  # 3. Kong is bound to the loopback instead of every interface.
-  #
-  # Kong is the front door to the database API AND to Supabase Studio, and the
-  # stock file publishes it on 0.0.0.0 — reachable from the whole network,
-  # behind nothing but Studio's basic-auth password and Postgres RLS. Nothing
-  # off-machine needs it: the Next.js server talks to it over localhost, and
-  # an admin who needs Studio from elsewhere should tunnel in (ssh -L) rather
-  # than leave the panel listening on the LAN.
-  #
-  # `!override` replaces the stock ports list instead of appending to it.
   kong:
     container_name: vat-erp-kong
     depends_on: !override
@@ -59,15 +68,43 @@ services:
     ports: !override
       - 127.0.0.1:${KONG_HTTP_PORT}:8000/tcp
       - 127.0.0.1:${KONG_HTTPS_PORT}:8443/tcp
-  auth:
-    container_name: vat-erp-auth
-  rest:
-    container_name: vat-erp-rest
+    healthcheck:
+      start_period: 120s
+
   storage:
     container_name: vat-erp-storage
+    volumes:
+      - ${STORAGE_SOURCE:-storage-data}:/var/lib/storage:z
+    healthcheck:
+      start_period: 120s
+
+  auth:
+    container_name: vat-erp-auth
+    healthcheck:
+      start_period: 120s
+
+  rest:
+    container_name: vat-erp-rest
+    healthcheck:
+      start_period: 120s
+
   imgproxy:
     container_name: vat-erp-imgproxy
+    healthcheck:
+      start_period: 120s
+
+  studio:
+    container_name: vat-erp-studio
+    healthcheck:
+      start_period: 180s
+      retries: 20
+
   meta:
     container_name: vat-erp-meta
-  db:
-    container_name: vat-erp-db
+
+# Declared unconditionally. When PGDATA_SOURCE/STORAGE_SOURCE point at a
+# ./volumes/... path instead (an install predating change 5), Compose simply
+# leaves these unused.
+volumes:
+  db-data:
+  storage-data:

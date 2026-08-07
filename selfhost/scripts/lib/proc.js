@@ -14,6 +14,8 @@ const readline = require("readline");
 const ROOT = path.resolve(__dirname, "..", "..", ".."); // repo root
 const SELFHOST = path.join(ROOT, "selfhost");
 const DOCKER_DIR = path.join(SELFHOST, "docker");
+// Fixed by the installers in docker/.env; also how volumes get named.
+const PROJECT_NAME = "vat-erp";
 
 const ESC = "\u001b";
 const USE_COLOR = Boolean(process.stdout.isTTY) && !process.env.NO_COLOR;
@@ -185,7 +187,7 @@ async function confirm(prompt, { defaultYes = false } = {}) {
 }
 
 module.exports = {
-  ROOT, SELFHOST, DOCKER_DIR,
+  ROOT, SELFHOST, DOCKER_DIR, PROJECT_NAME,
   bold, dim, red, green, yellow, cyan,
   step, ok, warn, fail,
   run, capture, npmRun, commandExists,

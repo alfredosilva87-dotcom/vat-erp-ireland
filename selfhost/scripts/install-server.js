@@ -25,7 +25,7 @@ const {
 const { generate, applyToEnvFile } = require("./lib/secrets");
 const {
   readEnvValues, waitForDatabase, applySchema, createAdmin, collectCredentials,
-  refuseIfDataWithoutEnv, DB_DATA_DIR,
+  refuseIfDataWithoutEnv, DB_DATA_DIR, resolveDataSources,
 } = require("./lib/setup");
 const { exportCa } = require("./lib/ca");
 const { openWindowsPort } = require("./lib/firewall");
@@ -149,6 +149,7 @@ function ensureDockerEnv({ serverHost, geminiKey, httpPort, httpsPort, kongPorts
 
   // Values the app container needs, which are not part of the stock file.
   const extras = {
+    ...resolveDataSources(),
     COMPOSE_PROJECT_NAME: "vat-erp",
     COMPOSE_PATH_SEPARATOR: ":",
     SERVER_HOST: serverHost,
