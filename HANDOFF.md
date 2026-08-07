@@ -148,6 +148,48 @@ para toda a rede** (`supabase-pooler  0.0.0.0:5432->5432`). O pacote `selfhost/`
 não faz isso — o `supavisor` está desligado e o `vat-erp-db` só existe dentro
 da rede do Docker.
 
+## Modo servidor (2026-08-07)
+
+O uso real informado pelo usuário é **várias pessoas com os mesmos dados**, o
+que a instalação por PC não atende (cada cópia tem banco próprio). Servidor
+escolhido: **Dell Latitude 5400, Windows 11 Pro, i7-8665U 4c/8t, 32 GB**, nome
+de rede `SERVERPAYROLL` — a mesma máquina que já roda a folha de pagamento
+(BrightPay/ROS). Secure Boot desligado; criptografia de disco a confirmar.
+
+Recomendação dada e aceita ("resolve do zero"): **servidor central na LAN com
+HTTPS interno, sem publicar na internet**. Cloudflare Tunnel foi descartado
+*para produção* — passaria o tráfego contábil por terceiro, com o TLS
+terminando na borda da Cloudflare, o que contradiz o motivo de terem saído de
+Vercel/Supabase. Acesso de fora, se precisar, pela VPN do escritório.
+
+Entregue em `selfhost/server/` + `scripts/install-server.js`:
+
+- **App containerizado** (`server/Dockerfile`, Next.js standalone) com
+  `restart: unless-stopped` — o sistema volta sozinho depois de reboot, sem
+  ninguém logar. `next.config.js` liga `output: "standalone"` só quando
+  `BUILD_STANDALONE=1`, para não mexer no caminho do instalador por PC.
+- **Caddy** como porta de entrada HTTPS, com CA interna (`tls internal`).
+  Certificado auto-renovado, sem internet. `scripts/export-ca.js` extrai a raiz
+  para instalar nas estações.
+- **Só o Caddy publica portas.** App, Kong, Studio e Postgres ficam apenas na
+  rede do Docker. No Caddyfile, apenas `/auth/v1/*` é roteado para o Kong — é
+  o único caminho que o navegador precisa (a tela de recuperação de senha).
+  REST, Storage e Studio não são alcançáveis da rede.
+- **`SUPABASE_INTERNAL_URL`** (novo, em `lib/supabase.ts`): o servidor fala com
+  o Kong pela rede do Docker enquanto o navegador usa a URL pública. Sem isso
+  não daria para manter a API fora da LAN, porque as duas pontas usavam a mesma
+  variável. Quando não definida, cai no comportamento antigo — instalação por
+  PC inalterada.
+- `scripts/backup.js` — `pg_dump` (schemas `public` + `storage`) mais os
+  arquivos, em pasta datada, mantendo as 14 últimas. **Não criptografa de
+  propósito**: o destino é que precisa estar criptografado.
+- Guia completo, incluindo o passo de confiar no certificado em cada estação:
+  `selfhost/SERVIDOR.md`.
+
+Portas do proxy configuráveis (`VATERP_HTTP_PORT` / `VATERP_HTTPS_PORT`,
+padrão 80/443) — necessário porque o Colima não vincula porta privilegiada, e
+foi assim que deu para testar no Mac.
+
 ## Histórico de versões (git log)
 
 | Versão | Descrição |

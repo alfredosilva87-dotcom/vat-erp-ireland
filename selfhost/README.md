@@ -4,6 +4,11 @@ O sistema roda **100% dentro do computador**: aplicação, banco de dados e os
 arquivos das notas. Nada vai para a nuvem. Cada PC instalado tem o seu próprio
 banco — os dados **não** são compartilhados entre máquinas.
 
+> **Várias pessoas usando os mesmos dados?** Então não é esta instalação —
+> cada cópia teria o seu próprio banco. Use o
+> **[servidor do escritório](SERVIDOR.md)**: uma máquina central com HTTPS, e as
+> estações só abrem o navegador.
+
 ---
 
 ## Antes de começar

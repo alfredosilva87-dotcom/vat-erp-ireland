@@ -1,0 +1,51 @@
+# HTTPS front door for the office server.
+#
+# Why a proxy at all: the session cookie is issued with the `Secure` flag, and
+# browsers refuse Secure cookies over plain http:// on anything that is not
+# localhost. Without real TLS, everyone outside this machine gets a login screen
+# that silently loops. TLS here fixes that without weakening the cookie.
+#
+# `tls internal` makes Caddy run its own certificate authority and issue (and
+# auto-renew) a certificate for $SERVER_HOST. Each workstation has to trust that
+# CA once — see SERVIDOR.md, "Confiar no certificado". No internet, no external
+# CA, nothing leaves the building.
+
+{
+	# No ACME account, no outbound calls: this server is not on the internet.
+	admin off
+	auto_https disable_redirects
+}
+
+{$SERVER_HOST} {
+	tls internal
+
+	encode zstd gzip
+
+	# Only GoTrue is reachable from the network, and only because the
+	# password-recovery screen parses the e-mail link in the browser and needs
+	# to exchange it for a session (app/reset-password/page.tsx).
+	#
+	# Everything else in Kong — the REST API, Storage, and Supabase Studio —
+	# deliberately stays off the LAN. The Next.js server reaches those over the
+	# Docker network, so nothing here needs to.
+	handle /auth/v1/* {
+		reverse_proxy kong:8000
+	}
+
+	handle {
+		reverse_proxy app:3000
+	}
+
+	log {
+		output file /var/log/caddy/access.log {
+			roll_size 10MiB
+			roll_keep 10
+		}
+	}
+}
+
+# Anyone who types the bare http:// address gets sent to https://, so a
+# mistyped address is not mistaken for the app being down.
+http://{$SERVER_HOST} {
+	redir https://{$SERVER_HOST}{uri} permanent
+}

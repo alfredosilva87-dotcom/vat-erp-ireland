@@ -17,3 +17,6 @@ selfhost/config.json
 # Live data: Postgres lives in volumes/db/data (covered by `data/` above),
 # uploaded invoice files live here.
 selfhost/docker/volumes/storage/
+# Generated per install: the root of Caddy's internal CA, and the backups.
+selfhost/server/root-ca.crt
+selfhost/backups/

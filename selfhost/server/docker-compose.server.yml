@@ -1,0 +1,67 @@
+# Server deployment: adds the app itself and an HTTPS front door to the base
+# Supabase stack. Layered on top of docker-compose.yml + docker-compose.override.yml,
+# so relative paths here resolve against selfhost/docker/ (the project directory).
+#
+# Difference from the per-PC install: there, Next.js runs on the host via
+# `next start` and a person has to launch it. Here it is a container with
+# `restart: unless-stopped`, so a reboot brings the whole system back by itself.
+#
+# Note what is NOT published: only Caddy binds 80/443. The app, Kong, Studio and
+# Postgres are reachable only inside the Docker network (Kong additionally on
+# 127.0.0.1, for administering the database from the machine itself).
+services:
+  app:
+    build:
+      context: ../..
+      dockerfile: selfhost/server/Dockerfile
+      args:
+        # Inlined into the client bundle — must be the address people type.
+        NEXT_PUBLIC_SUPABASE_URL: https://${SERVER_HOST}
+        NEXT_PUBLIC_SUPABASE_ANON_KEY: ${ANON_KEY}
+    container_name: vat-erp-app
+    restart: unless-stopped
+    environment:
+      # Server-side traffic never leaves the Docker network.
+      SUPABASE_INTERNAL_URL: http://kong:8000
+      NEXT_PUBLIC_SUPABASE_URL: https://${SERVER_HOST}
+      NEXT_PUBLIC_SUPABASE_ANON_KEY: ${ANON_KEY}
+      SUPABASE_SERVICE_ROLE_KEY: ${SERVICE_ROLE_KEY}
+      AUTH_SECRET: ${AUTH_SECRET}
+      GEMINI_API_KEY: ${GEMINI_API_KEY}
+      GEMINI_MODEL: ${GEMINI_MODEL:-gemini-flash-latest}
+    depends_on:
+      db:
+        condition: service_healthy
+      kong:
+        condition: service_started
+      rest:
+        condition: service_started
+      storage:
+        condition: service_started
+
+  caddy:
+    image: caddy:2-alpine
+    container_name: vat-erp-caddy
+    restart: unless-stopped
+    ports:
+      # 80/443 por padrao. Configuravel porque nem todo ambiente deixa vincular
+      # porta privilegiada (Colima, por exemplo) e porque a maquina pode ja ter
+      # algo na 443.
+      - "${CADDY_HTTP_PORT:-80}:80"
+      - "${CADDY_HTTPS_PORT:-443}:443"
+    environment:
+      SERVER_HOST: ${SERVER_HOST}
+    volumes:
+      - ../server/Caddyfile:/etc/caddy/Caddyfile:ro
+      # Holds the internal CA and the issued certificates. Losing this volume
+      # means a new CA, and every workstation has to trust the new root again.
+      - caddy-data:/data
+      - caddy-config:/config
+      - caddy-logs:/var/log/caddy
+    depends_on:
+      - app
+
+volumes:
+  caddy-data:
+  caddy-config:
+  caddy-logs:

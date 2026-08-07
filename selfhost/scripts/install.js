@@ -21,12 +21,14 @@ const {
   bold, dim, cyan,
   step, ok, warn, fail,
   npmRun, capture, compose, composeBase,
-  psql, dollarQuote, waitFor, ask,
+
 } = require("./lib/proc");
 const { generate, applyToEnvFile } = require("./lib/secrets");
 const { pickPort, readConfig, writeConfig } = require("./lib/ports");
+const {
+  readEnvValues, waitForDatabase, applySchema, createAdmin, collectCredentials,
+} = require("./lib/setup");
 
-const SCHEMA_DIR = path.join(ROOT, "selfhost", "schema");
 const ENV_EXAMPLE = path.join(DOCKER_DIR, ".env.example");
 const ENV_DOCKER = path.join(DOCKER_DIR, ".env");
 const ENV_APP = path.join(ROOT, ".env.local");
@@ -77,15 +79,6 @@ function checkPrereqs() {
 }
 
 // ------------------------------------------------------------------- secrets
-
-function readEnvValues(file) {
-  const values = {};
-  for (const line of fs.readFileSync(file, "utf8").split(/\r?\n/)) {
-    const m = /^([A-Z_0-9]+)=(.*)$/.exec(line);
-    if (m) values[m[1]] = m[2];
-  }
-  return values;
-}
 
 /**
  * Picks the host ports once and remembers them. Re-running the installer must
@@ -213,86 +206,7 @@ async function startStack() {
     process.exit(1);
   }
 
-  const dbReady = await waitFor("banco de dados", () => psql("select 1;").status === 0, {
-    timeoutMs: 300000,
-  });
-  if (!dbReady) {
-    fail("O Postgres nao respondeu a tempo. Rode `selfhost/scripts/logs` para ver o motivo.");
-    process.exit(1);
-  }
-}
-
-function applySqlFile(file, opts = {}) {
-  const sql = fs.readFileSync(path.join(SCHEMA_DIR, file), "utf8");
-  const r = psql(sql, opts);
-  if (r.status !== 0) {
-    fail(`Erro aplicando ${file}:\n${r.stderr || r.stdout}`);
-    process.exit(1);
-  }
-  ok(file);
-}
-
-async function applySchema() {
-  step("Criando as tabelas e a base de referencia (VAT / regras de credito)");
-  applySqlFile("001_full_schema.sql");
-  applySqlFile("002_seed_reference_data.sql");
-
-  // storage-api creates its own `storage` schema on first boot; the bucket can
-  // only be inserted after that has happened.
-  const storageReady = await waitFor(
-    "servico de arquivos (storage)",
-    () =>
-      psql(
-        "select 1 from information_schema.tables where table_schema='storage' and table_name='buckets';"
-      ).stdout.trim() === "1"
-  );
-  if (!storageReady) {
-    warn("O storage demorou demais. O app sobe, mas o upload de PDF pode falhar.");
-    warn("Rode o instalador de novo depois que os containers estiverem estaveis.");
-    return;
-  }
-  // storage.buckets belongs to supabase_storage_admin; only supabase_admin
-  // (the actual superuser here) can write to it.
-  applySqlFile("003_storage_bucket.sql", { user: "supabase_admin" });
-}
-
-async function createAdmin({ email, password }) {
-  step("Criando o usuario administrador");
-
-  // bcrypt via pgcrypto: the password never leaves this machine and never
-  // touches a command line. bcryptjs (used by lib/auth.ts) verifies $2a$ fine.
-  const sql = `
-do $do$
-declare
-  v_company uuid;
-begin
-  select id into v_company from companies where slug = 'precisetax';
-
-  insert into app_users (email, name, password_hash, role, active, must_change, company_id)
-  values (
-    lower(${dollarQuote(email)}),
-    'Administrador',
-    crypt(${dollarQuote(password)}, gen_salt('bf', 10)),
-    'admin',
-    true,
-    false,
-    v_company
-  )
-  on conflict (email) do update
-    set password_hash = excluded.password_hash,
-        role          = 'admin',
-        active        = true,
-        must_change   = false,
-        company_id    = coalesce(app_users.company_id, excluded.company_id);
-end
-$do$;
-`;
-  const r = psql(sql);
-  if (r.status !== 0) {
-    fail(`Nao consegui criar o administrador:\n${r.stderr || r.stdout}`);
-    process.exit(1);
-  }
-  ok(`administrador: ${email}`);
+  await waitForDatabase();
 }
 
 // ----------------------------------------------------------------------- app
@@ -320,42 +234,7 @@ async function main() {
   banner();
   checkPrereqs();
 
-  // Env vars let the install run unattended (office server, re-imaging a PC).
-  // When they are absent — the normal case — everything is asked here.
-  let email = process.env.VATERP_ADMIN_EMAIL;
-  let password = process.env.VATERP_ADMIN_PASSWORD;
-  let geminiKey = process.env.VATERP_GEMINI_KEY;
-  const unattended = Boolean(email && password);
-
-  if (unattended) {
-    step("Dados do administrador (vindos das variaveis de ambiente)");
-    ok(email);
-    if (password.length < 8) {
-      fail("VATERP_ADMIN_PASSWORD precisa de pelo menos 8 caracteres.");
-      process.exit(1);
-    }
-  } else {
-    step("Dados do administrador deste computador");
-    console.log(dim("    E o login que voce vai usar para entrar no sistema."));
-    email = await ask("  E-mail: ");
-    for (;;) {
-      password = await ask("  Senha: ", { hidden: true });
-      if (password.length < 8) {
-        warn("Use pelo menos 8 caracteres.");
-        continue;
-      }
-      const again = await ask("  Repita a senha: ", { hidden: true });
-      if (again === password) break;
-      warn("As senhas nao conferem.");
-    }
-
-    step("Chave de leitura das notas (Google Gemini)");
-    console.log(dim("    Pegue uma chave gratuita em https://aistudio.google.com -> Get API key"));
-    console.log(dim("    Pode deixar em branco agora e preencher depois no arquivo .env.local."));
-    geminiKey = await ask("  GEMINI_API_KEY: ", { required: false });
-  }
-  geminiKey = geminiKey || "";
-  if (!geminiKey) warn("Sem a chave Gemini, a leitura automatica de notas nao funciona (o resto funciona).");
+  const { email, password, geminiKey } = await collectCredentials({ dim });
 
   step("Escolhendo as portas");
   const ports = await resolvePorts();
