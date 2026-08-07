@@ -6,3 +6,4 @@ node_modules
 data/
 tsconfig.tsbuildinfo
 .claude/settings.local.json
+.env.local.cloud-backup

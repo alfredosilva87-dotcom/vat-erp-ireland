@@ -28,6 +28,52 @@ Aplicativo web (ERP contábil) para **VAT da Irlanda**. Lê notas fiscais (PDF/i
   - Login admin: `alfredo.silvajr87@gmail.com` (senha **não** versionada — está no gerenciador de senhas / painel da Vercel)
   - Env vars já configuradas: `AUTH_SECRET`, `NEXT_PUBLIC_SUPABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY`, `GEMINI_API_KEY`
 
+## Self-hosting (2026-08-07 — em andamento)
+
+O escritório aprovou o sistema (2026-08-06) e exigiu **self-hosting 100% local**
+(app + banco + storage) por compliance de proteção de dados irlandesa — não
+mais Vercel/Supabase gerenciados. Fase 1 (teste no Mac do usuário) já está
+funcionando; fase 2 é migrar isso pro servidor real do escritório.
+
+- **Infra separada do repo do app**, em
+  `~/Documents/vat-erp-selfhosted-infra/` (fora do git deste projeto de
+  propósito):
+  - `docker/` — sparse-clone oficial do `supabase/supabase` (só a pasta
+    `docker/`), o compose self-hosted padrão da Supabase.
+  - `schema/001_full_schema.sql`, `002_seed_reference_data.sql`,
+    `003_storage_bucket.sql` — schema consolidado puxado direto de
+    `supabase_migrations.schema_migrations` da produção (mais confiável que
+    os arquivos `db/*.sql` deste repo, que ficaram desatualizados — ex: a
+    tabela `clients` nunca teve `CREATE TABLE` versionado aqui).
+- **Runtime**: Docker via **Colima** (não OrbStack/Docker Desktop — ambos
+  exigem macOS 14+/Sonoma; este Mac está no 13.7.8/Ventura). Instalado via
+  Homebrew: `docker`, `docker-compose`, `colima`. Iniciar com
+  `colima start --cpu 2 --memory 4 --disk 20` (ajustado pra 8GB RAM total
+  da máquina).
+- **Segredos** gerados via `docker/utils/generate-keys.sh --update-env` —
+  ficam só em `docker/.env` (gitignored, fora do repo do app de qualquer
+  forma).
+- **`.env.local` do app**: aponta pro stack local
+  (`NEXT_PUBLIC_SUPABASE_URL=http://localhost:8000`, chaves geradas no
+  passo acima). Os valores de produção (nuvem) estão salvos em
+  `.env.local.cloud-backup` (gitignored) — não apagados, só substituídos.
+- **Senha do admin no banco local**: o hash puxado da migration original
+  correspondia a uma senha antiga (a senha de produção foi trocada depois
+  via SQL direto, que não fica em migration rastreada) — foi atualizado
+  manualmente pra bater com a senha atual de produção.
+- **Dados**: só estrutura + referência (`vat_categories`, `credit_rules`) +
+  o usuário admin. **Nenhum dado real de cliente foi copiado** pra essa
+  instância de teste, propositalmente, já que ela vai ficar exposta na
+  internet para teste de acesso remoto.
+- **Testado e confirmado funcionando**: login, dashboard, criar/editar/
+  apagar cliente — caminho completo de leitura e escrita contra o Postgres
+  self-hosted.
+- **Pendente**: método de exposição pra internet (Cloudflare Tunnel
+  recomendado — grátis, sem port-forward, HTTPS real, não expõe IP
+  residencial — vs ngrok pra teste rápido único) precisa de confirmação do
+  usuário antes de ativar. Depois: migrar essa mesma receita pro servidor
+  real do escritório (specs ainda não levantadas).
+
 ## Histórico de versões (git log)
 
 | Versão | Descrição |
