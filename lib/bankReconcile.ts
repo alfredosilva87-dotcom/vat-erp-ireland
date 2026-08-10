@@ -180,6 +180,19 @@ export async function pendingWithSuggestions(
   return { lines, candidates };
 }
 
+/**
+ * Uma parte do valor da linha: pode liquidar um documento, ir para uma conta
+ * contábil, ou as duas coisas em movimentos diferentes.
+ */
+export interface ReconcilePart {
+  invoiceId?: string | null;
+  saleId?: string | null;
+  accountCode?: string | null;
+  vatRate?: number | null;
+  amount: number;
+  description?: string | null;
+}
+
 export interface ReconcileInput {
   invoiceId?: string | null;
   saleId?: string | null;
@@ -192,6 +205,13 @@ export interface ReconcileInput {
    * conciliação deixa de ser prova de coisa nenhuma.
    */
   allocations?: ResolvedAllocation[] | null;
+  /**
+   * Um pagamento cobrindo vários documentos, cada um com seu valor (camada A4).
+   * Uma nota paga pela metade recebe metade e continua devendo o resto — é a
+   * view `invoice_payment_status` que cuida disso sozinha, porque a situação de
+   * pagamento é derivada e não um campo mantido à mão.
+   */
+  parts?: ReconcilePart[] | null;
   contactName?: string | null;
   reason?: "match" | "rule" | "memory" | "prediction" | "manual";
 }
@@ -214,15 +234,38 @@ export async function reconcileLine(
 
   const amount = money(l.amount);
 
-  // Uma parcela quando não há divisão; várias quando uma regra dividiu.
-  const parts: ResolvedAllocation[] = (input.allocations ?? []).length
+  // Uma parcela quando não há divisão; várias quando uma regra dividiu ou
+  // quando a linha liquida mais de um documento.
+  const parts: ReconcilePart[] = (input.parts ?? []).length
+    ? input.parts!.map((p) => ({
+        invoiceId: p.invoiceId ?? null,
+        saleId: p.saleId ?? null,
+        accountCode: p.accountCode ?? null,
+        vatRate: p.vatRate ?? null,
+        amount: money(p.amount),
+        description: p.description ?? null,
+      }))
+    : (input.allocations ?? []).length
     ? input.allocations!.map((a) => ({
-        account_code: a.account_code ?? null,
-        vat_rate: a.vat_rate ?? null,
+        invoiceId: input.invoiceId ?? null,
+        saleId: input.saleId ?? null,
+        accountCode: a.account_code ?? null,
+        vatRate: a.vat_rate ?? null,
         amount: money(a.amount),
         description: a.description ?? null,
       }))
-    : [{ account_code: input.accountCode?.trim() || null, vat_rate: null, amount, description: null }];
+    : [{
+        invoiceId: input.invoiceId ?? null,
+        saleId: input.saleId ?? null,
+        accountCode: input.accountCode?.trim() || null,
+        vatRate: null,
+        amount,
+        description: null,
+      }];
+
+  if (parts.some((p) => p.invoiceId && p.saleId)) {
+    return { ok: false, error: "Cada parte liquida uma nota ou uma venda, nunca as duas." };
+  }
 
   // A soma das partes tem que ser a linha. Deixar passar uma divisão que não
   // fecha é criar dinheiro do nada dentro do sistema.
@@ -241,10 +284,10 @@ export async function reconcileLine(
       contact_name: input.contactName?.trim() || l.payee,
       amount: p.amount,
       kind: p.amount < 0 ? "spend" : "receive",
-      account_code: p.account_code,
-      vat_rate: p.vat_rate,
-      invoice_id: input.invoiceId ?? null,
-      sale_id: input.saleId ?? null,
+      account_code: p.accountCode ?? null,
+      vat_rate: p.vatRate ?? null,
+      invoice_id: p.invoiceId ?? null,
+      sale_id: p.saleId ?? null,
       statement_line_id: l.id,
       reconciled_at: now,
       reason: input.reason ?? "manual",

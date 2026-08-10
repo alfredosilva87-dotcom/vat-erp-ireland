@@ -12,6 +12,7 @@
  */
 
 import { useState } from "react";
+import SplitSettlement from "@/components/SplitSettlement";
 import type { MatchCandidate, MatchSuggestion } from "@/lib/bankMatch";
 import type { StoredStatementLine } from "@/lib/types";
 
@@ -41,20 +42,23 @@ export interface PendingLine {
 }
 
 export default function ReconcileRow({
-  item, candidates, busy, onConfirm,
+  item, candidates, accounts, busy, onConfirm,
 }: {
+  accounts?: { code: string; description: string }[];
   item: PendingLine;
   candidates: MatchCandidate[];
   busy: boolean;
   onConfirm: (lineId: string, choice: {
     invoiceId?: string; saleId?: string; transactionId?: string; description?: string;
     allocations?: Array<{ account_code: string | null; vat_rate: number | null; amount: number }>;
+    parts?: Array<{ invoiceId?: string | null; saleId?: string | null; accountCode?: string | null; amount: number }>;
     reason: string;
   }) => void;
 }) {
   const { line, best, others, posted, rule } = item;
   const [open, setOpen] = useState(false);
   const [manual, setManual] = useState(false);
+  const [split, setSplit] = useState(false);
   const [note, setNote] = useState("");
   const [picked, setPicked] = useState<string | null>(null);
 
@@ -144,6 +148,7 @@ export default function ReconcileRow({
                   {open ? "Esconder" : `Outras correspondências possíveis (${others.length})`}
                 </button>
               )}
+              <button className="btn-ghost h-9 px-3 text-sm" onClick={() => setSplit(true)}>Várias notas / dividir</button>
               <button className="btn-ghost h-9 px-3 text-sm" onClick={() => setManual(true)}>Sem documento</button>
             </div>
           </div>
@@ -160,12 +165,24 @@ export default function ReconcileRow({
                   {open ? "Esconder" : `Ver ${others.length} possível(is)`}
                 </button>
               )}
+              <button className="btn-ghost h-9 px-3 text-sm" onClick={() => setSplit(true)}>Várias notas / dividir</button>
               <button className="btn-ghost h-9 px-3 text-sm" onClick={() => setManual(true)}>Sem documento</button>
             </div>
           </div>
         )}
 
-        {!manual && rule && (
+        {split && (
+          <SplitSettlement
+            lineAmount={amount}
+            candidates={candidates}
+            accounts={accounts ?? []}
+            busy={busy}
+            onCancel={() => setSplit(false)}
+            onConfirm={(parts) => { setSplit(false); onConfirm(line.id, { parts, reason: "manual" }); }}
+          />
+        )}
+
+        {!manual && !split && rule && (
           <div className="mt-3 rounded-lg border border-line bg-surface-2/50 px-3 py-2">
             <p className="text-xs text-muted">
               Regra <strong className="text-fg">{rule.rule.name}</strong>
@@ -186,7 +203,7 @@ export default function ReconcileRow({
           </div>
         )}
 
-        {!manual && !!posted.length && (
+        {!manual && !split && !!posted.length && (
           <div className="mt-3 rounded-lg bg-brand/5 px-3 py-2">
             <p className="text-xs text-muted">
               Já existe movimento lançado com este valor. Ligar não lança nada de novo.

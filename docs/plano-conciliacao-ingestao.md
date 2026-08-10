@@ -385,7 +385,48 @@ Verificado na tela, ponta a ponta (2026-08-10):
 
 ---
 
-## Camada A4 — Casos difíceis `[ ] não iniciada`
+## Camada A4 — Casos difíceis `[x] CONCLUÍDA (2026-08-11, v1.24)`
+
+Entregue:
+
+| O quê | Onde |
+|---|---|
+| Motor de divisão (função pura, 31 testes) | `lib/bankSplit.ts` |
+| Várias partes numa linha, cada uma com seu documento | `parts` em `lib/bankReconcile.ts` |
+| Painel de divisão com "falta X para fechar" ao vivo | `components/SplitSettlement.tsx` |
+
+Duas regras mandam em tudo:
+
+1. **A soma das partes é o valor da linha.** Sempre, e o botão de gravar só
+   acende quando fecha. Uma conciliação que não fecha não prova nada, e provar
+   é o motivo de a conciliação existir.
+2. **Diferença não some em silêncio.** Um cêntimo vira lançamento visível numa
+   conta de arredondamento; uma sobra maior exige que alguém diga em que conta
+   ela vai. Nunca é somada no valor de uma nota — isso faria a nota parecer paga
+   por um valor que ninguém emitiu.
+
+Decisões tomadas na implementação:
+- **Nunca oferecer mais do que o documento deve.** Pagar €500 numa nota de €100
+  e deixar o sistema "resolver" é como nasce crédito fantasma. O excedente vira
+  sobra a explicar.
+- **Valor digitado manda no automático.** O preenchimento automático divide o
+  que sobrar; o contrário faria o sistema discordar de quem está decidindo.
+- **Cinco cêntimos é o limite do arredondamento.** Conversão de moeda e desconto
+  de fornecedor produzem esse resto; tarifa bancária, nunca. Acima disso o
+  sistema não chama de arredondamento.
+- **Pagamento parcial não precisa de nada especial**: a nota recebe o que foi
+  pago e continua devendo o resto, porque a situação de pagamento é a view
+  `invoice_payment_status` — derivada, não um campo mantido à mão (camada A0).
+
+Verificado na tela, ponta a ponta (2026-08-11):
+- [x] Um pagamento de €195,45 cobrindo **três notas** → 3 movimentos, as três pagas
+- [x] €30,00 numa nota de €30,09 → nota fica **parcial**, devendo €0,09
+- [x] €88,12 numa nota de €88,10 → nota recebe **88,10 exatos** e os 2 cêntimos
+      vão para a conta 9999 como lançamento próprio
+- [x] €33,36 numa nota de €28,58 → €4,78 lançados em "Tarifas bancárias"
+- [x] Soma que não fecha e sem conta escolhida → **não deixa gravar**
+
+### Desenho original da camada
 
 **Entrega**
 - **Um pagamento, várias notas**: marca várias, soma tem que bater
@@ -395,9 +436,9 @@ Verificado na tela, ponta a ponta (2026-08-10):
 - **Transação avulsa** para o que nenhum documento cobre
 
 **Testável quando:**
-- [ ] Um pagamento cobrindo 3 notas concilia
-- [ ] Pagamento parcial deixa saldo em aberto correto
-- [ ] Diferença de 2 centavos vai para arredondamento, não trava o fechamento
+- [x] Um pagamento cobrindo 3 notas concilia
+- [x] Pagamento parcial deixa saldo em aberto correto
+- [x] Diferença de 2 centavos vai para arredondamento, não trava o fechamento
 
 ---
 
@@ -702,10 +743,11 @@ número está certo.
 | 2026-08-10 | — | Cache de rota do Next fazia lista voltar vazia (26 rotas) | v1.22.1 |
 | 2026-08-11 | A6 | Extrato em PDF + correção do `pdf-parse` que derrubava toda leitura nativa; 167 testes | v1.23 |
 | 2026-08-11 | A6 | Leitura por coordenada; primeiro extrato REAL (AIB) lido inteiro; 184 testes | v1.23.1 |
+| 2026-08-11 | A4 | Casos difíceis: várias notas, parcial, tarifa e arredondamento; 215 testes | v1.24 |
 
-**Onde parou: A6 concluída (antecipada). A próxima é a A4 — casos difíceis**
-(um pagamento para várias notas, pagamento parcial, tarifa embutida, diferença
-de centavos).
+**Onde parou: A4 concluída. A próxima é a A5 — fechamento e relatório**, que é
+o que o escritório usa para provar que o mês fecha. Depois dela sobra só a A7
+(conciliação em massa) na Fase A, e a Fase B inteira.
 
 O primeiro extrato real chegou em 2026-08-11 (AIB, julho) e virou o teste que
 mais ensinou até agora. **Quando chegarem extratos de outros bancos, o certo é

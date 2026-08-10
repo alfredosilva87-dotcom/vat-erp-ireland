@@ -35,6 +35,7 @@ export default function Reconcile({ params }: { params: { id: string; accountId:
   const [pending, setPending] = useState<PendingLine[]>([]);
   const [candidates, setCandidates] = useState<MatchCandidate[]>([]);
   const [outstanding, setOutstanding] = useState<OutstandingTxn[]>([]);
+  const [accounts, setAccounts] = useState<{ code: string; description: string }[]>([]);
   const [done, setDone] = useState<StoredStatementLine[]>([]);
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState(false);
@@ -45,10 +46,15 @@ export default function Reconcile({ params }: { params: { id: string; accountId:
   const load = useCallback(async () => {
     // no-store porque o navegador também guarda GET: depois de conciliar, a
     // tela tem que mostrar o que o banco de dados diz, não o que ela mostrava.
-    const [r1, r2] = await Promise.all([
+    const [r1, r2, r3] = await Promise.all([
       fetch(`${base}/reconcile`, { cache: "no-store" }),
       fetch(`${base}?status=reconciled&limit=100`, { cache: "no-store" }),
+      fetch(`/api/clients/${params.id}/accounts`, { cache: "no-store" }),
     ]);
+    if (r3.ok) {
+      const d = await r3.json();
+      setAccounts((d.accounts || []).map((a: any) => ({ code: a.code, description: a.description })));
+    }
     if (r1.ok) {
       const d = await r1.json();
       setAccount(d.account); setBalance(d.balance);
@@ -130,7 +136,8 @@ export default function Reconcile({ params }: { params: { id: string; accountId:
           </p>
         ) : (
           pending.map((item) => (
-            <ReconcileRow key={item.line.id} item={item} candidates={candidates} busy={busy} onConfirm={confirm} />
+            <ReconcileRow key={item.line.id} item={item} candidates={candidates} accounts={accounts}
+              busy={busy} onConfirm={confirm} />
           ))
         )}
       </section>
