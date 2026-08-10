@@ -136,7 +136,41 @@ dois saldos divergirem corretamente.
 
 ---
 
-## Camada A1 — Importar extrato (CSV e Excel) `[ ] não iniciada`
+## Camada A1 — Importar extrato (CSV e Excel) `[~] EM ANDAMENTO`
+
+**Feito (2026-08-10, v1.19.1):** o leitor, em `lib/bankStatement.ts`, com 72
+testes (`npm test`).
+
+Nenhum formato de banco está embutido no código. O leitor detecta um ponto de
+partida e o mapeamento fica **guardado como dado** por conta bancária — banco
+novo é uma tela de confirmação, nunca programação.
+
+Cobre hoje, verificado: colunas separadas de entrada/saída; coluna única com
+sinal; vírgula decimal europeia e ponto de milhar; parênteses para negativo;
+marcadores DR/CR; símbolo de moeda; preâmbulo antes do cabeçalho; arquivo sem
+cabeçalho nenhum; datas em dia/mês, mês/dia, ISO e "31-Jan-2026"; e linhas de
+totalização, que são contadas à parte em vez de reportadas como defeito.
+
+Decisões que valem registro:
+- **Contador de ocorrência na chave de duplicata.** Dois cafés iguais de €4,50
+  no mesmo dia **não** são duplicata. Chavear só por data+valor+descrição
+  engoliria o segundo em silêncio. Contando ocorrências dentro do arquivo, a
+  repetição legítima sobrevive e a reimportação continua sendo recusada, porque
+  o mesmo arquivo produz sempre a mesma sequência.
+- **Conferência contra o saldo do próprio extrato.** Se o arquivo traz saldo,
+  o leitor confere se a soma dos valores bate. Pega sinal invertido ou coluna
+  errada na hora da importação — não no fechamento do mês.
+- O estilo de data é decidido **sobre o arquivo inteiro**, não linha a linha:
+  um único 31/01 em qualquer lugar resolve a ambiguidade de 03/04.
+
+**Falta:** telas de conta bancária, rota de importação com pré-visualização e
+ajuste do mapeamento, e gravação com anti-duplicata no banco.
+
+**Quando os extratos reais chegarem:** acrescentar cada arquivo como mais um
+caso em `tests/bankStatement.test.js`. O objetivo é nunca corrigir um banco e
+quebrar outro.
+
+### Desenho original da camada
 
 **Entrega**
 - Tela de contas bancárias por cliente (criar, editar, listar)
@@ -435,5 +469,8 @@ número está certo.
 |---|---|---|---|
 | 2026-08-09 | — | Pesquisa concluída, plano escrito | — |
 | 2026-08-10 | A0 | Modelo de dinheiro no banco, verificado | v1.19 |
+| 2026-08-10 | A1 | Leitor de extrato + 72 testes (`npm test`) | v1.19.1 |
 
-**Próxima camada: A1 — importar extrato (CSV e Excel).**
+**Onde parou: A1 — falta a interface (contas bancárias, pré-visualização da
+importação com ajuste de mapeamento, gravação com anti-duplicata).** O leitor
+já está pronto e testado.
