@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
-import * as XLSX from "xlsx";
+import { fileToRows } from "@/lib/sheet";
 import type { Client, SalesEntry } from "@/lib/types";
 
 function normDate(v: any): string {
@@ -108,21 +108,11 @@ export default function SalesEntryPage({ params }: { params: { id: string } }) {
   async function onFile(file: File) {
     setImporting(true); setMsg(null);
     try {
-      const ext = file.name.split(".").pop()?.toLowerCase();
-      let aoa: any[][] = [];
-      if (ext === "xlsx" || ext === "xls") {
-        const buf = await file.arrayBuffer();
-        const wb = XLSX.read(buf, { type: "array", cellDates: true });
-        const ws = wb.Sheets[wb.SheetNames[0]];
-        aoa = XLSX.utils.sheet_to_json(ws, { header: 1, defval: "" }) as any[][];
-      } else {
-        const text = await file.text();
-        const lines = text.split(/\r?\n/).filter((l) => l.trim());
-        const first = lines[0] || "";
-        const delim = first.includes(";") ? ";" : first.includes("\t") ? "\t" : ",";
-        aoa = lines.map((l) => l.split(delim).map((c) => c.trim().replace(/^"|"$/g, "")));
-      }
-      const parsed = parseRows(aoa);
+      // Reading the file into cells is the same job here and in the bank
+      // statement import, so it lives in lib/sheet.ts. What the columns *mean*
+      // is what differs, and that stays below in parseRows.
+      const { rows: aoa } = await fileToRows(file);
+      const parsed = parseRows(aoa as any[][]);
       if (!parsed.length) { setMsg("No rows recognised in the file. Check it has date and amount columns."); return; }
       setDrafts((prev) => [...prev.filter((d) => d.entry_date || d.net), ...parsed]);
       setMsg(`${parsed.length} rows loaded from ${file.name}. Review the grid and click Save sales.`);

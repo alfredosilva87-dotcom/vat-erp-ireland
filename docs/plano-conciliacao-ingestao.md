@@ -136,10 +136,56 @@ dois saldos divergirem corretamente.
 
 ---
 
-## Camada A1 — Importar extrato (CSV e Excel) `[~] EM ANDAMENTO`
+## Camada A1 — Importar extrato (CSV e Excel) `[x] CONCLUÍDA (2026-08-10, v1.20)`
 
-**Feito (2026-08-10, v1.19.1):** o leitor, em `lib/bankStatement.ts`, com 72
-testes (`npm test`).
+**Parte 1 — o leitor (v1.19.1):** `lib/bankStatement.ts`, com 72 testes.
+
+**Parte 2 — interface e gravação (v1.20):** contas bancárias, importação com
+pré-visualização e ajuste de mapeamento, gravação com anti-duplicata, e desfazer
+lote. 92 testes no total (`npm test`).
+
+Entregue:
+
+| O quê | Onde |
+|---|---|
+| Leitura de arquivo em grade de células (Excel/CSV, aspas respeitadas) | `lib/sheet.ts` |
+| Acesso a dados de banco (contas, lotes, linhas) | `lib/bankStore.ts` |
+| Rotas de conta, importação e desfazer | `app/api/clients/[id]/bank-accounts/` |
+| Tela de contas com os dois saldos | `app/clients/[id]/bank/page.tsx` |
+| Tela da conta: importar, linhas, histórico | `app/clients/[id]/bank/[accountId]/page.tsx` |
+| Pré-visualização com editor de mapeamento | `components/StatementImport.tsx` |
+| Mapeamento guardado por conta | `selfhost/schema/005_bank_statement_mapping.sql` |
+
+Decisões tomadas na implementação:
+- **O anti-duplicata é do banco de dados, não do código.** O índice único mais
+  `on conflict do nothing` é o que garante que duas pessoas importando o mesmo
+  arquivo ao mesmo tempo não dupliquem nada. O que o código faz é *contar* o que
+  entrou. Filtrar em JavaScript antes de gravar pareceria funcionar e falharia
+  exatamente no dia em que duas pessoas fecham o mês juntas.
+- **"Quantas são novas?" é respondido antes de gravar** (`dryRun`), com o período
+  que está repetindo. Saber depois não ajuda: a pessoa já não sabe se as 12
+  ignoradas eram esperadas ou se ela pegou o arquivo da conta errada.
+- **O mapeamento salvo é usado, mas conferido.** Se o banco mudar o layout, as
+  colunas salvas passariam a apontar para o lugar errado e a importação daria
+  certo com números errados — o pior tipo de defeito. Quando o mapeamento salvo
+  não explica mais o arquivo, cai na detecção automática.
+- **Importação 100% duplicada não deixa lote registrado.** Não é um evento, é a
+  pessoa reabrindo um arquivo que já tinha carregado.
+- **Desfazer não é só de administrador**, porque é a correção imediata do
+  próprio erro; mas é recusado se qualquer linha do lote já foi conciliada,
+  que é o caso em que sumiria informação de verdade.
+- **`parseRows` da tela de vendas saiu para `lib/sheet.ts`** só na parte que era
+  genuinamente comum (arquivo → células). O significado das colunas continua em
+  cada tela, porque é aí que elas diferem. De brinde, CSV com vírgula dentro de
+  aspas (`"TESCO STORES, DUBLIN"`) parou de empurrar as colunas de lado.
+
+Verificado contra o banco (Postgres local, em transação desfeita ao fim):
+- [x] 3 linhas importadas; reimportar janeiro+fevereiro entra **só a de fevereiro**
+- [x] Total continua 4 linhas, não 7
+- [x] Mesma chave em **outra conta** é aceita
+- [x] Só extrato lançado → os dois saldos divergem pela soma das linhas
+- [x] Desfazer lote sem conciliação remove exatamente as linhas dele
+- [x] Lote com linha conciliada é detectado e recusado
 
 Nenhum formato de banco está embutido no código. O leitor detecta um ponto de
 partida e o mapeamento fica **guardado como dado** por conta bancária — banco
@@ -163,12 +209,11 @@ Decisões que valem registro:
 - O estilo de data é decidido **sobre o arquivo inteiro**, não linha a linha:
   um único 31/01 em qualquer lugar resolve a ambiguidade de 03/04.
 
-**Falta:** telas de conta bancária, rota de importação com pré-visualização e
-ajuste do mapeamento, e gravação com anti-duplicata no banco.
-
-**Quando os extratos reais chegarem:** acrescentar cada arquivo como mais um
-caso em `tests/bankStatement.test.js`. O objetivo é nunca corrigir um banco e
-quebrar outro.
+**O que ainda não foi feito com arquivo de verdade:** todos os formatos testados
+são sintéticos — nenhum extrato real de cliente chegou até agora. A primeira
+coisa a fazer quando chegarem é acrescentar cada arquivo como mais um caso em
+`tests/bankStatement.test.js`. O objetivo é nunca corrigir um banco e quebrar
+outro.
 
 ### Desenho original da camada
 
@@ -188,10 +233,11 @@ quebrar outro.
 fevereiro". Sem anti-duplicata, metade entra de novo e infla tudo em silêncio.
 
 **Testável quando:**
-- [ ] Importa extrato real de um banco → linhas aparecem com saldo correndo
-- [ ] Importa o mesmo arquivo de novo → zero linhas duplicadas
-- [ ] Importa extrato de **outro banco**, com formato diferente → mapeia uma vez
-- [ ] Segunda importação daquele banco → automática
+- [x] Importa extrato → linhas aparecem com saldo correndo *(formatos sintéticos;
+      falta repetir com arquivo real de banco)*
+- [x] Importa o mesmo arquivo de novo → zero linhas duplicadas
+- [x] Importa extrato de **outro banco**, com formato diferente → mapeia uma vez
+- [x] Segunda importação daquele banco → automática (mapeamento salvo na conta)
 
 ---
 
@@ -470,7 +516,12 @@ número está certo.
 | 2026-08-09 | — | Pesquisa concluída, plano escrito | — |
 | 2026-08-10 | A0 | Modelo de dinheiro no banco, verificado | v1.19 |
 | 2026-08-10 | A1 | Leitor de extrato + 72 testes (`npm test`) | v1.19.1 |
+| 2026-08-10 | A1 | Interface, importação e anti-duplicata; 92 testes | v1.20 |
 
-**Onde parou: A1 — falta a interface (contas bancárias, pré-visualização da
-importação com ajuste de mapeamento, gravação com anti-duplicata).** O leitor
-já está pronto e testado.
+**Onde parou: A1 concluída. A próxima é a A2 — conciliar com sugestão de
+casamento**, reaproveitando a força de sinal de `lib/duplicates.ts` contra as
+notas e vendas já lançadas.
+
+Duas coisas ficaram esperando material do mundo real, e nenhuma bloqueia a A2:
+extrato de banco de verdade (para virar caso de teste) e o passeio pela tela
+logado como usuário.

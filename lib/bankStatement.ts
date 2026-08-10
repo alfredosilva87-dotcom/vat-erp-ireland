@@ -467,6 +467,25 @@ export function buildLines(
 }
 
 /**
+ * Which of these lines the account has never seen.
+ *
+ * The database's unique index is the real guard — this is what lets the screen
+ * say "38 novas, 12 já importadas" *before* saving. Without it the accountant
+ * imports an overlapping period, sees "12 ignoradas" afterwards, and has no way
+ * to tell whether that was expected or a file mixed up with another account.
+ */
+export function splitByExisting(
+  lines: StatementLine[],
+  existingKeys: Iterable<string>
+): { fresh: StatementLine[]; alreadyImported: StatementLine[] } {
+  const known = existingKeys instanceof Set ? existingKeys : new Set(existingKeys);
+  const fresh: StatementLine[] = [];
+  const alreadyImported: StatementLine[] = [];
+  for (const l of lines) (known.has(l.dedupe_key) ? alreadyImported : fresh).push(l);
+  return { fresh, alreadyImported };
+}
+
+/**
  * Sanity check against the statement's own running balance, when the file has
  * one. Catches a wrong sign convention or a missed column immediately, instead
  * of at month end when the reconciliation refuses to close.

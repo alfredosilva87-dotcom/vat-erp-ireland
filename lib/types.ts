@@ -1,5 +1,7 @@
 // Shared domain types.
 
+import type { ColumnMapping } from "@/lib/bankStatement";
+
 export type VatRateType =
   | "standard"
   | "reduced"
@@ -148,6 +150,70 @@ export interface Branch {
   name: string;
   address: string | null;
   notes: string | null;
+  created_at: string;
+}
+
+// ---------------- Conciliação bancária (camadas A0/A1) ----------------
+// O modelo de duas séries: `bank_statement_lines` é o que o BANCO diz,
+// `bank_transactions` é o que foi lançado AQUI. Conciliar não altera nenhum
+// dos dois — só cria o vínculo. Ver selfhost/schema/004_bank_reconciliation.sql.
+
+export interface BankAccount {
+  id: string;
+  client_id: string;
+  name: string;
+  bank_name: string | null;
+  account_ref: string | null;
+  currency: string;
+  opening_balance: number;
+  opening_date: string | null;
+  active: boolean;
+  /** Formato do extrato deste banco, confirmado uma vez e reusado sempre. */
+  column_mapping: ColumnMapping | null;
+  created_at: string;
+}
+
+/** Os dois saldos da view `bank_account_balances`. A diferença entre eles é o que falta conciliar. */
+export interface BankAccountBalance {
+  bank_account_id: string;
+  client_id: string;
+  name: string;
+  currency: string;
+  opening_balance: number;
+  statement_balance: number;
+  system_balance: number;
+  unreconciled_statement_total: number;
+  unreconciled_statement_count: number;
+  outstanding_transaction_total: number;
+  outstanding_transaction_count: number;
+}
+
+export interface StoredStatementLine {
+  id: string;
+  bank_account_id: string;
+  import_id: string | null;
+  line_date: string;
+  description: string | null;
+  payee: string | null;
+  reference: string | null;
+  /** Positivo entra, negativo sai — sempre, qualquer que fosse a forma do arquivo. */
+  amount: number;
+  balance: number | null;
+  source: string;
+  dedupe_key: string;
+  status: "unreconciled" | "reconciled" | "ignored";
+  reconciled_at: string | null;
+  created_at: string;
+}
+
+export interface BankImport {
+  id: string;
+  bank_account_id: string;
+  filename: string | null;
+  format: string | null;
+  line_count: number;
+  skipped_count: number;
+  imported_by: string | null;
   created_at: string;
 }
 

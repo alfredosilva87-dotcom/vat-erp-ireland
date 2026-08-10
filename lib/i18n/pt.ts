@@ -111,6 +111,7 @@ const pt: Dict = {
   "client.tabOverview": "Visão geral",
   "client.tabPurchases": "Compras (T2)",
   "client.tabSales": "Vendas (T1)",
+  "client.tabBank": "Banco",
   "client.tabObligations": "Obrigações",
   "client.tabVat": "VAT por alíquota",
   "client.tabAccounts": "Plano de contas",

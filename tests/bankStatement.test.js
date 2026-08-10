@@ -152,5 +152,42 @@ for (const rotulo of ["TOTAL", "Closing Balance", "Saldo final", "Carried forwar
   ok(r.problems.length === 0 && r.summaryRows.length === 1, `"${rotulo}" reconhecida como totalizacao`, {p:r.problems,s:r.summaryRows});
 }
 
+// ------------------------------------------------- anti-duplicata na importacao
+console.log("\n== o que ja esta na conta nao entra de novo ==");
+const janeiro = [
+  ["Date", "Description", "Amount"],
+  ["02/01/2026", "TESCO", "-45.20"],
+  ["05/01/2026", "SALARY", "2500.00"],
+];
+const jan = B.buildLines(janeiro, B.detectLayout(janeiro).mapping).lines;
+
+// Segundo download do contador: "janeiro e fevereiro". As linhas de janeiro
+// repetem, a de fevereiro e nova.
+const janFev = [
+  ["Date", "Description", "Amount"],
+  ["02/01/2026", "TESCO", "-45.20"],
+  ["05/01/2026", "SALARY", "2500.00"],
+  ["03/02/2026", "ESB ENERGY", "-88.10"],
+];
+const janFevLinhas = B.buildLines(janFev, B.detectLayout(janFev).mapping).lines;
+const jaNoBanco = jan.map((l) => l.dedupe_key);
+
+const split = B.splitByExisting(janFevLinhas, jaNoBanco);
+ok(split.fresh.length === 1, "so a linha de fevereiro e nova", split.fresh.map((l) => l.line_date));
+ok(split.alreadyImported.length === 2, "as duas de janeiro sao reconhecidas", split.alreadyImported.length);
+ok(split.fresh[0].line_date === "2026-02-03", "a nova e a certa", split.fresh[0]);
+
+const nenhuma = B.splitByExisting(jan, jaNoBanco);
+ok(nenhuma.fresh.length === 0, "reimportar o MESMO arquivo nao traz nada novo", nenhuma.fresh);
+
+const contaVazia = B.splitByExisting(jan, []);
+ok(contaVazia.fresh.length === 2, "conta vazia aceita tudo", contaVazia.fresh.length);
+
+// O contador deu duas voltas no mesmo cafe: repeticao legitima tem que
+// sobreviver ao filtro, senao a segunda some em silencio.
+const doisCafes = B.buildLines(cafes, B.detectLayout(cafes).mapping).lines;
+const soUmCafeNoBanco = B.splitByExisting(doisCafes, [doisCafes[0].dedupe_key]);
+ok(soUmCafeNoBanco.fresh.length === 1, "o segundo cafe identico ainda entra", soUmCafeNoBanco.fresh.length);
+
 console.log(`\n=========== ${pass} passaram, ${fail} falharam ===========`);
 process.exit(fail ? 1 : 0);
