@@ -187,6 +187,20 @@ Verificado contra o banco (Postgres local, em transação desfeita ao fim):
 - [x] Desfazer lote sem conciliação remove exatamente as linhas dele
 - [x] Lote com linha conciliada é detectado e recusado
 
+Verificado **na tela**, ponta a ponta (2026-08-10, instância local):
+- [x] Criar cliente → conta bancária → os dois saldos nascem iguais ao inicial
+- [x] Extrato AIB com 4 linhas de preâmbulo: cabeçalho achado na **linha 5**,
+      débito/crédito reconhecidos, `"TESCO STORES, DUBLIN"` inteiro apesar da
+      vírgula, linha TOTAL contada à parte, **dois cafés iguais sobreviveram**
+- [x] Gravar 7 linhas → saldo do extrato €4.557,70 (= o do próprio arquivo),
+      saldo no sistema €1.000,00, diferença €3.557,70
+- [x] Reimportar "janeiro e fevereiro": **2 novas · 7 já importadas
+      (2026-01-02 a 2026-01-28)** anunciado *antes* de gravar; grava 2, total 9
+- [x] Desfazer o segundo lote → 2 removidas, janeiro intacto, saldo volta
+- [x] **Segundo banco** (ponto e vírgula, cabeçalho em português, `1.234,56`)
+      detectado sozinho, sem tocar em código e sem reusar o mapa do AIB
+- [x] Desfazer com uma linha já conciliada → **recusado**, nada removido
+
 Nenhum formato de banco está embutido no código. O leitor detecta um ponto de
 partida e o mapeamento fica **guardado como dado** por conta bancária — banco
 novo é uma tela de confirmação, nunca programação.
@@ -522,6 +536,6 @@ número está certo.
 casamento**, reaproveitando a força de sinal de `lib/duplicates.ts` contra as
 notas e vendas já lançadas.
 
-Duas coisas ficaram esperando material do mundo real, e nenhuma bloqueia a A2:
-extrato de banco de verdade (para virar caso de teste) e o passeio pela tela
-logado como usuário.
+Uma coisa fica esperando material do mundo real, e não bloqueia a A2: **extrato
+de banco de verdade**, para virar caso de teste. Tudo que foi exercitado até
+aqui é sintético.

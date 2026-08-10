@@ -31,7 +31,10 @@ export default function BankAccountDetail({
   const [lines, setLines] = useState<StoredStatementLine[]>([]);
   const [imports, setImports] = useState<BankImport[]>([]);
   const [loading, setLoading] = useState(true);
-  const [msg, setMsg] = useState("");
+  // Uma recusa não pode aparecer com a cara de confirmação: "o lote já foi
+  // conciliado" pintado de sucesso é lido como "desfeito" e a pessoa segue em
+  // frente achando que removeu o que continua lá.
+  const [msg, setMsg] = useState<{ text: string; error?: boolean } | null>(null);
   const [notFound, setNotFound] = useState(false);
 
   const base = `/api/clients/${params.id}/bank-accounts/${params.accountId}`;
@@ -50,7 +53,9 @@ export default function BankAccountDetail({
     if (!confirm(`Desfazer a importação de "${imp.filename || "sem nome"}" (${imp.line_count} linhas)?`)) return;
     const res = await fetch(`${base}/imports/${imp.id}`, { method: "DELETE" });
     const d = await res.json();
-    setMsg(res.ok ? `${d.removed} linha(s) removida(s).` : d.error || "Não foi possível desfazer.");
+    setMsg(res.ok
+      ? { text: `${d.removed} linha(s) removida(s).` }
+      : { text: d.error || "Não foi possível desfazer.", error: true });
     load();
   }
 
@@ -94,10 +99,16 @@ export default function BankAccountDetail({
         clientId={params.id}
         accountId={params.accountId}
         savedMapping={account.column_mapping}
-        onImported={(m) => { setMsg(m); load(); }}
+        onImported={(m) => { setMsg({ text: m }); load(); }}
       />
 
-      {msg && <p className="text-sm text-brand-700">{msg}</p>}
+      {msg && (
+        <p className={msg.error
+          ? "rounded-lg bg-danger/10 px-3 py-2 text-sm text-danger"
+          : "text-sm text-brand-700"}>
+          {msg.error ? "⚠ " : ""}{msg.text}
+        </p>
+      )}
 
       {!!imports.length && (
         <div className="card overflow-hidden">
