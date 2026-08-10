@@ -1,7 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getBankAccount } from "@/lib/bankStore";
 import { extractPdfText } from "@/lib/extractor/pdfNative";
-import { pdfTextToRows } from "@/lib/pdfStatement";
+import { extractPdfLines } from "@/lib/extractor/pdfLayout";
+import { pdfTextToRows, pdfLinesToRows } from "@/lib/pdfStatement";
 import { statementRowsFromMedia } from "@/lib/extractor/gemini";
 
 export const runtime = "nodejs";
@@ -14,11 +15,15 @@ type Ctx = { params: { id: string; accountId: string } };
 /**
  * Turns a PDF statement into the same grid of cells a CSV would produce.
  *
- * Dois caminhos, nesta ordem, e a ordem importa:
+ * Três caminhos, nesta ordem, e a ordem importa:
  *
- *   1. **Texto embutido** (`lib/pdfStatement.ts`). Grátis, determinístico e
- *      conferível — a esmagadora maioria dos extratos de banco é assim.
- *   2. **Leitura por IA**, só quando não há camada de texto (extrato
+ *   1. **Posição na página** (`extractPdfLines` + `pdfLinesToRows`). É o único
+ *      que separa saída de entrada com segurança, porque num extrato de verdade
+ *      — o do AIB, por exemplo — o texto sai colado
+ *      (`14 Jul 2026VDP-PREMIER LOTTER10.00412.80`) e só a coluna diz o que é
+ *      cada número.
+ *   2. **Texto corrido**, para PDF cujo layout não expõe cabeçalho de colunas.
+ *   3. **Leitura por IA**, só quando não há camada de texto (extrato
  *      escaneado). Custa, erra e não é reproduzível, então é último recurso e
  *      volta marcado como tal.
  *
@@ -42,6 +47,15 @@ export async function POST(req: NextRequest, { params }: Ctx) {
   }
 
   const buffer = Buffer.from(await file.arrayBuffer());
+
+  const positioned = await extractPdfLines(buffer);
+  if (positioned.length) {
+    const byColumn = pdfLinesToRows(positioned);
+    if (byColumn.rows.length) {
+      return NextResponse.json({ ...byColumn, source: "layout" });
+    }
+  }
+
   const text = await extractPdfText(buffer);
 
   if (text) {

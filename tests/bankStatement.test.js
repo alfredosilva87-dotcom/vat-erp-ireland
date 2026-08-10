@@ -129,6 +129,22 @@ ok(B.checkAgainstBalance(bom.lines) === null, "extrato coerente nao acusa nada")
 const sinalTrocado = bom.lines.map((l) => ({ ...l, amount: Math.abs(l.amount) }));
 ok(B.checkAgainstBalance(sinalTrocado) !== null, "sinal errado E DETECTADO", B.checkAgainstBalance(sinalTrocado));
 
+// Regressao (extrato real do AIB): muito banco imprime o saldo UMA VEZ POR DIA,
+// na ultima linha do bloco. Somando so as linhas que trazem saldo, a conta
+// nunca fecha e o aviso vira falso alarme — que e o jeito mais rapido de
+// ensinar o contador a ignorar avisos.
+console.log("\n== saldo impresso so no fim do dia ==");
+const porDia = [
+  { line_date: "2026-07-15", description: "A", amount: 552.11, balance: null, dedupe_key: "a", payee: null, reference: null, source_row: 1 },
+  { line_date: "2026-07-15", description: "B", amount: -83.10, balance: null, dedupe_key: "b", payee: null, reference: null, source_row: 2 },
+  { line_date: "2026-07-15", description: "C", amount: -117.55, balance: 764.26, dedupe_key: "c", payee: null, reference: null, source_row: 3 },
+];
+porDia.unshift({ line_date: "2026-07-14", description: "abertura", amount: -10, balance: 412.80, dedupe_key: "z", payee: null, reference: null, source_row: 0 });
+ok(B.checkAgainstBalance(porDia) === null, "412,80 + 552,11 - 83,10 - 117,55 = 764,26 fecha", B.checkAgainstBalance(porDia));
+
+const comErro = porDia.map((l, i) => (i === 2 ? { ...l, amount: 83.10 } : l));
+ok(B.checkAgainstBalance(comErro) !== null, "e um sinal trocado no meio ainda e pego", B.checkAgainstBalance(comErro));
+
 // ------------------------------------------------- linhas ruins
 console.log("\n== lixo no arquivo ==");
 const sujo = [

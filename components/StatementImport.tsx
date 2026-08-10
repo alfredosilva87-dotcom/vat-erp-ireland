@@ -65,9 +65,9 @@ export default function StatementImport({
    * grade de células que um CSV produz — daí para a frente, o caminho é o
    * mesmo: confirmar o mapeamento e conferir antes de gravar.
    */
-  async function pdfToRows(
-    file: File
-  ): Promise<{ rows: unknown[][]; notes: string[]; signFromBalance: boolean } | null> {
+  async function pdfToRows(file: File): Promise<
+    { rows: unknown[][]; notes: string[]; signFromBalance: boolean; mapping: ColumnMapping | null } | null
+  > {
     const body = new FormData();
     body.append("file", file);
     const res = await fetch(`/api/clients/${clientId}/bank-accounts/${accountId}/import/pdf`, {
@@ -75,7 +75,14 @@ export default function StatementImport({
     });
     const d = await res.json();
     if (!res.ok) { setError(d.error || "Não consegui ler este PDF."); return null; }
-    return { rows: d.rows || [], notes: d.notes || [], signFromBalance: !!d.signFromBalance };
+    return {
+      rows: d.rows || [],
+      notes: d.notes || [],
+      signFromBalance: !!d.signFromBalance,
+      // Quando as colunas vieram do cabeçalho do próprio PDF, o servidor sabe
+      // exatamente o que é cada uma — não há o que adivinhar aqui.
+      mapping: d.mapping || null,
+    };
   }
 
   async function onFile(file: File) {
@@ -86,6 +93,7 @@ export default function StatementImport({
       let fmt: string;
       let extraNotes: string[] = [];
       let pdfResolved = false;
+      let pdfMapping: ColumnMapping | null = null;
 
       if (isPdf) {
         const parsed = await pdfToRows(file);
@@ -94,6 +102,7 @@ export default function StatementImport({
         fmt = "pdf";
         extraNotes = parsed.notes;
         pdfResolved = parsed.signFromBalance;
+        pdfMapping = parsed.mapping;
       } else {
         const r = await fileToRows(file);
         aoa = r.rows;
@@ -113,15 +122,16 @@ export default function StatementImport({
         // contra o saldo do próprio extrato não roda, e é justamente no PDF que
         // ela mais vale.
         const detected = detectLayout(aoa);
-        setMapping(pdfResolved
+        const known = pdfMapping ?? (pdfResolved
           ? {
               headerRow: null, date: 0, description: 1, reference: null, payee: null,
               amount: 2, debit: null, credit: null, balance: 3,
-              amountStyle: "signed", dateStyle: "ymd", invertSign: false,
+              amountStyle: "signed" as const, dateStyle: "ymd" as const, invertSign: false,
             }
-          : detected.mapping);
+          : null);
+        setMapping(known ?? detected.mapping);
         setUsedSaved(false);
-        setNotes([...extraNotes, ...(pdfResolved ? [] : detected.notes)]);
+        setNotes([...extraNotes, ...(known ? [] : detected.notes)]);
         return;
       }
 

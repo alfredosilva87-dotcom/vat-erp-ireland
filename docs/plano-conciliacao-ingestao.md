@@ -436,9 +436,22 @@ Entregue:
 linha de saída e a de entrada têm exatamente a mesma forma — data, descrição,
 dois números. Não dá para saber pelo formato quem entrou e quem saiu.
 
-A saída é a aritmética do próprio documento: com saldo corrido, o movimento é
-`saldo − saldo_anterior`. É o extrato se explicando, não um palpite sobre
-layout.
+**O primeiro extrato real (AIB, julho/2026) mostrou que é pior que isso:** o
+texto sai sem espaço nenhum entre as colunas —
+
+```
+14 Jul 2026VDP-PREMIER LOTTER10.00412.80
+```
+
+— e nenhuma heurística de texto separa isso com segurança. A solução foi ler o
+PDF **por coordenada** (`lib/extractor/pdfLayout.ts`): cada pedaço de texto tem
+posição na página, e com ela a tabela volta a existir **com as células vazias no
+lugar**. Débito, crédito e saldo estavam em faixas de `x` distintas — 296, 352 e
+418 — e é só isso que distingue os três.
+
+Onde o cabeçalho de colunas não existe, o caminho antigo (texto corrido) ainda
+serve, e aí o sinal sai da aritmética do documento: com saldo corrido, o
+movimento é `saldo − saldo_anterior`.
 
 Decisões tomadas na implementação:
 - **A primeira linha não tem saldo anterior**, então o sinal dela vem da
@@ -463,12 +476,27 @@ vinha caindo na leitura por IA** desde sempre — pagando por IA e perdendo
 precisão onde havia texto exato disponível. Uma cópia com `ArrayBuffer` próprio
 resolve. Medido depois: 1 s em vez de 10 s por arquivo.
 
-Verificado na tela, ponta a ponta (2026-08-11), com PDF de extrato gerado para o
-teste (2 páginas, cabeçalho repetido, rodapé de página):
-- [x] 10 movimentos lidos, sinais corretos, descrições inteiras
-- [x] Cabeçalho repetido e rodapé de página ignorados
-- [x] Coluna de saldo mapeada sozinha → conferência contra o saldo roda
-- [x] Gravou e virou linha de extrato como qualquer CSV
+Verificado na tela, ponta a ponta (2026-08-11), com PDF gerado para teste e
+depois com **extrato real do AIB** (3 páginas, 33 movimentos):
+- [x] 33 movimentos lidos, saída e entrada na coluna certa
+- [x] **Todos os 14 saldos impressos fecham** com a soma dos movimentos
+- [x] Data do dia herdada pelos movimentos seguintes do mesmo bloco
+- [x] Referência (`IE2607…`) e `TxnDate:` entram na descrição, não viram linha
+- [x] Papel timbrado e cabeçalho repetidos nas páginas 2 e 3 não contaminam a
+      última linha da página anterior
+- [x] Saldo anterior (`BALANCE FORWARD`) reconhecido e não contado como movimento
+
+Duas correções que só o extrato real revelou:
+1. **Quebra de página contaminava a descrição.** Nome, endereço e "BALANCE
+   FORWARD" impressos no topo da página seguinte eram tratados como continuação
+   do último movimento da página anterior. Agora continuação só continua algo da
+   **mesma página**, e tudo acima do cabeçalho de cada página é papel timbrado.
+2. **A conferência contra o saldo dava alarme falso.** Ela somava apenas as
+   linhas que trazem saldo, e este banco imprime o saldo **uma vez por dia**, na
+   última linha do bloco. A conta nunca fechava. Agora soma todas as linhas
+   entre um saldo e o seguinte — que é a aritmética certa e continua pegando
+   sinal trocado no meio. Alarme falso é o jeito mais rápido de ensinar o
+   contador a ignorar avisos.
 
 ### Desenho original da camada
 
@@ -673,11 +701,13 @@ número está certo.
 | 2026-08-10 | A3 | Regras de banco com ordem, aviso de regra engolida e divisão; 142 testes | v1.22 |
 | 2026-08-10 | — | Cache de rota do Next fazia lista voltar vazia (26 rotas) | v1.22.1 |
 | 2026-08-11 | A6 | Extrato em PDF + correção do `pdf-parse` que derrubava toda leitura nativa; 167 testes | v1.23 |
+| 2026-08-11 | A6 | Leitura por coordenada; primeiro extrato REAL (AIB) lido inteiro; 184 testes | v1.23.1 |
 
 **Onde parou: A6 concluída (antecipada). A próxima é a A4 — casos difíceis**
 (um pagamento para várias notas, pagamento parcial, tarifa embutida, diferença
 de centavos).
 
-Uma coisa fica esperando material do mundo real, e não bloqueia nada: **extrato
-de banco de verdade**, para virar caso de teste. Tudo que foi exercitado até
-aqui é sintético.
+O primeiro extrato real chegou em 2026-08-11 (AIB, julho) e virou o teste que
+mais ensinou até agora. **Quando chegarem extratos de outros bancos, o certo é
+acrescentar cada um como caso** em `tests/pdfStatement.test.js` — usando as
+coordenadas, nunca o arquivo, que tem dado de cliente.

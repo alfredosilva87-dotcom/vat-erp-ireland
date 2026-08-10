@@ -491,16 +491,22 @@ export function splitByExisting(
  * of at month end when the reconciliation refuses to close.
  */
 export function checkAgainstBalance(lines: StatementLine[]): string | null {
-  const withBalance = lines.filter((l) => l.balance !== null);
-  if (withBalance.length < 2) return null;
+  const firstIdx = lines.findIndex((l) => l.balance !== null);
+  let lastIdx = -1;
+  for (let i = lines.length - 1; i > firstIdx; i--) {
+    if (lines[i].balance !== null) { lastIdx = i; break; }
+  }
+  if (firstIdx < 0 || lastIdx < 0) return null;
 
-  const first = withBalance[0];
-  const last = withBalance[withBalance.length - 1];
-  const movement = withBalance
-    .slice(1)
+  // Somar TODAS as linhas entre os dois saldos, não só as que trazem saldo.
+  // Muito banco imprime o saldo uma vez por dia, na última linha do bloco —
+  // somar só essas dá um número que não fecha nunca, e o aviso vira um falso
+  // alarme que ensina o contador a ignorar o aviso.
+  const movement = lines
+    .slice(firstIdx + 1, lastIdx + 1)
     .reduce((a, l) => a + l.amount, 0);
-  const expected = Number(((first.balance as number) + movement).toFixed(2));
-  const actual = last.balance as number;
+  const expected = Number(((lines[firstIdx].balance as number) + movement).toFixed(2));
+  const actual = lines[lastIdx].balance as number;
 
   if (Math.abs(expected - actual) > 0.01) {
     return `O saldo do arquivo não fecha com a soma dos valores (esperado ${expected.toFixed(

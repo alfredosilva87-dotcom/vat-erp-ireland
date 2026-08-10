@@ -24,7 +24,7 @@
 
 // Import relativo (e não pelo alias `@/`) para que `npm test` consiga compilar
 // este arquivo sozinho, sem o resolvedor de caminhos do Next.
-import { parseAmount, parseDate } from "./bankStatement";
+import { parseAmount, parseDate, type ColumnMapping } from "./bankStatement";
 
 export interface PdfRowsResult {
   /** [data, descrição, ...números] — pronto para detectLayout/buildLines. */
@@ -34,6 +34,13 @@ export interface PdfRowsResult {
   signFromBalance: boolean;
   /** Linhas de texto que não viraram movimento (cabeçalho, rodapé, totais). */
   ignored: number;
+  /**
+   * Quando as colunas foram lidas do cabeçalho do PDF, não há o que adivinhar:
+   * o mapeamento já vem pronto e a tela só confirma.
+   */
+  mapping?: ColumnMapping;
+  /** Saldo anterior, quando o extrato traz a linha "balance forward". */
+  openingBalance?: number | null;
 }
 
 /**
@@ -60,6 +67,208 @@ const NOISE = [
   /continued/i, /^\s*date\b.*\b(description|details|amount|balance)/i,
   /^\s*data\b.*\b(descri|valor|saldo)/i,
 ];
+
+// ============================================================ leitura por coluna
+
+/**
+ * Uma linha do PDF com a posição de cada pedaço de texto. Repetido aqui (em vez
+ * de importado de `lib/extractor/pdfLayout`) para este módulo continuar puro e
+ * compilável sozinho nos testes.
+ */
+export interface PositionedLine {
+  page: number;
+  y: number;
+  cells: Array<{ text: string; x: number; right: number }>;
+}
+
+type ColRole = "date" | "description" | "debit" | "credit" | "amount" | "balance";
+
+const HEADER_WORDS: Array<{ role: ColRole; words: string[] }> = [
+  { role: "date", words: ["date", "data"] },
+  { role: "description", words: ["details", "description", "narrative", "particulars", "descricao", "descrição"] },
+  { role: "debit", words: ["debit", "debito", "débito", "paid out", "money out", "withdrawn", "saida", "saída"] },
+  { role: "credit", words: ["credit", "credito", "crédito", "paid in", "money in", "lodged", "entrada"] },
+  { role: "amount", words: ["amount", "valor", "montante"] },
+  { role: "balance", words: ["balance", "saldo"] },
+];
+
+const clean = (s: string) =>
+  s.toLowerCase().normalize("NFD").replace(/[̀-ͯ]/g, "").replace(/[€$£]/g, "").replace(/\s+/g, " ").trim();
+
+/**
+ * Turns positioned text into a real table.
+ *
+ * É aqui que a **célula vazia sobrevive**: uma linha só com valor na faixa do
+ * débito é uma saída, e a mesma linha com o valor 40 pontos à direita é uma
+ * entrada. No texto corrido as duas são idênticas.
+ */
+export function pdfLinesToRows(lines: PositionedLine[]): PdfRowsResult {
+  const notes: string[] = [];
+  const header = findHeader(lines);
+  if (!header) {
+    return { rows: [], notes: ["Não achei o cabeçalho de colunas neste PDF."], signFromBalance: false, ignored: lines.length };
+  }
+
+  const cols = header.cols;
+  const hasSplit = cols.some((c) => c.role === "debit") && cols.some((c) => c.role === "credit");
+  const rows: unknown[][] = [];
+  let currentDate: string | null = null;
+  let openingBalance: number | null = null;
+  let ignored = 0;
+  // Em que página está a última linha emitida: continuação só continua algo da
+  // MESMA página. Sem isto, o endereço e o cabeçalho impressos no topo da
+  // página seguinte entram na descrição do último movimento da página anterior.
+  let lastRowPage = -1;
+
+  const dateCol = cols.find((c) => c.role === "date");
+  const descCol = cols.find((c) => c.role === "description");
+  // O cabeçalho se repete a cada página, e tudo que vem acima dele é papel
+  // timbrado: nome, endereço, IBAN, "BALANCE FORWARD".
+  const headerY = headerPerPage(lines);
+
+  for (const line of lines) {
+    const cut = headerY.get(line.page);
+    if (cut !== undefined && line.y >= cut) { ignored++; continue; }
+    if (isHeaderLine(line)) { ignored++; continue; }
+
+    const picked: Partial<Record<ColRole, number>> = {};
+    const words: string[] = [];
+    let sawDate = false;
+
+    for (const cell of line.cells) {
+      const role = nearestRole(cell.right, cols);
+
+      // Data só onde a data mora, e só se realmente for uma data.
+      if (role === "date" && dateCol && Math.abs(cell.x - dateCol.x) < 25) {
+        const d = parseDate(cell.text);
+        if (d) { currentDate = d; sawDate = true; continue; }
+      }
+
+      const value = MONEY_LINE.test(cell.text.trim()) ? parseAmount(cell.text) : null;
+      if (value !== null && role !== "date" && role !== "description") {
+        picked[role] = value;
+        continue;
+      }
+
+      words.push(cell.text);
+    }
+
+    const movement = picked.debit ?? picked.credit ?? picked.amount;
+    const text = words.join(" ").trim();
+
+    if (movement === undefined) {
+      // Sem valor de movimento: ou é continuação da descrição da linha de cima
+      // (referência, "TxnDate: ..."), ou é o saldo anterior, ou é rodapé.
+      if (picked.balance !== undefined && !rows.length) {
+        openingBalance = picked.balance;
+        ignored++;
+        continue;
+      }
+      const last = rows[rows.length - 1];
+      const looksLikeDetail =
+        !!last && line.page === lastRowPage && !!text && text.length < 60 &&
+        (!descCol || line.cells.some((c) => Math.abs(c.x - descCol.x) < 25));
+      if (looksLikeDetail) {
+        last[1] = `${last[1] ?? ""} ${text}`.trim();
+        // O saldo do dia costuma vir na última linha do bloco, sem valor
+        // próprio: ele pertence ao movimento de cima.
+        if (picked.balance !== undefined && last[last.length - 1] == null) last[last.length - 1] = picked.balance;
+      } else ignored++;
+      continue;
+    }
+
+    if (!currentDate) { ignored++; continue; }
+    if (!sawDate && !text && movement === undefined) { ignored++; continue; }
+
+    rows.push(hasSplit
+      ? [currentDate, text, picked.debit ?? null, picked.credit ?? null, picked.balance ?? null]
+      : [currentDate, text, picked.amount ?? null, picked.balance ?? null]);
+    lastRowPage = line.page;
+  }
+
+  if (!rows.length) {
+    return { rows: [], notes: ["Achei o cabeçalho, mas nenhum movimento abaixo dele."], signFromBalance: false, ignored };
+  }
+
+  notes.push(hasSplit
+    ? "Colunas lidas pela posição no PDF: saída e entrada vêm separadas, como no papel."
+    : "Colunas lidas pela posição no PDF.");
+  if (openingBalance !== null) notes.push(`Saldo anterior no extrato: ${openingBalance.toFixed(2)}.`);
+
+  const mapping: ColumnMapping = hasSplit
+    ? {
+        headerRow: null, date: 0, description: 1, reference: null, payee: null,
+        amount: null, debit: 2, credit: 3, balance: 4,
+        amountStyle: "debit_credit", dateStyle: "dmy", invertSign: false,
+      }
+    : {
+        headerRow: null, date: 0, description: 1, reference: null, payee: null,
+        amount: 2, debit: null, credit: null, balance: 3,
+        amountStyle: "signed", dateStyle: "dmy", invertSign: false,
+      };
+
+  return { rows, notes, signFromBalance: false, ignored, mapping, openingBalance };
+}
+
+/** Um valor sozinho numa célula. */
+const MONEY_LINE = /^[(\-+]?\s?€?\s?(?:\d{1,3}(?:[.,  ]\d{3})+|\d+)[.,]\d{2}\)?(?:\s?(?:CR|DR))?$/i;
+
+function roleOf(text: string): ColRole | null {
+  const t = clean(text);
+  if (!t || t.length > 20) return null;
+  for (const { role, words } of HEADER_WORDS) {
+    if (words.some((w) => t === w || t.startsWith(`${w} `) || t === `${w}s`)) return role;
+  }
+  return null;
+}
+
+function isHeaderLine(line: PositionedLine): boolean {
+  const roles = new Set(line.cells.map((c) => roleOf(c.text)).filter(Boolean) as ColRole[]);
+  return roles.has("date") && (roles.has("balance") || roles.has("debit") || roles.has("amount"));
+}
+
+/**
+ * O cabeçalho é o que ensina onde cada coluna mora. Sem ele não há como saber
+ * se um número é saída, entrada ou saldo — e chutar aqui é errar o sinal do
+ * dinheiro, que é o pior erro possível neste sistema.
+ */
+/** A altura do cabeçalho em cada página que tem um. */
+function headerPerPage(lines: PositionedLine[]): Map<number, number> {
+  const out = new Map<number, number>();
+  for (const line of lines) {
+    if (!isHeaderLine(line)) continue;
+    const seen = out.get(line.page);
+    // O mais BAIXO da página: se por acaso houver dois, o de baixo é o que
+    // começa a tabela.
+    if (seen === undefined || line.y < seen) out.set(line.page, line.y);
+  }
+  return out;
+}
+
+function findHeader(lines: PositionedLine[]): { page: number; y: number; cols: Array<{ role: ColRole; x: number; right: number }> } | null {
+  for (const line of lines) {
+    if (!isHeaderLine(line)) continue;
+    const cols: Array<{ role: ColRole; x: number; right: number }> = [];
+    for (const cell of line.cells) {
+      const role = roleOf(cell.text);
+      if (role && !cols.some((c) => c.role === role)) cols.push({ role, x: cell.x, right: cell.right });
+    }
+    if (cols.length >= 3) return { page: line.page, y: line.y, cols };
+  }
+  return null;
+}
+
+/**
+ * A qual coluna pertence um valor.
+ *
+ * Pela borda DIREITA: número em extrato é alinhado à direita, e é essa borda
+ * que fica estável entre "10.00" e "1.234,56".
+ */
+function nearestRole(right: number, cols: Array<{ role: ColRole; x: number; right: number }>): ColRole {
+  let best = cols[0];
+  for (const c of cols) if (Math.abs(c.right - right) < Math.abs(best.right - right)) best = c;
+  return best.role;
+}
 
 /** Um valor com a coluna em que ele foi impresso. */
 interface MoneyToken { value: number; at: number }
