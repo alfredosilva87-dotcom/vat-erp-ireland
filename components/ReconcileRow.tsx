@@ -26,11 +26,18 @@ export interface PostedPayment {
   amount: number;
 }
 
+export interface RuleProposal {
+  rule: { id: string; name: string };
+  allocations: Array<{ account_code: string | null; vat_rate: number | null; amount: number }>;
+  shadowed: Array<{ id: string; name: string }>;
+}
+
 export interface PendingLine {
   line: StoredStatementLine;
   best: MatchSuggestion | null;
   others: MatchSuggestion[];
   posted: PostedPayment[];
+  rule: RuleProposal | null;
 }
 
 export default function ReconcileRow({
@@ -40,10 +47,12 @@ export default function ReconcileRow({
   candidates: MatchCandidate[];
   busy: boolean;
   onConfirm: (lineId: string, choice: {
-    invoiceId?: string; saleId?: string; transactionId?: string; description?: string; reason: string;
+    invoiceId?: string; saleId?: string; transactionId?: string; description?: string;
+    allocations?: Array<{ account_code: string | null; vat_rate: number | null; amount: number }>;
+    reason: string;
   }) => void;
 }) {
-  const { line, best, others, posted } = item;
+  const { line, best, others, posted, rule } = item;
   const [open, setOpen] = useState(false);
   const [manual, setManual] = useState(false);
   const [note, setNote] = useState("");
@@ -153,6 +162,27 @@ export default function ReconcileRow({
               )}
               <button className="btn-ghost h-9 px-3 text-sm" onClick={() => setManual(true)}>Sem documento</button>
             </div>
+          </div>
+        )}
+
+        {!manual && rule && (
+          <div className="mt-3 rounded-lg border border-line bg-surface-2/50 px-3 py-2">
+            <p className="text-xs text-muted">
+              Regra <strong className="text-fg">{rule.rule.name}</strong>
+              {rule.shadowed.length > 0 && ` · ${rule.shadowed.length} regra(s) abaixo dela também casariam`}
+            </p>
+            <ul className="mt-1 space-y-0.5 text-sm">
+              {rule.allocations.map((a, i) => (
+                <li key={i} className="flex items-center justify-between gap-3">
+                  <span>{a.account_code || "(sem conta)"}{a.vat_rate != null && ` · VAT ${a.vat_rate}%`}</span>
+                  <span className="tnum">€ {money(a.amount)}</span>
+                </li>
+              ))}
+            </ul>
+            <button className="btn-primary mt-2 h-8 px-3 text-xs" disabled={busy}
+              onClick={() => onConfirm(line.id, { allocations: rule.allocations, reason: "rule" })}>
+              Lançar pela regra
+            </button>
           </div>
         )}
 

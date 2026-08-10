@@ -39,6 +39,8 @@ export async function POST(req: NextRequest, { params }: Ctx) {
       saleId: body?.saleId ?? null,
       description: body?.description ?? null,
       accountCode: body?.accountCode ?? null,
+      allocations: Array.isArray(body?.allocations) ? body.allocations : null,
+      contactName: body?.contactName ?? null,
       reason: body?.reason ?? "manual",
     },
     (await getSessionUser())?.id ?? null

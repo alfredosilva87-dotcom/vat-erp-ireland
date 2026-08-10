@@ -328,7 +328,45 @@ Verificado na tela, ponta a ponta (2026-08-10):
 
 ---
 
-## Camada A3 — Regras de banco `[ ] não iniciada`
+## Camada A3 — Regras de banco `[x] CONCLUÍDA (2026-08-10, v1.22)`
+
+Entregue:
+
+| O quê | Onde |
+|---|---|
+| Motor de regras (função pura, 27 testes) | `lib/bankRules.ts` |
+| Guardar e reordenar | `lib/bankRulesStore.ts` |
+| Rotas | `app/api/clients/[id]/bank-rules/` |
+| Tela de regras, na ordem de avaliação | `app/clients/[id]/bank/rules/page.tsx` |
+| Regra editável no lugar | `components/BankRuleCard.tsx` |
+
+Decisões tomadas na implementação:
+- **A regra é aplicada na conciliação, não na importação.** O plano dizia
+  "próxima importação já vem preenchida"; aplicar na conciliação é melhor pelo
+  mesmo motivo: a regra criada hoje passa a valer para o extrato importado
+  ontem, sem reimportar nada.
+- **Regra nova nasce no fim da fila.** Nascer no topo faria dela a primeira a
+  casar, engolindo em silêncio o que já estava configurado e funcionando.
+- **A tela avisa qual regra nunca vai acontecer**, com nome e tudo
+  (`findShadowedRules`). Esse erro é mudo: a regra específica está lá, escrita
+  certa, e simplesmente nunca dispara. O aviso é conservador — só acusa quando
+  dá para provar que uma cobre a outra.
+- **Regra sem condição não casa com nada.** Seria sempre engano de quem
+  cadastrou, e o estrago é grande porque ela pararia todas as outras.
+- **Número/valor comparado pela magnitude**: o contador pensa em "acima de 500",
+  não em "menor que −500".
+- **A sobra do arredondamento vai para a maior parcela.** 33,33% de €100 três
+  vezes dá €99,99, e a gravação recusa divisão que não fecha com a linha —
+  deixar passar seria criar dinheiro dentro do sistema.
+
+Verificado na tela, ponta a ponta (2026-08-10):
+- [x] Criar regra → a conciliação já chega preenchida
+- [x] Regra genérica acima da específica → **aviso na tela**, com nome
+- [x] Subir a específica com a seta → aviso some e ela passa a valer
+- [x] Divisão 50/50 de −€4,50 → dois movimentos de −€2,25, soma exata,
+      contas e alíquotas gravadas, motivo `rule`
+
+### Desenho original da camada
 
 **Entrega**
 - Regras por cliente: condições (todas ou qualquer), campos (descrição,
@@ -341,9 +379,9 @@ Verificado na tela, ponta a ponta (2026-08-10):
 - Regra **sugere**, nunca cria sozinha
 
 **Testável quando:**
-- [ ] Criar regra → próxima importação já vem preenchida
-- [ ] Regra genérica no topo não engole a específica
-- [ ] Divisão percentual entre duas contas fecha o valor da linha
+- [x] Criar regra → próxima conciliação já vem preenchida
+- [x] Regra genérica no topo não engole a específica (avisa e deixa reordenar)
+- [x] Divisão percentual entre duas contas fecha o valor da linha
 
 ---
 
@@ -582,9 +620,10 @@ número está certo.
 | 2026-08-10 | A1 | Interface, importação e anti-duplicata; 92 testes | v1.20 |
 | 2026-08-10 | A1 | Recusa de desfazer deixa de ter cara de sucesso | v1.20.1 |
 | 2026-08-10 | A2 | Sugestão de casamento, conciliar/desconciliar/refazer; 115 testes | v1.21 |
+| 2026-08-10 | A3 | Regras de banco com ordem, aviso de regra engolida e divisão; 142 testes | v1.22 |
 
-**Onde parou: A2 concluída. A próxima é a A3 — regras de banco**, que é o que
-faz o segundo mês ser mais rápido que o primeiro.
+**Onde parou: A3 concluída. A próxima é a A4 — casos difíceis** (um pagamento
+para várias notas, pagamento parcial, tarifa embutida, diferença de centavos).
 
 Uma coisa fica esperando material do mundo real, e não bloqueia nada: **extrato
 de banco de verdade**, para virar caso de teste. Tudo que foi exercitado até

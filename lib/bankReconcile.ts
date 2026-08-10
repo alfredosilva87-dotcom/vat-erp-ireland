@@ -18,6 +18,8 @@
 
 import { getServerSupabase } from "@/lib/supabase";
 import { suggestMatches, bestSuggestion, type MatchCandidate, type MatchSuggestion } from "@/lib/bankMatch";
+import { applyRules, type RuleOutcome, type ResolvedAllocation } from "@/lib/bankRules";
+import { listBankRules } from "@/lib/bankRulesStore";
 import type { StoredStatementLine } from "@/lib/types";
 
 const sb = () => getServerSupabase();
@@ -126,18 +128,27 @@ export interface LineWithSuggestions {
    * ligar ao que já existe, sem lançar nada novo.
    */
   posted: PostedPayment[];
+  /**
+   * A regra que casou com esta linha, se alguma (camada A3).
+   *
+   * Regra **sugere**, nunca lança: vem preenchida na tela e espera confirmação.
+   * Uma regra errada que lança sozinha vira mil lançamentos errados antes de
+   * alguém olhar.
+   */
+  rule: RuleOutcome | null;
 }
 
 /** Lines still waiting, each with what the system would propose. */
 export async function pendingWithSuggestions(
   accountId: string, clientId: string, limit = 200
 ): Promise<{ lines: LineWithSuggestions[]; candidates: MatchCandidate[] }> {
-  const [{ data }, candidates, posted] = await Promise.all([
+  const [{ data }, candidates, posted, rules] = await Promise.all([
     sb().from("bank_statement_lines").select("*")
       .eq("bank_account_id", accountId).eq("status", "unreconciled")
       .order("line_date", { ascending: false }).limit(limit),
     openDocuments(clientId),
     outstandingTransactions(accountId),
+    listBankRules(clientId),
   ]);
 
   const lines = ((data ?? []) as StoredStatementLine[]).map((line) => {
@@ -159,7 +170,11 @@ export async function pendingWithSuggestions(
       const gap = Math.abs(Date.parse(`${t.txn_date}T00:00:00Z`) - Date.parse(`${line.line_date}T00:00:00Z`));
       return Number.isFinite(gap) && gap <= 60 * 86400000;
     });
-    return { line, best, others, posted: near };
+    const rule = applyRules(
+      { description: line.description, payee: line.payee, reference: line.reference, amount },
+      rules, accountId
+    );
+    return { line, best, others, posted: near, rule };
   });
 
   return { lines, candidates };
@@ -171,6 +186,13 @@ export interface ReconcileInput {
   /** Lançamento avulso, para o que nenhum documento cobre. */
   description?: string | null;
   accountCode?: string | null;
+  /**
+   * Divisão em várias contas (vinda de uma regra da camada A3). Cada parcela
+   * vira um movimento, e a soma tem que fechar com a linha — senão a
+   * conciliação deixa de ser prova de coisa nenhuma.
+   */
+  allocations?: ResolvedAllocation[] | null;
+  contactName?: string | null;
   reason?: "match" | "rule" | "memory" | "prediction" | "manual";
 }
 
@@ -191,22 +213,44 @@ export async function reconcileLine(
   }
 
   const amount = money(l.amount);
-  const { error } = await sb().from("bank_transactions").insert({
-    bank_account_id: accountId,
-    client_id: clientId,
-    txn_date: l.line_date,
-    description: input.description?.trim() || l.description,
-    contact_name: l.payee,
-    amount,
-    kind: amount < 0 ? "spend" : "receive",
-    account_code: input.accountCode?.trim() || null,
-    invoice_id: input.invoiceId ?? null,
-    sale_id: input.saleId ?? null,
-    statement_line_id: l.id,
-    reconciled_at: new Date().toISOString(),
-    reason: input.reason ?? "manual",
-    created_by: userId,
-  });
+
+  // Uma parcela quando não há divisão; várias quando uma regra dividiu.
+  const parts: ResolvedAllocation[] = (input.allocations ?? []).length
+    ? input.allocations!.map((a) => ({
+        account_code: a.account_code ?? null,
+        vat_rate: a.vat_rate ?? null,
+        amount: money(a.amount),
+        description: a.description ?? null,
+      }))
+    : [{ account_code: input.accountCode?.trim() || null, vat_rate: null, amount, description: null }];
+
+  // A soma das partes tem que ser a linha. Deixar passar uma divisão que não
+  // fecha é criar dinheiro do nada dentro do sistema.
+  const sum = money(parts.reduce((s, p) => s + p.amount, 0));
+  if (Math.abs(sum - amount) > 0.01) {
+    return { ok: false, error: `A divisão soma ${sum.toFixed(2)}, e a linha é ${amount.toFixed(2)}.` };
+  }
+
+  const now = new Date().toISOString();
+  const { error } = await sb().from("bank_transactions").insert(
+    parts.map((p) => ({
+      bank_account_id: accountId,
+      client_id: clientId,
+      txn_date: l.line_date,
+      description: p.description || input.description?.trim() || l.description,
+      contact_name: input.contactName?.trim() || l.payee,
+      amount: p.amount,
+      kind: p.amount < 0 ? "spend" : "receive",
+      account_code: p.account_code,
+      vat_rate: p.vat_rate,
+      invoice_id: input.invoiceId ?? null,
+      sale_id: input.saleId ?? null,
+      statement_line_id: l.id,
+      reconciled_at: now,
+      reason: input.reason ?? "manual",
+      created_by: userId,
+    }))
+  );
   if (error) return { ok: false, error: error.message };
 
   await sb().from("bank_statement_lines")

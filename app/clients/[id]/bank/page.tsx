@@ -56,12 +56,15 @@ export default function BankAccounts({ params }: { params: { id: string } }) {
 
   return (
     <div className="space-y-6">
-      <div className="rise">
-        <h1 className="font-display text-xl font-semibold tracking-tight">Contas bancárias</h1>
-        <p className="mt-1 text-muted">
-          Importe o extrato de cada conta e concilie contra as notas e vendas já lançadas.
-          O saldo do extrato é o que o banco diz; o saldo no sistema é o que foi lançado aqui.
-        </p>
+      <div className="rise flex flex-wrap items-start justify-between gap-3">
+        <div>
+          <h1 className="font-display text-xl font-semibold tracking-tight">Contas bancárias</h1>
+          <p className="mt-1 text-muted">
+            Importe o extrato de cada conta e concilie contra as notas e vendas já lançadas.
+            O saldo do extrato é o que o banco diz; o saldo no sistema é o que foi lançado aqui.
+          </p>
+        </div>
+        <Link href={`/clients/${params.id}/bank/rules`} className="btn-ghost">Regras de banco</Link>
       </div>
 
       <div className="card rise p-4">
