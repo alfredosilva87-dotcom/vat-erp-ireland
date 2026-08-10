@@ -2,6 +2,10 @@ import { NextRequest, NextResponse } from "next/server";
 import { getBankAccount, listStatementLines, deleteBankImport } from "@/lib/bankStore";
 
 export const runtime = "nodejs";
+// Nunca servir saldo ou linha de extrato de cache: o Next guarda resposta de
+// GET por padrao, e uma tela de conciliacao que mostra trabalho ja feito e pior
+// que uma tela lenta.
+export const dynamic = "force-dynamic";
 
 type Ctx = { params: { id: string; accountId: string; importId: string } };
 

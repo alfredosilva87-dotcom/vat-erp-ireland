@@ -255,9 +255,58 @@ fevereiro". Sem anti-duplicata, metade entra de novo e infla tudo em silêncio.
 
 ---
 
-## Camada A2 — Conciliar com sugestão de casamento `[ ] não iniciada`
+## Camada A2 — Conciliar com sugestão de casamento `[x] CONCLUÍDA (2026-08-10, v1.21)`
 
 O coração. Equivale à Camada 1 do motor do Xero.
+
+Entregue:
+
+| O quê | Onde |
+|---|---|
+| Motor de sugestão (função pura, 23 testes) | `lib/bankMatch.ts` |
+| Conciliar, desconciliar, refazer, religar | `lib/bankReconcile.ts` |
+| Rotas de sugestão e de ação por linha | `app/api/clients/[id]/bank-accounts/[accountId]/reconcile/` e `.../lines/[lineId]/` |
+| Tela de duas colunas | `app/clients/[id]/bank/[accountId]/reconcile/page.tsx` |
+| Linha + proposta lado a lado | `components/ReconcileRow.tsx` |
+
+Como a proposta é decidida — sinais em ordem de quão difícil é produzi-los por
+acidente: número do documento na descrição (50) > valor igual ao **saldo em
+aberto** (30) > nome do fornecedor na descrição (15) > proximidade de data
+(até 10). Direção errada (saída contra venda) tira 40 e aparece dito na tela.
+
+Decisões tomadas na implementação:
+- **O limiar de confiança é 45, e isso é onde dois sinais independentes
+  concordam** (nome + valor exato). Começou em 55 e estava errado: a mesma nota
+  era proposta com a data a 3 dias e deixava de ser a 4, porque só então o bônus
+  de data caía. Evidência idêntica com resultado diferente por causa de dois
+  dias é ruído. Pior: como a maioria dos extratos não traz o número do
+  documento, na prática quase nada era proposto.
+- **Empate não vira proposta.** Dois candidatos com a mesma pontuação vão os
+  dois para a lista. Escolher um no par ou ímpar e recebê-lo confirmado num
+  clique é como se cria vínculo errado sem ninguém ter decidido nada.
+- **Número curto é ignorado** (menos de 4 caracteres): "14" casaria com qualquer
+  descrição.
+- **Palavras de ruído no nome não contam** (`ltd`, `limited`, `the`, `services`,
+  `ireland`…), senão meio mundo de fornecedor casa com meio mundo de linha.
+- **Só documento em aberto é candidato.** Oferecer nota já paga é como um
+  segundo pagamento se gruda nela.
+- **Religar a movimento já lançado**, sem criar nada. Apareceu testando:
+  desconciliar deixava o pagamento lançado e sem vínculo, e a única ação que
+  sobrava na tela era "sem documento" — que criaria um SEGUNDO movimento e
+  contaria o mesmo dinheiro duas vezes.
+- **`force-dynamic` em toda rota de banco.** O Next 14 cacheia `GET` por padrão,
+  e a tela continuava mostrando linha já conciliada depois de recarregar. Em
+  conciliação, tela desatualizada é pior que tela lenta.
+
+Verificado na tela, ponta a ponta (2026-08-10):
+- [x] Pagamento de nota lançada → proposto sozinho, com o motivo escrito
+- [x] Recebimento com o número da venda na descrição → propõe a venda
+- [x] Confirmar → nota vira **paga** (`invoice_payment_status`)
+- [x] Desconciliar → linha volta, pagamento continua lançado e aparece em
+      "pagamentos em aberto"
+- [x] Religar → **continua 1 movimento**, não 2
+- [x] Refazer → movimento apagado, documento volta a dever
+- [x] Linha sem documento parecido → nenhuma proposta inventada
 
 **Entrega**
 - Tela de duas colunas: linha do extrato à esquerda, proposta à direita
@@ -272,10 +321,10 @@ O coração. Equivale à Camada 1 do motor do Xero.
 - Marcar cada conciliação com **o motivo** (casamento, regra, memória, manual)
 
 **Testável quando:**
-- [ ] Linha de pagamento de nota lançada → sistema propõe sozinho
-- [ ] Confirmar → nota fica paga
-- [ ] Desconciliar → linha volta, pagamento continua na nota
-- [ ] Refazer → transação some, nota volta a em aberto
+- [x] Linha de pagamento de nota lançada → sistema propõe sozinho
+- [x] Confirmar → nota fica paga
+- [x] Desconciliar → linha volta, pagamento continua na nota
+- [x] Refazer → transação some, nota volta a em aberto
 
 ---
 
@@ -531,11 +580,12 @@ número está certo.
 | 2026-08-10 | A0 | Modelo de dinheiro no banco, verificado | v1.19 |
 | 2026-08-10 | A1 | Leitor de extrato + 72 testes (`npm test`) | v1.19.1 |
 | 2026-08-10 | A1 | Interface, importação e anti-duplicata; 92 testes | v1.20 |
+| 2026-08-10 | A1 | Recusa de desfazer deixa de ter cara de sucesso | v1.20.1 |
+| 2026-08-10 | A2 | Sugestão de casamento, conciliar/desconciliar/refazer; 115 testes | v1.21 |
 
-**Onde parou: A1 concluída. A próxima é a A2 — conciliar com sugestão de
-casamento**, reaproveitando a força de sinal de `lib/duplicates.ts` contra as
-notas e vendas já lançadas.
+**Onde parou: A2 concluída. A próxima é a A3 — regras de banco**, que é o que
+faz o segundo mês ser mais rápido que o primeiro.
 
-Uma coisa fica esperando material do mundo real, e não bloqueia a A2: **extrato
+Uma coisa fica esperando material do mundo real, e não bloqueia nada: **extrato
 de banco de verdade**, para virar caso de teste. Tudo que foi exercitado até
 aqui é sintético.

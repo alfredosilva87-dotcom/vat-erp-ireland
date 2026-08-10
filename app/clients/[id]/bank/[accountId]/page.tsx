@@ -40,7 +40,7 @@ export default function BankAccountDetail({
   const base = `/api/clients/${params.id}/bank-accounts/${params.accountId}`;
 
   const load = useCallback(async () => {
-    const res = await fetch(base);
+    const res = await fetch(base, { cache: "no-store" });
     if (!res.ok) { setNotFound(true); setLoading(false); return; }
     const d = await res.json();
     setAccount(d.account); setBalance(d.balance);
@@ -86,6 +86,10 @@ export default function BankAccountDetail({
             {account.opening_date && <span className="ml-1">em {account.opening_date}</span>}
           </p>
         </div>
+        <Link href={`/clients/${params.id}/bank/${params.accountId}/reconcile`} className="btn-primary">
+          Conciliar
+          {!!balance?.unreconciled_statement_count && ` (${balance.unreconciled_statement_count})`}
+        </Link>
       </div>
 
       <div className="card grid gap-px overflow-hidden bg-line sm:grid-cols-4">

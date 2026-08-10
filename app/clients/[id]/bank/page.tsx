@@ -28,7 +28,7 @@ export default function BankAccounts({ params }: { params: { id: string } }) {
   });
 
   const load = useCallback(async () => {
-    const d = await (await fetch(`/api/clients/${params.id}/bank-accounts`)).json();
+    const d = await (await fetch(`/api/clients/${params.id}/bank-accounts`, { cache: "no-store" })).json();
     setAccounts(d.accounts || []);
     setBalances(d.balances || []);
     setLoading(false);

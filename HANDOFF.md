@@ -225,6 +225,7 @@ foi assim que deu para testar no Mac.
 | v1.18 → v1.18.2 | Modo servidor validado (TLS sem SNI, boot resiliente, guarda de dados); healthchecks com carência e dados em volume Docker; instalador não deixa passar chave Gemini vazia |
 | v1.19 | **Camada A0** da conciliação bancária: modelo de dinheiro (contas, linhas de extrato, transações, os dois saldos e a situação de pagamento da nota como view) |
 | v1.19.1 | Leitor de extrato agnóstico de formato (`lib/bankStatement.ts`), com o mapeamento de colunas tratado como dado e não como código |
+| v1.21 | **Camada A2**: conciliação com sugestão de casamento (motor puro em `lib/bankMatch.ts`), tela de duas colunas com o motivo da proposta escrito, desconciliar × refazer como operações distintas, e religar linha a movimento já lançado sem duplicar dinheiro |
 | v1.20 | **Camada A1 completa**: telas de conta bancária com os dois saldos, importação de extrato com pré-visualização e ajuste de mapeamento, gravação com anti-duplicata no próprio banco (índice único + `on conflict do nothing`), desfazer lote, e leitura de planilha extraída para `lib/sheet.ts` |
 
 **Convenção do projeto**: cada mudança é entregue com uma tag de versão + descrição.
