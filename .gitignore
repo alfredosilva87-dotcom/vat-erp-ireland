@@ -6,6 +6,10 @@ node_modules
 data/
 tsconfig.tsbuildinfo
 .claude/settings.local.json
+# Estado local das ferramentas de agente — por maquina, nao do projeto.
+.claude/proven-config.json
+.claude/.proven-config-version
+.claude-flow/
 .env.local.cloud-backup
 .env.local.backup-*
 
