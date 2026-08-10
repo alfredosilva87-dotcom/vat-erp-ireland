@@ -2,6 +2,10 @@ import { NextRequest, NextResponse } from "next/server";
 import { getBrightConnector } from "@/lib/brightApi";
 
 export const runtime = "nodejs";
+// Resposta sempre do banco, nunca de cache: o Next 14 guarda GET de rota por
+// padrao, e uma lista que volta desatualizada num sistema contabil nao e lentidao
+// evitada, e numero errado na tela.
+export const dynamic = "force-dynamic";
 
 // GET  → estado da conexão (testConnection). Usado pelo card da UI.
 export async function GET(_req: NextRequest, { params: _params }: { params: { id: string } }) {

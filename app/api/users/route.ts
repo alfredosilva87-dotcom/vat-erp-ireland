@@ -4,6 +4,10 @@ import { requireRole } from "@/lib/auth";
 import { listAppUsers, createAppUser, findAppUserByEmail } from "@/lib/store";
 
 export const runtime = "nodejs";
+// Resposta sempre do banco, nunca de cache: o Next 14 guarda GET de rota por
+// padrao, e uma lista que volta desatualizada num sistema contabil nao e lentidao
+// evitada, e numero errado na tela.
+export const dynamic = "force-dynamic";
 
 /** Never leak password hashes to the client. */
 const safe = (u: any) => ({

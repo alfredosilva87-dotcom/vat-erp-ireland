@@ -3,6 +3,10 @@ import { getInvoice, updateInvoiceCredits, updateInvoice, deleteInvoice } from "
 import { requireRole } from "@/lib/auth";
 
 export const runtime = "nodejs";
+// Resposta sempre do banco, nunca de cache: o Next 14 guarda GET de rota por
+// padrao, e uma lista que volta desatualizada num sistema contabil nao e lentidao
+// evitada, e numero errado na tela.
+export const dynamic = "force-dynamic";
 
 export async function GET(_req: NextRequest, { params }: { params: { id: string } }) {
   const data = await getInvoice(params.id);

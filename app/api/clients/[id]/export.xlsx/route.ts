@@ -3,6 +3,10 @@ import { exportData, clientDashboard, ALL_EXPORT_SETS, type ExportSet } from "@/
 import { buildClientWorkbook } from "@/lib/exportExcel";
 
 export const runtime = "nodejs";
+// Resposta sempre do banco, nunca de cache: o Next 14 guarda GET de rota por
+// padrao, e uma lista que volta desatualizada num sistema contabil nao e lentidao
+// evitada, e numero errado na tela.
+export const dynamic = "force-dynamic";
 export const maxDuration = 60;
 
 /** Reads ?start=&end=&sets= into a validated period + dataset selection. */
