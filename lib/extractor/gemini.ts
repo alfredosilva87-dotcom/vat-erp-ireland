@@ -151,3 +151,55 @@ Return STRICT JSON only:
   }
   return out;
 }
+
+/**
+ * Extrato bancário escaneado (camada A6).
+ *
+ * Só entra quando o PDF não tem camada de texto — o caminho normal
+ * (`lib/pdfStatement.ts`) é grátis, determinístico e conferível, e este não é
+ * nenhuma das três coisas. Por isso o resultado volta marcado como vindo de IA:
+ * a tela pede confirmação linha a linha antes de gravar.
+ *
+ * O modelo é instruído a NÃO inventar sinal: o que ele devolve é o que está
+ * impresso, e a coluna (saída/entrada) vem declarada à parte.
+ */
+export async function statementRowsFromMedia(
+  base64: string,
+  mimeType: string
+): Promise<Array<{ date: string; description: string; amount: number | null; balance: number | null }>> {
+  const instruction = `You are reading a BANK STATEMENT. Return every transaction row you can see.
+
+Rules:
+- "date": ISO yyyy-mm-dd. Use the transaction/posting date printed on the row.
+- "description": the narrative exactly as printed, joined into one line.
+- "amount": the movement as a SIGNED number — negative when money leaves the
+  account (debit, paid out, withdrawal), positive when money arrives (credit,
+  paid in, lodgement). Use the column headings to decide. Never guess: if the
+  statement has a single amount column and no sign, keep the printed sign.
+- "balance": the running balance printed on that row, or null.
+- Skip headers, page footers, totals and opening/closing balance lines.
+- Do NOT invent rows. If a value is unreadable, use null.
+
+Return STRICT JSON only:
+{"lines":[{"date":"2026-01-02","description":"TESCO STORES","amount":-45.20,"balance":954.80}]}`;
+
+  const text = await runModels([
+    { text: instruction },
+    { inlineData: { data: base64, mimeType } },
+  ]);
+
+  try {
+    const parsed = JSON.parse(text);
+    const arr = Array.isArray(parsed?.lines) ? parsed.lines : [];
+    return arr
+      .map((l: any) => ({
+        date: String(l?.date ?? "").slice(0, 10),
+        description: String(l?.description ?? "").trim(),
+        amount: Number.isFinite(Number(l?.amount)) ? Number(l.amount) : null,
+        balance: Number.isFinite(Number(l?.balance)) ? Number(l.balance) : null,
+      }))
+      .filter((l: any) => /^\d{4}-\d{2}-\d{2}$/.test(l.date) && l.amount !== null);
+  } catch {
+    return [];
+  }
+}

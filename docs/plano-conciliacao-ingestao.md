@@ -418,10 +418,59 @@ O que o escritório usa para provar que o mês fecha.
 
 ---
 
-## Camada A6 — Extrato em PDF `[ ] não iniciada`
+## Camada A6 — Extrato em PDF `[x] CONCLUÍDA (2026-08-11, v1.23)`
 
-Deixado por último de propósito: CSV e Excel cobrem a maioria dos bancos, e é
-melhor chegar aqui com o resto já funcionando.
+Estava planejada por último, e foi antecipada a pedido do usuário: é o que
+destrava testar com extrato de banco de verdade.
+
+Entregue:
+
+| O quê | Onde |
+|---|---|
+| Texto do PDF → grade de células (função pura, 25 testes) | `lib/pdfStatement.ts` |
+| Rota que recebe o arquivo | `.../bank-accounts/[accountId]/import/pdf/` |
+| Leitura de extrato escaneado por IA (último recurso) | `statementRowsFromMedia` em `lib/extractor/gemini.ts` |
+| Mesma tela de confirmação do CSV | `components/StatementImport.tsx` |
+
+**O problema central do PDF: coluna vazia desaparece.** No texto extraído, a
+linha de saída e a de entrada têm exatamente a mesma forma — data, descrição,
+dois números. Não dá para saber pelo formato quem entrou e quem saiu.
+
+A saída é a aritmética do próprio documento: com saldo corrido, o movimento é
+`saldo − saldo_anterior`. É o extrato se explicando, não um palpite sobre
+layout.
+
+Decisões tomadas na implementação:
+- **A primeira linha não tem saldo anterior**, então o sinal dela vem da
+  **coluna** em que o número foi impresso — posição que o texto do PDF preserva
+  — e são as linhas seguintes, essas sim conferidas contra o saldo, que dizem
+  qual coluna é saída e qual é entrada. Cheguei a deduzir pelo sinal da linha
+  seguinte, o que é só chute: uma entrada logo depois não torna a primeira uma
+  entrada.
+- **Quando o saldo não fecha, o leitor não finge.** Devolve os números como
+  colunas separadas e quem decide é o contador, na mesma tela do CSV.
+- **IA é último recurso**, só para PDF sem camada de texto, e volta marcada como
+  tal na tela. Custa, erra e não é reproduzível.
+- **PDF não ganha atalho para gravar**: passa pelo mesmo mapeamento, mesma
+  conferência contra o saldo e mesmo anti-duplicata.
+
+**Defeito grave encontrado no caminho** (v1.23): o `pdf-parse` recusava
+qualquer PDF dentro do Next com "Invalid PDF structure", enquanto o mesmo
+arquivo lia sem problema no node puro. Causa: um `Buffer` do pool do Node começa
+no meio de um bloco maior, e o pdf.js embutido lia a partir do início do bloco.
+Como o `catch` devolvia `null` em silêncio, **toda nota fiscal em PDF nativo
+vinha caindo na leitura por IA** desde sempre — pagando por IA e perdendo
+precisão onde havia texto exato disponível. Uma cópia com `ArrayBuffer` próprio
+resolve. Medido depois: 1 s em vez de 10 s por arquivo.
+
+Verificado na tela, ponta a ponta (2026-08-11), com PDF de extrato gerado para o
+teste (2 páginas, cabeçalho repetido, rodapé de página):
+- [x] 10 movimentos lidos, sinais corretos, descrições inteiras
+- [x] Cabeçalho repetido e rodapé de página ignorados
+- [x] Coluna de saldo mapeada sozinha → conferência contra o saldo roda
+- [x] Gravou e virou linha de extrato como qualquer CSV
+
+### Desenho original da camada
 
 **Entrega**
 - Extrato em PDF pelo motor de extração existente, com tratamento próprio
@@ -429,8 +478,9 @@ melhor chegar aqui com o resto já funcionando.
 - Baixa confiança → revisão humana antes de virar linha
 
 **Testável quando:**
-- [ ] PDF de extrato real vira linhas conferíveis
-- [ ] Total das linhas bate com o saldo final do PDF
+- [x] PDF de extrato vira linhas conferíveis *(PDF gerado para teste; falta um
+      extrato real de banco)*
+- [x] Total das linhas bate com o saldo final do PDF
 
 ---
 
@@ -621,9 +671,12 @@ número está certo.
 | 2026-08-10 | A1 | Recusa de desfazer deixa de ter cara de sucesso | v1.20.1 |
 | 2026-08-10 | A2 | Sugestão de casamento, conciliar/desconciliar/refazer; 115 testes | v1.21 |
 | 2026-08-10 | A3 | Regras de banco com ordem, aviso de regra engolida e divisão; 142 testes | v1.22 |
+| 2026-08-10 | — | Cache de rota do Next fazia lista voltar vazia (26 rotas) | v1.22.1 |
+| 2026-08-11 | A6 | Extrato em PDF + correção do `pdf-parse` que derrubava toda leitura nativa; 167 testes | v1.23 |
 
-**Onde parou: A3 concluída. A próxima é a A4 — casos difíceis** (um pagamento
-para várias notas, pagamento parcial, tarifa embutida, diferença de centavos).
+**Onde parou: A6 concluída (antecipada). A próxima é a A4 — casos difíceis**
+(um pagamento para várias notas, pagamento parcial, tarifa embutida, diferença
+de centavos).
 
 Uma coisa fica esperando material do mundo real, e não bloqueia nada: **extrato
 de banco de verdade**, para virar caso de teste. Tudo que foi exercitado até

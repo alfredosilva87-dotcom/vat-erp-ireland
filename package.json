@@ -7,7 +7,7 @@
     "build": "next build",
     "start": "next start",
     "lint": "next lint",
-    "test": "tsc lib/bankStatement.ts lib/sheet.ts lib/bankMatch.ts lib/bankRules.ts --outDir .test-build --module commonjs --target es2020 --lib es2020,dom --moduleResolution node --esModuleInterop --skipLibCheck --strict && node tests/bankStatement.test.js && node tests/sheet.test.js && node tests/bankMatch.test.js && node tests/bankRules.test.js"
+    "test": "tsc lib/bankStatement.ts lib/sheet.ts lib/bankMatch.ts lib/bankRules.ts lib/pdfStatement.ts --outDir .test-build --module commonjs --target es2020 --lib es2020,dom --moduleResolution node --esModuleInterop --skipLibCheck --strict && node tests/bankStatement.test.js && node tests/sheet.test.js && node tests/bankMatch.test.js && node tests/bankRules.test.js && node tests/pdfStatement.test.js"
   },
   "dependencies": {
     "@google/generative-ai": "^0.21.0",

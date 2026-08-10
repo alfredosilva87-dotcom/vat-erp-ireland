@@ -60,12 +60,70 @@ export default function StatementImport({
     return { lines, problems, summaryRows, balanceWarning: checkAgainstBalance(lines) };
   }, [rows, mapping]);
 
+  /**
+   * PDF é lido no servidor (a biblioteca de PDF é de Node) e volta como a mesma
+   * grade de células que um CSV produz — daí para a frente, o caminho é o
+   * mesmo: confirmar o mapeamento e conferir antes de gravar.
+   */
+  async function pdfToRows(
+    file: File
+  ): Promise<{ rows: unknown[][]; notes: string[]; signFromBalance: boolean } | null> {
+    const body = new FormData();
+    body.append("file", file);
+    const res = await fetch(`/api/clients/${clientId}/bank-accounts/${accountId}/import/pdf`, {
+      method: "POST", body,
+    });
+    const d = await res.json();
+    if (!res.ok) { setError(d.error || "Não consegui ler este PDF."); return null; }
+    return { rows: d.rows || [], notes: d.notes || [], signFromBalance: !!d.signFromBalance };
+  }
+
   async function onFile(file: File) {
     setError(null); setCounts(null); setBusy(true);
     try {
-      const { rows: aoa, format: fmt } = await fileToRows(file);
-      if (!aoa.length) { setError("O arquivo está vazio."); return; }
+      const isPdf = file.name.toLowerCase().endsWith(".pdf");
+      let aoa: unknown[][];
+      let fmt: string;
+      let extraNotes: string[] = [];
+      let pdfResolved = false;
+
+      if (isPdf) {
+        const parsed = await pdfToRows(file);
+        if (!parsed) return;
+        aoa = parsed.rows;
+        fmt = "pdf";
+        extraNotes = parsed.notes;
+        pdfResolved = parsed.signFromBalance;
+      } else {
+        const r = await fileToRows(file);
+        aoa = r.rows;
+        fmt = r.format;
+      }
+
+      if (!aoa.length) { setError("Não encontrei nenhuma linha neste arquivo."); return; }
       setRows(aoa); setFilename(file.name); setFormat(fmt);
+
+      if (isPdf) {
+        // Mapeamento salvo vem de planilha e não descreve o que sai de um PDF;
+        // reusá-lo aqui apontaria colunas para o lugar errado.
+        //
+        // Quando o servidor resolveu o sinal pelo saldo corrido, a forma é
+        // conhecida — [data, descrição, valor, saldo] — e vale dizer isso em
+        // vez de deixar adivinhar. Sem apontar a coluna de saldo, a conferência
+        // contra o saldo do próprio extrato não roda, e é justamente no PDF que
+        // ela mais vale.
+        const detected = detectLayout(aoa);
+        setMapping(pdfResolved
+          ? {
+              headerRow: null, date: 0, description: 1, reference: null, payee: null,
+              amount: 2, debit: null, credit: null, balance: 3,
+              amountStyle: "signed", dateStyle: "ymd", invertSign: false,
+            }
+          : detected.mapping);
+        setUsedSaved(false);
+        setNotes([...extraNotes, ...(pdfResolved ? [] : detected.notes)]);
+        return;
+      }
 
       // A saved mapping is the whole payoff of the first import: the second
       // statement from the same bank should need no confirmation at all. It is
@@ -136,14 +194,17 @@ export default function StatementImport({
           <div>
             <h2 className="font-display text-lg font-semibold">Importar extrato</h2>
             <p className="mt-1 text-sm text-muted">
-              Excel ou CSV. As colunas são detectadas e você confirma antes de gravar
+              Excel, CSV ou PDF. As colunas são detectadas e você confirma antes de gravar
               {savedMapping ? " — esta conta já tem um mapeamento salvo, então normalmente é só conferir." : "."}
+            </p>
+            <p className="mt-1 text-xs text-muted">
+              Se o banco oferecer CSV ou Excel, prefira: PDF é reconstruído a partir do texto e dá mais trabalho de conferir.
             </p>
           </div>
           <button className="btn-primary" onClick={() => fileRef.current?.click()} disabled={busy}>
             {busy ? "Lendo…" : "Escolher arquivo"}
           </button>
-          <input ref={fileRef} type="file" accept=".xlsx,.xls,.csv,.txt" className="hidden"
+          <input ref={fileRef} type="file" accept=".xlsx,.xls,.csv,.txt,.pdf" className="hidden"
             onChange={(e) => e.target.files?.[0] && onFile(e.target.files[0])} />
         </div>
         {error && <p className="mt-3 text-sm text-danger">{error}</p>}
