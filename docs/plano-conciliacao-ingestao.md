@@ -77,7 +77,44 @@ com o que saiu do banco.
 
 # FASE A — Conciliação bancária
 
-## Camada A0 — Modelar dinheiro `[ ] não iniciada`
+## Camada A0 — Modelar dinheiro `[x] CONCLUÍDA (2026-08-10, v1.19)`
+
+Entregue em `selfhost/schema/004_bank_reconciliation.sql`.
+
+Tabelas: `bank_accounts`, `bank_imports`, `bank_statement_lines`,
+`bank_transactions`, `bank_rules` (modelo pronto, interface na A3).
+Views: `bank_account_balances` (os dois saldos) e `invoice_payment_status`.
+
+Decisões tomadas na implementação:
+- **Valor sempre com sinal único** nas linhas do extrato. Extrato com débito e
+  crédito em colunas separadas é convertido na importação, para que o resto do
+  sistema só lide com uma forma.
+- **Situação de pagamento é view, não coluna.** Um campo `paid` mantido à mão
+  diverge dos movimentos no primeiro estorno, e aí o número deixa de ser
+  confiável justamente quando mais importa.
+- **Tolerância de um cêntimo** no status de pago, senão arredondamento deixa
+  nota eternamente "quase paga".
+- `dedupe_key` é única **por conta bancária**, não global — a mesma linha pode
+  legitimamente existir em duas contas.
+- Coluna `reason` registra por que o sistema decidiu (`match`, `rule`,
+  `memory`, `prediction`, `manual`), como o Xero faz.
+- Migrações passaram a ser **descobertas por arquivo**, não listadas em código:
+  basta adicionar `00N_*.sql`. Papel diferente declara-se no cabeçalho com
+  `-- @role:`. Instalação existente recebe o novo schema ao re-rodar o
+  instalador.
+
+Verificado contra o banco:
+- [x] Aplicar e **reaplicar** sem erro (idempotente)
+- [x] Só extrato lançado → saldos divergem (877 vs 1000), 1 linha pendente
+- [x] Após conciliar → diferença **zero**, nota vira **paga**
+- [x] Reimportar a mesma linha → recusada; mesma chave em outra conta → aceita
+- [x] Pagamento parcial → nota fica `partial` com saldo devedor correto
+- [x] Movimento sem vínculo → aparece como pagamento em aberto
+- [x] Trava de "uma nota **ou** uma venda, nunca as duas" → banco recusa
+
+---
+
+## Camada A0 — histórico do desenho `[referência]`
 
 Sem tela. É a fundação.
 
@@ -300,10 +337,74 @@ aí o cliente não faz nada e a fatura chega sozinha.
 | Item | Motivo |
 |---|---|
 | Busca de fatura em portal de fornecedor | Exige guardar credencial de terceiro. Passivo de segurança incompatível com o self-host |
-| Conexão automática ao banco (Open Banking) | Exige licenciamento AISP e manda dado para fora. Importação de arquivo cobre o caso |
+| Conexão automática ao banco (Open Banking) | **Adiado, não descartado** — ver abaixo |
 | Integração com Dext | Não existe API pública |
 | Conciliação em cima do Xero | A Xero declara que não vai expor |
 | Integração com Xero como destino | Adiada. Continua no backlog como item futuro, e o tier gratuito bastaria |
+
+---
+
+# Guardado para o futuro — Open Banking e distribuição do produto
+
+Decisão do usuário em 2026-08-09: a conexão automática ao banco fica **adiada,
+não descartada**. A intenção declarada é, se o produto der certo, **distribuir
+o programa**, com proteção de propriedade intelectual e homologação.
+
+Anotado agora para que a decisão de hoje não seja lida amanhã como "descartamos
+Open Banking".
+
+## O que muda quando isso entrar
+
+A importação de arquivo (Camadas A1 e A6) **continua necessária** mesmo com
+Open Banking — sempre haverá banco sem cobertura, conta antiga, e período
+anterior à conexão. O plano atual não vira trabalho jogado fora; o Open Banking
+entra como **mais um canal de entrada** para as mesmas `bank_statement_lines`.
+
+Por isso a Camada A0 já registra a **origem** de cada linha (`source`). Quando o
+canal automático existir, é só mais um valor ali.
+
+## O que vai ser exigido (levantado da pesquisa, a confirmar antes de investir)
+
+- **Licença de AISP** (Account Information Service Provider) junto ao Banco
+  Central da Irlanda, sob a PSD2. É o passo caro e demorado — não é técnico.
+  Referência do que é possível sem licença própria: a **própria Xero não tem**
+  licença irlandesa; ela é registrada como AISP pela autoridade dinamarquesa e
+  usa a **Tink** (AISP sueca) como intermediária técnica na Irlanda.
+- **Alternativa realista**: usar um agregador licenciado (Tink, TrueLayer,
+  Yapily, Plaid) em vez de obter licença própria. Mas isso **quebra a premissa
+  de que dado nenhum sai** — o agregador vê as transações. Precisa de decisão
+  explícita do escritório, e provavelmente de consentimento dos clientes finais.
+- **Renovação periódica de consentimento** é exigência do padrão Open Banking,
+  não escolha de produto. A conexão expira e precisa ser reautorizada.
+
+## Sobre patente e distribuição — verificar com advogado antes de contar com isso
+
+Duas coisas que costumam surpreender, e que é melhor saber cedo:
+
+- **Software puro e método de negócio geralmente não são patenteáveis na
+  Europa.** A Convenção Europeia de Patentes exclui expressamente "programas de
+  computador como tais" e métodos de negócio. Patente exige, na prática,
+  demonstrar efeito técnico além do processamento de informação. Conciliação
+  bancária e leitura de nota tendem a cair na exclusão.
+- **O que de fato protege**, e já vale hoje sem custo: **direito de autor** sobre
+  o código (automático, desde que escrito), **segredo de negócio** sobre a base
+  de alíquotas e as regras acumuladas, e **marca registrada** sobre o nome do
+  produto — essa sim é registrável e barata.
+
+Nada disso é aconselhamento jurídico, e a decisão é de vocês com um advogado de
+PI. Está aqui só para o orçamento não ser feito em cima de uma expectativa que
+pode não se confirmar.
+
+Já a **homologação** é real e depende do que o produto fizer: se um dia
+transmitir ao ROS, há requisitos da Revenue; se conectar a banco, há a licença
+acima. Ambos são caminhos conhecidos, só não são rápidos.
+
+## Impacto na arquitetura de hoje: nenhum
+
+O que estamos construindo agora não muda por causa disso. **Se o produto for
+distribuído, o self-host vira vantagem comercial** — cada cliente instala e
+mantém o dado em casa, que é exatamente o que a concorrência em nuvem não
+oferece.
 
 ---
 
@@ -333,3 +434,6 @@ número está certo.
 | Data | Camada | Estado | Tag |
 |---|---|---|---|
 | 2026-08-09 | — | Pesquisa concluída, plano escrito | — |
+| 2026-08-10 | A0 | Modelo de dinheiro no banco, verificado | v1.19 |
+
+**Próxima camada: A1 — importar extrato (CSV e Excel).**

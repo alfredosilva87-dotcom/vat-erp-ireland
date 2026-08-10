@@ -108,26 +108,55 @@ async function waitForDatabase(timeoutMs = 300000) {
   }
 }
 
+/**
+ * Every .sql in selfhost/schema, in filename order.
+ *
+ * Discovered rather than listed, so adding a migration is one file and no code
+ * change — an install that is already running picks it up on the next re-run,
+ * which is how an existing server gets a new feature's tables.
+ *
+ * A file that must run as a different role declares it in its own header:
+ *     -- @role: supabase_admin
+ * (storage.buckets is owned by supabase_storage_admin, and the `postgres` role
+ * is not a superuser in the Supabase image.)
+ */
+function schemaFiles() {
+  return fs
+    .readdirSync(SCHEMA_DIR)
+    .filter((f) => f.endsWith(".sql"))
+    .sort()
+    .map((file) => {
+      const head = fs.readFileSync(path.join(SCHEMA_DIR, file), "utf8").slice(0, 2000);
+      const role = /^--\s*@role:\s*(\w+)/m.exec(head);
+      const needsStorage = /^--\s*@needs:\s*storage/m.test(head);
+      return { file, user: role ? role[1] : "postgres", needsStorage };
+    });
+}
+
 async function applySchema() {
   step("Criando as tabelas e a base de referencia (VAT / regras de credito)");
-  applySqlFile("001_full_schema.sql");
-  applySqlFile("002_seed_reference_data.sql");
 
-  // storage-api creates its own `storage` schema on first boot; the bucket can
-  // only be inserted after that has happened.
-  const storageReady = await waitFor("servico de arquivos (storage)", () =>
-    psql(
-      "select 1 from information_schema.tables where table_schema='storage' and table_name='buckets';"
-    ).stdout.trim() === "1"
-  );
-  if (!storageReady) {
-    warn("O storage demorou demais. O app sobe, mas o upload de PDF pode falhar.");
-    warn("Rode o instalador de novo depois que os containers estiverem estaveis.");
-    return;
+  const files = schemaFiles();
+  let storageChecked = false;
+
+  for (const { file, user, needsStorage } of files) {
+    // storage-api creates its own `storage` schema on first boot; anything
+    // touching it has to wait for that.
+    if (needsStorage && !storageChecked) {
+      storageChecked = true;
+      const ready = await waitFor("servico de arquivos (storage)", () =>
+        psql(
+          "select 1 from information_schema.tables where table_schema='storage' and table_name='buckets';"
+        ).stdout.trim() === "1"
+      );
+      if (!ready) {
+        warn("O storage demorou demais. O app sobe, mas o upload de PDF pode falhar.");
+        warn("Rode o instalador de novo depois que os containers estiverem estaveis.");
+        return;
+      }
+    }
+    applySqlFile(file, { user });
   }
-  // storage.buckets belongs to supabase_storage_admin; only supabase_admin
-  // (the actual superuser here) can write to it.
-  applySqlFile("003_storage_bucket.sql", { user: "supabase_admin" });
 }
 
 async function createAdmin({ email, password }) {
