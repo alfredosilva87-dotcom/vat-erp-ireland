@@ -9,12 +9,12 @@ import { computeLines } from "@/lib/vat";
 // a fila do e-mail passou a usar o mesmo caminho. Ver o comentário de lá sobre
 // por que duas cópias divergiriam justo no payload de gravação.
 import {
-  base64ToFile, readDocumentFile, saveDocument,
+  base64ToFile, mergeIntoExisting, readDocumentFile, saveDocument,
   type DuplicateMatch, type IngestDocument, type SupplierRuleHit,
 } from "@/lib/ingestFlow";
 
 type Result = IngestDocument;
-type RowStatus = "pending" | "reading" | "read" | "error" | "saving" | "saved" | "duplicate" | "discarded" | "split";
+type RowStatus = "pending" | "reading" | "read" | "error" | "saving" | "saved" | "duplicate" | "discarded" | "split" | "merged";
 type Row = { file: File; status: RowStatus; result?: Result; error?: string; savedId?: string; duplicate?: DuplicateMatch | null; splitCount?: number };
 
 const money = (n: number | null | undefined) =>
@@ -167,6 +167,25 @@ export default function Analyze() {
     } catch (e: any) {
       setRows((prev) => prev.map((x, k) => (k === i ? { ...x, status: "error", error: e.message } : x)));
     }
+  }
+
+  /**
+   * Junta o documento desta duplicata ao lançamento que já existe (camada B3).
+   *
+   * Antes só havia "gravar de todo jeito" (que duplica o lançamento) e
+   * "descartar" (que joga a imagem fora). A segunda foto do mesmo recibo é
+   * frequentemente a mais legível das duas, e era ela que se perdia.
+   */
+  async function mergeRow(i: number) {
+    const r = rows[i];
+    if (!r.duplicate) return;
+    setRows((prev) => prev.map((x, k) => (k === i ? { ...x, status: "saving" } : x)));
+    const out = await mergeIntoExisting(r.file, r.duplicate.id, r.result?.filename);
+    setRows((prev) => prev.map((x, k) => (k === i
+      ? out.ok
+        ? { ...x, status: "merged" as RowStatus, savedId: r.duplicate!.id }
+        : { ...x, status: "duplicate" as RowStatus, error: out.error }
+      : x)));
   }
 
   async function saveAll() {
@@ -361,7 +380,7 @@ export default function Analyze() {
                       </>
                     )}
                     <td className="px-4 py-3">
-                      <StatusChip r={r} canSave={canSave} onForceSave={() => saveOne(i, true)} onDiscard={() => discardRow(i)} />
+                      <StatusChip r={r} canSave={canSave} onForceSave={() => saveOne(i, true)} onMerge={() => mergeRow(i)} onDiscard={() => discardRow(i)} />
                     </td>
                   </tr>
                 ))}
@@ -378,11 +397,16 @@ export default function Analyze() {
   );
 }
 
-function StatusChip({ r, canSave, onForceSave, onDiscard }: { r: Row; canSave: boolean; onForceSave: () => void; onDiscard: () => void }) {
+function StatusChip({ r, canSave, onForceSave, onMerge, onDiscard }: { r: Row; canSave: boolean; onForceSave: () => void; onMerge: () => void; onDiscard: () => void }) {
   const { t: tt } = useT();
   if (r.status === "saved") return <Link href={`/invoice/${r.savedId}`} className="chip-ok">{tt("analyze.statusSaved")}</Link>;
   if (r.status === "discarded") return <span className="chip bg-surface-2 border border-line text-muted">{tt("analyze.statusDiscarded")}</span>;
   if (r.status === "split") return <span className="chip bg-surface-2 border border-line text-muted">Split into {r.splitCount}</span>;
+  if (r.status === "merged") return (
+    <Link href={`/invoice/${r.savedId}`} className="chip-ok" title="A imagem foi anexada ao lançamento que já existia.">
+      juntada
+    </Link>
+  );
   if (r.status === "duplicate") {
     const d = r.duplicate;
     const hint = d
@@ -395,6 +419,12 @@ function StatusChip({ r, canSave, onForceSave, onDiscard }: { r: Row; canSave: b
         ) : (
           <span className="chip-warn">{tt("analyze.statusDuplicate")}</span>
         )}
+        {d && (
+          <button onClick={onMerge} className="text-xs text-brand underline underline-offset-2"
+            title="Anexa esta imagem ao lançamento que já existe, sem criar outro. Nada do lançamento muda.">
+            juntar
+          </button>
+        )}
         {canSave && (
           <button onClick={onForceSave} className="text-xs text-brand underline underline-offset-2">
             {tt("analyze.saveAnyway")}
@@ -403,6 +433,7 @@ function StatusChip({ r, canSave, onForceSave, onDiscard }: { r: Row; canSave: b
         <button onClick={onDiscard} className="text-xs text-muted underline underline-offset-2">
           {tt("analyze.discard")}
         </button>
+        {r.error && <span className="text-xs text-danger">{r.error}</span>}
       </span>
     );
   }

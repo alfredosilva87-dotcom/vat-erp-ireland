@@ -16,7 +16,7 @@
 
 import { useCallback, useEffect, useState } from "react";
 import Link from "next/link";
-import { base64ToFile, readDocumentFile, saveDocument, type DuplicateMatch, type IngestDocument } from "@/lib/ingestFlow";
+import { base64ToFile, mergeIntoExisting, readDocumentFile, saveDocument, type DuplicateMatch, type IngestDocument } from "@/lib/ingestFlow";
 import { computeLines } from "@/lib/vat";
 
 type Client = {
@@ -189,6 +189,34 @@ export default function Inbox() {
     }
   }
 
+  /**
+   * Junta o anexo desta duplicata ao lançamento que já existe (camada B3).
+   *
+   * O item da fila fica marcado como duplicata resolvida: a imagem não se perde e
+   * não nasce um segundo lançamento com o mesmo dinheiro.
+   */
+  async function mergeItem(item: Item) {
+    const w = work[item.id];
+    if (!w?.duplicate) return;
+    setW(item.id, { busy: true, error: undefined });
+    try {
+      const res = await fetch(`/api/mail/inbox/${item.id}/file`, { cache: "no-store" });
+      const blob = await res.blob();
+      const file = new File([blob], item.filename || "anexo", { type: item.mime_type || blob.type });
+      const out = await mergeIntoExisting(file, w.duplicate.id, item.filename || undefined);
+      if (!out.ok) { setW(item.id, { busy: false, error: out.error }); return; }
+      await fetch(`/api/mail/inbox/${item.id}`, {
+        method: "PATCH", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ status: "duplicate", invoice_id: w.duplicate.id }),
+      });
+      setW(item.id, { busy: false, duplicate: null });
+      setMsg({ text: "Documento juntado ao lançamento que já existia." });
+      await load();
+    } catch (e: any) {
+      setW(item.id, { busy: false, error: e.message });
+    }
+  }
+
   async function discard(item: Item) {
     if (!confirm("Descartar este item? O anexo é apagado junto.")) return;
     const res = await fetch(`/api/mail/inbox/${item.id}`, { method: "DELETE" });
@@ -294,7 +322,7 @@ export default function Inbox() {
               canRead={Boolean(clientId) && item.client_id === clientId}
               canSave={canSave}
               onRead={() => readItem(item)} onSave={(force) => saveItem(item, force)}
-              onDiscard={() => discard(item)}
+              onMerge={() => mergeItem(item)} onDiscard={() => discard(item)}
             />
           ))}
         </div>
@@ -325,11 +353,11 @@ export default function Inbox() {
 }
 
 function InboxCard({
-  item, work, clients, canRead, canSave, onRead, onSave, onDiscard,
+  item, work, clients, canRead, canSave, onRead, onSave, onMerge, onDiscard,
 }: {
   item: Item; work: Work | undefined; clients: Client[];
   canRead: boolean; canSave: boolean;
-  onRead: () => void; onSave: (force?: boolean) => void; onDiscard: () => void;
+  onRead: () => void; onSave: (force?: boolean) => void; onMerge: () => void; onDiscard: () => void;
 }) {
   const client = clients.find((c) => c.id === item.client_id);
   const docs = work?.docs ?? [];
@@ -397,8 +425,13 @@ function InboxCard({
         <p className="mt-3 rounded-lg bg-warning-50 px-3 py-2 text-sm text-warning">
           Já existe uma nota igual ({work.duplicate.invoice_number || "sem número"} ·{" "}
           {work.duplicate.posting_date || "sem data"}).{" "}
-          <Link href={`/invoice/${work.duplicate.id}`} className="underline">Abrir</Link>{" "}
+          <Link href={`/invoice/${work.duplicate.id}`} className="underline">Abrir</Link>,{" "}
+          <button className="underline" onClick={onMerge}>juntar este documento à que existe</button>{" "}
           ou <button className="underline" onClick={() => onSave(true)}>gravar de todo jeito</button>.
+          <span className="mt-1 block text-xs">
+            Juntar anexa a imagem ao lançamento e não muda valor nem crédito — a segunda foto do mesmo
+            recibo costuma ser a mais legível das duas.
+          </span>
         </p>
       )}
 

@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { saveInvoice, listInvoices, listMasterItems, stats } from "@/lib/store";
 import type { SavePayload } from "@/lib/store";
 import { findDuplicate } from "@/lib/duplicates";
+import { getSessionUser } from "@/lib/auth";
 
 export const runtime = "nodejs";
 // Resposta sempre do banco, nunca de cache: o Next 14 guarda GET de rota por
@@ -64,7 +65,7 @@ export async function POST(req: NextRequest) {
       }
     }
 
-    const invoice = await saveInvoice(payload, buffer, ext);
+    const invoice = await saveInvoice(payload, buffer, ext, await getSessionUser());
     return NextResponse.json({ ok: true, invoice });
   } catch (err: any) {
     return NextResponse.json({ error: err?.message || "Save failed." }, { status: 500 });

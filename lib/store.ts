@@ -1,6 +1,7 @@
 import { randomUUID } from "crypto";
 import { getServerSupabase } from "@/lib/supabase";
 import { computeLines } from "@/lib/vat";
+import { diffFields, recordAudit, type Actor, type AuditAction } from "@/lib/reviewStore";
 import type {
   StoredInvoice, StoredItem, MasterItem, Client, ClientWithStats,
   CreditRule, ClientObligation, SalesEntry, AppUser, ChartAccount, Branch, Company,
@@ -201,7 +202,9 @@ function creditsForInvoice(
   return items.map((it, i) => (it.take_credit ? lines[i].vat : 0));
 }
 
-export async function saveInvoice(payload: SavePayload, fileBuffer: Buffer | null, ext: string): Promise<StoredInvoice> {
+export async function saveInvoice(
+  payload: SavePayload, fileBuffer: Buffer | null, ext: string, actor: Actor = null
+): Promise<StoredInvoice> {
   const id = randomUUID();
   const client = payload.client_id ? await getClient(payload.client_id) : null;
   let branchName: string | null = null;
@@ -274,6 +277,19 @@ export async function saveInvoice(payload: SavePayload, fileBuffer: Buffer | nul
   const { data, error } = await sb().from("invoices").insert(invRow).select().single();
   if (error) throw error;
   if (itemRows.length) await sb().from("invoice_items").insert(itemRows);
+
+  // O começo da trilha. Sem esta linha, a primeira entrada do histórico de uma
+  // nota seria a primeira correção — e ficaria sem dizer de onde ela veio, nem
+  // quem a lançou.
+  await recordAudit(id, actor, [{
+    action: "created",
+    note: [
+      payload.original_filename,
+      payload.engine ? `lido por ${payload.engine}` : null,
+      `${payload.items.length} linha(s)`,
+    ].filter(Boolean).join(" · "),
+  }]);
+
   return toInvoice(data);
 }
 
@@ -367,7 +383,31 @@ export async function updateInvoiceCredits(invoiceId: string, credits: Record<st
   return getInvoice(invoiceId);
 }
 
-export async function updateInvoice(invoiceId: string, patch: { header?: Partial<StoredInvoice>; items?: Array<Partial<StoredItem> & { id: string }> }) {
+/** Campos do cabeçalho que a trilha acompanha, na ordem em que aparecem na tela. */
+const AUDITED_HEADER = [
+  "supplier_name", "store_name", "supplier_vat", "invoice_number", "barcode",
+  "invoice_date", "posting_date", "invoice_time", "doc_type",
+  "total_net", "total_vat", "total_gross", "branch_id",
+];
+const AUDITED_ITEM = [
+  "description", "quantity", "unit_price", "net_amount", "vat_rate_on_invoice",
+  "expected_vat_rate", "category_code", "account_code", "take_credit",
+];
+
+/**
+ * Altera a nota e **grava a trilha no mesmo caminho**.
+ *
+ * A trilha ficar aqui, e não numa chamada que a rota precisa lembrar de fazer, é
+ * o que garante que ela não tem buracos (camada B3). Uma trilha que depende de a
+ * interface colaborar vale menos que nenhuma, porque dá impressão de cobertura.
+ */
+export async function updateInvoice(
+  invoiceId: string,
+  patch: { header?: Partial<StoredInvoice>; items?: Array<Partial<StoredItem> & { id: string }> },
+  actor: Actor = null
+) {
+  const audit: Array<{ action: AuditAction; field?: string | null; old?: unknown; new?: unknown; note?: string | null }> = [];
+
   if (patch.header) {
     const h: any = { ...patch.header };
     if ("document_file" in h) { h.document_path = h.document_file; delete h.document_file; }
@@ -378,7 +418,15 @@ export async function updateInvoice(invoiceId: string, patch: { header?: Partial
     const allowed = ["supplier_name","store_name","supplier_vat","invoice_number","barcode","invoice_date","posting_date","invoice_time","doc_type","total_net","total_vat","total_gross","document_path","branch_id","branch_name","needs_review"];
     const row: any = {};
     for (const k of allowed) if (k in h) row[k] = h[k];
-    if (Object.keys(row).length) await sb().from("invoices").update(row).eq("id", invoiceId);
+    if (Object.keys(row).length) {
+      // Lido ANTES de escrever: é a única hora em que o valor antigo existe.
+      const { data: before } = await sb()
+        .from("invoices").select(AUDITED_HEADER.join(",")).eq("id", invoiceId).maybeSingle();
+      await sb().from("invoices").update(row).eq("id", invoiceId);
+      for (const d of diffFields((before ?? {}) as any, row, AUDITED_HEADER)) {
+        audit.push({ action: "edited", field: d.field, old: d.old, new: d.new });
+      }
+    }
   }
   if (patch.items) {
     const { data: invRow } = await sb().from("invoices").select("client_id").eq("id", invoiceId).maybeSingle();
@@ -393,12 +441,22 @@ export async function updateInvoice(invoiceId: string, patch: { header?: Partial
           if (k in upd) row[k] = (upd as any)[k];
         if (!row.description) continue; // nothing to save yet
         await sb().from("invoice_items").insert(row);
+        audit.push({ action: "item_added", field: "description", new: row.description,
+          note: row.net_amount != null ? `Valor ${row.net_amount}` : null });
         continue;
       }
       const row: any = {};
       for (const k of ["description","quantity","unit_price","net_amount","vat_rate_on_invoice","expected_vat_rate","category_code","category_name","account_code","account_name","take_credit"])
         if (k in upd) row[k] = (upd as any)[k];
-      if (Object.keys(row).length) await sb().from("invoice_items").update(row).eq("id", upd.id);
+      if (Object.keys(row).length) {
+        const { data: beforeItem } = await sb()
+          .from("invoice_items").select(["description", ...AUDITED_ITEM].join(",")).eq("id", upd.id).maybeSingle();
+        await sb().from("invoice_items").update(row).eq("id", upd.id);
+        const label = (beforeItem as any)?.description || upd.id;
+        for (const d of diffFields((beforeItem ?? {}) as any, row, AUDITED_ITEM)) {
+          audit.push({ action: "item_edited", field: d.field, old: d.old, new: d.new, note: label });
+        }
+      }
       if ("category_code" in upd || "category_name" in upd || "expected_vat_rate" in upd) {
         const { data: it } = await sb().from("invoice_items").select("master_item_id,category_code,category_name,expected_vat_rate").eq("id", upd.id).maybeSingle();
         if (it?.master_item_id) await sb().from("items_master").update({ category_code: it.category_code, category_name: it.category_name, expected_vat_rate: it.expected_vat_rate, last_seen: new Date().toISOString() }).eq("id", it.master_item_id);
@@ -410,6 +468,7 @@ export async function updateInvoice(invoiceId: string, patch: { header?: Partial
     }
   }
   await recomputeInvoiceTotals(invoiceId);
+  await recordAudit(invoiceId, actor, audit);
   return getInvoice(invoiceId);
 }
 

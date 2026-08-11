@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getInvoice, updateInvoiceCredits, updateInvoice, deleteInvoice } from "@/lib/store";
-import { requireRole } from "@/lib/auth";
+import { getSessionUser, requireRole } from "@/lib/auth";
+import { listAudit, listInvoiceDocuments } from "@/lib/reviewStore";
 
 export const runtime = "nodejs";
 // Resposta sempre do banco, nunca de cache: o Next 14 guarda GET de rota por
@@ -11,16 +12,26 @@ export const dynamic = "force-dynamic";
 export async function GET(_req: NextRequest, { params }: { params: { id: string } }) {
   const data = await getInvoice(params.id);
   if (!data) return NextResponse.json({ error: "Not found." }, { status: 404 });
-  return NextResponse.json(data);
+  // A trilha e os documentos extras vem junto (camada B3): a pergunta "quem
+  // mudou isso?" e feita olhando a nota, nao numa tela separada que ninguem
+  // lembra que existe.
+  const [audit, documents] = await Promise.all([
+    listAudit(params.id),
+    listInvoiceDocuments(params.id),
+  ]);
+  return NextResponse.json({ ...data, audit, documents });
 }
 
 export async function PATCH(req: NextRequest, { params }: { params: { id: string } }) {
   const body = await req.json();
+  // Quem esta alterando vai para a trilha. Sem isto o historico diria "alguem
+  // mudou o valor", que numa auditoria nao vale nada.
+  const actor = await getSessionUser();
   // credits-only payload (legacy) vs general header/items edit
   const data =
     body?.credits && !body?.header && !body?.items
       ? await updateInvoiceCredits(params.id, body.credits as Record<string, boolean>)
-      : await updateInvoice(params.id, { header: body?.header, items: body?.items });
+      : await updateInvoice(params.id, { header: body?.header, items: body?.items }, actor);
   if (!data) return NextResponse.json({ error: "Not found." }, { status: 404 });
   return NextResponse.json(data);
 }

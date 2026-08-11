@@ -908,7 +908,82 @@ aí o cliente não faz nada e a fatura chega sozinha.
 
 ---
 
-## Camada B3 — Melhorias de revisão `[ ] não iniciada`
+## Camada B3 — Melhorias de revisão `[x] CONCLUÍDA (2026-08-11, v1.29)`
+
+Entregue:
+
+| O quê | Onde |
+|---|---|
+| Trilha, documentos extras e aprovação | `lib/reviewStore.ts` |
+| A trilha escrita no mesmo caminho da alteração | `updateInvoice` e `saveInvoice` em `lib/store.ts` |
+| Rotas | `app/api/invoices/approve`, `.../[id]/reopen`, `.../[id]/documents`, `.../documents/[docId]` |
+| Painel de histórico e documentos na nota | `components/InvoiceHistory.tsx` |
+| "Juntar" na leitura e na caixa de entrada | `mergeIntoExisting` em `lib/ingestFlow.ts` |
+| Aprovação em massa na base de dados | `app/records/page.tsx` |
+| Tabelas | `selfhost/schema/009_review_audit.sql` |
+
+Três perguntas que o sistema não sabia responder, e agora responde:
+
+1. **"Quem mudou isso, e quando?"** A nota era editável e nada guardava a
+   alteração. Numa auditoria, "o valor está diferente do PDF" sem histórico é
+   indefensável — não há como mostrar que foi correção consciente e não erro de
+   digitação que ninguém viu.
+2. **"A mesma nota chegou duas vezes, com fotos diferentes."** A segunda era
+   descartada, e com ela a foto que às vezes está mais legível que a primeira.
+3. **"Conferi estas vinte, todas certas."** Não havia como dizer isso.
+
+Decisões tomadas na implementação:
+- **A trilha é escrita pelo mesmo caminho que faz a alteração**, nunca por uma
+  chamada separada que a tela precisa lembrar de fazer. Trilha que depende de a
+  interface colaborar tem buracos, e buraco em trilha de auditoria vale menos que
+  nenhuma trilha, porque dá impressão de cobertura.
+- **Só o que mudou entra.** Salvar a tela sem tocar em nada registraria vinte
+  campos "alterados" de X para X. Verificado: de 12 campos enviados, entrou 1.
+- **Número é comparado por valor, não por texto.** O navegador manda `"123.00"`
+  onde o banco tem `123`, e comparar direto acusaria alteração em campo intocado.
+- **`actor_email` é copiado, não referenciado**: se o usuário for apagado no ano
+  seguinte, a trilha tem de continuar dizendo quem foi.
+- **Juntar não recalcula nada.** Nem valor, nem crédito, nem alíquota — só entra
+  um documento a mais. Se os números dos dois documentos divergem, isso é decisão
+  do contador na tela, não uma média para o sistema fazer sozinho.
+- **Aprovar não exige administrador; desfazer exige.** Mesma razão de reabrir
+  período fechado na camada A5: aprovar é rotina, desfazer é exceção.
+- **Limite de 200 na aprovação em lote**, mais generoso que os 200 do lote
+  bancário (A7) por um motivo: aprovar é reversível e não cria lançamento nenhum.
+- **A nota que não pede revisão agora diz que ninguém conferiu.** Antes, "a
+  leitura veio confiante" e "alguém olhou" eram a mesma tela — e a diferença
+  entre as duas é justamente o que uma auditoria pergunta.
+
+**Dois defeitos que só o teste revelou, e o segundo é o mais instrutivo:**
+
+1. **A chave estrangeira do autor recusava a linha da trilha.** `actor_id`
+   apontava para `app_users`, e quando o autor não existia mais o banco recusava
+   o insert. Os campos de autor viraram uuid solto — uma trilha de auditoria não
+   pode depender de outra tabela continuar tendo suas linhas. Valeu também para
+   `invoice_documents.added_by` e `invoices.reviewed_by`, onde a falha derrubaria
+   a operação inteira em vez de só o registro.
+2. **O `catch` silencioso escondia isso.** Gravar trilha não pode derrubar a
+   alteração, então o erro era engolido — e o resultado era um histórico vazio,
+   **indistinguível de nota nunca alterada**. Agora não lança, mas reclama no log
+   do servidor. Foi só assim que o defeito 1 apareceu.
+
+Verificado ponta a ponta (2026-08-11):
+- [x] Aplicar e reaplicar o schema sem erro (idempotente), inclusive removendo as
+      chaves estrangeiras que a primeira versão criou
+- [x] Editar um campo entre 12 enviados → **uma** linha na trilha, com antes → depois
+- [x] A trilha diz quem foi, com e-mail e hora
+- [x] Aprovar 3 de uma vez → as 3 com nome e hora, e 3 linhas de trilha
+- [x] Aprovar de novo → **0 novas**, 3 "já estavam" — não conta como sucesso novo
+- [x] Aprovar **25 de uma vez pela tela** → 25 aprovadas, crachá "conferida" em
+      todas, e a barra de ação desaparece porque não há mais o que conferir
+- [x] 201 de uma vez → recusado com o número na mensagem
+- [x] Usuário comum **aprova**; desfazer aprovação responde **403**
+- [x] Duplicata na tela de leitura → botão **juntar** ao lado de "gravar de todo
+      jeito": o documento entra na nota que já existia e **não nasce uma segunda nota**
+- [x] O painel da nota mostra os dois documentos (principal e juntado) e o
+      histórico inteiro, do mais recente para o mais antigo
+- [x] Nota lançada antes desta versão mostra "sem histórico" com a explicação, em
+      vez de uma lista vazia sem motivo
 
 **Entrega**
 - **Juntar duplicatas**: comparar lado a lado e anexar as duas imagens ao mesmo
@@ -917,9 +992,9 @@ aí o cliente não faz nada e a fatura chega sozinha.
 - Fila de aprovação em lote
 
 **Testável quando:**
-- [ ] Duplicata permite juntar as duas imagens num item só
-- [ ] Trilha mostra o histórico de alterações
-- [ ] Aprovar 20 itens de uma vez
+- [x] Duplicata permite juntar as duas imagens num item só
+- [x] Trilha mostra o histórico de alterações
+- [x] Aprovar 20 itens de uma vez *(testado com 25; o limite é 200)*
 
 ---
 
@@ -1040,24 +1115,35 @@ número está certo.
 | 2026-08-11 | B1 | Regra por fornecedor, precedência explícita e itens de linha desligáveis; 279 testes | v1.27 |
 | 2026-08-11 | B2 | As decisões da entrada por e-mail, puras; 326 testes | v1.27.1 |
 | 2026-08-11 | B2 | Busca IMAP, fila de entrada e as telas; sete e-mails de verdade ponta a ponta | v1.28 |
+| 2026-08-11 | B3 | Trilha de auditoria, juntar duplicatas e aprovação em lote — **FASE B COMPLETA** | v1.29 |
 
-**Onde parou: FASE A COMPLETA, B1 e B2 fechadas.** Importar extrato (CSV, Excel e
-PDF) → conciliar com sugestão → regras → casos difíceis → fechar o mês com prova
-→ lote. E, na ingestão: a regra por fornecedor, e o endereço de e-mail que pode
-ser dado direto ao fornecedor.
+**Onde parou: AS DUAS FASES DO PLANO ESTÃO COMPLETAS.**
 
-**A próxima é a B3 — melhorias de revisão**: juntar duplicatas em vez de só
-descartar, trilha de auditoria por documento, e aprovação em lote. É a última da
-Fase B.
+Fase A: importar extrato (CSV, Excel e PDF) → conciliar com sugestão → regras →
+casos difíceis → fechar o mês com prova → lote.
 
-Duas coisas ficaram explicitamente para depois, e valem uma decisão do
-escritório, não de execução:
-1. **Agendar a busca de e-mail.** Hoje é botão. Um cron chamando
-   `POST /api/mail/fetch` é o passo natural, mas a frequência certa aparece
-   depois de algumas semanas de uso real.
-2. **Ligar uma caixa de verdade.** Os sete e-mails de teste passaram por um
-   servidor IMAP local; falta apontar para a caixa do escritório e confirmar a
-   senha de aplicativo do provedor.
+Fase B: regra por fornecedor → o endereço de e-mail que pode ser dado direto ao
+fornecedor → trilha de auditoria, juntar duplicatas e aprovação em lote.
+
+O que sobra agora não é mais construção de camada, e sim **três decisões do
+escritório**, não de execução:
+
+1. **Ligar uma caixa de e-mail de verdade.** Os sete e-mails de teste passaram por
+   um servidor IMAP local. Falta apontar para a caixa do escritório e gerar a
+   senha de aplicativo do provedor — Gmail e Microsoft 365 exigem, não aceitam a
+   senha da conta.
+2. **Agendar a busca de e-mail.** Hoje é botão. Um cron chamando
+   `POST /api/mail/fetch` é o passo natural, mas a frequência certa aparece depois
+   de algumas semanas de uso real.
+3. **Usar com cliente de verdade e trazer os arquivos que quebrarem.** É o que
+   mais ensinou até aqui: o primeiro extrato real do AIB derrubou duas suposições
+   do leitor de PDF, e o primeiro servidor de e-mail real derrubou a chave de
+   duplicata da fila. Cada extrato de banco novo deve entrar como caso em
+   `tests/pdfStatement.test.js`, usando as coordenadas e nunca o arquivo, que tem
+   dado de cliente.
+
+E o backlog que já estava registrado continua de pé: integração com Xero como
+destino, Open Banking (ver a seção sobre licença de AISP), e ROS/obrigações.
 
 O primeiro extrato real chegou em 2026-08-11 (AIB, julho) e virou o teste que
 mais ensinou até agora. **Quando chegarem extratos de outros bancos, o certo é

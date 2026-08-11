@@ -258,7 +258,7 @@ const pt: Dict = {
   "invoice.viewDocument": "Ver documento",
   "invoice.deleteConfirm": "Excluir esta nota e o documento dela permanentemente?",
   "invoice.needsReviewTitle": "Precisa de revisão — a leitura automática não ficou totalmente confiante",
-  "invoice.markReviewed": "Marcar como revisada",
+  "invoice.markReviewed": "Conferi — aprovar",
   "invoice.details": "Dados do documento",
   "invoice.store": "Loja / filial",
   "invoice.docNo": "Nº do documento",

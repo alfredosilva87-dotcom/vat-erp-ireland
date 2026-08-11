@@ -91,6 +91,25 @@ export type SaveResult =
   | { kind: "saved"; id: string }
   | { kind: "duplicate"; existing: DuplicateMatch | null };
 
+/**
+ * Junta o documento desta duplicata ao lançamento que já existe (camada B3).
+ *
+ * É o oposto do que o sistema fazia: a segunda cópia era descartada, e com ela a
+ * foto que muitas vezes está mais legível que a primeira. Nada do lançamento
+ * muda — nem valor, nem crédito.
+ */
+export async function mergeIntoExisting(
+  file: File, invoiceId: string, note?: string
+): Promise<{ ok: true } | { ok: false; error: string }> {
+  const fd = new FormData();
+  fd.append("file", file);
+  if (note) fd.append("note", note);
+  const res = await fetch(`/api/invoices/${invoiceId}/documents`, { method: "POST", body: fd });
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok) return { ok: false, error: data.error || "Não foi possível juntar o documento." };
+  return { ok: true };
+}
+
 export async function saveDocument(
   file: File, doc: IngestDocument, ctx: SaveContext
 ): Promise<SaveResult> {

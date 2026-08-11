@@ -255,7 +255,7 @@ const en = {
   "invoice.viewDocument": "View document",
   "invoice.deleteConfirm": "Delete this invoice and its document permanently?",
   "invoice.needsReviewTitle": "Needs review — the automated read wasn't fully confident",
-  "invoice.markReviewed": "Mark as reviewed",
+  "invoice.markReviewed": "I checked it — approve",
   "invoice.details": "Document details",
   "invoice.store": "Store / branch",
   "invoice.docNo": "Document no.",

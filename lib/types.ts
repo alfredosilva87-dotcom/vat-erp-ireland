@@ -128,6 +128,10 @@ export interface StoredInvoice {
   needs_review: boolean;
   review_notes: string[];
   extraction_audit: { engine: string; confidence: number }[];
+  /** Quem conferiu e quando (camada B3). Nulo = ninguém aprovou ainda. */
+  reviewed_at: string | null;
+  reviewed_by: string | null;
+  reviewed_by_email: string | null;
   original_filename: string | null;
   document_file: string | null; // relative path under data/
   item_count: number;

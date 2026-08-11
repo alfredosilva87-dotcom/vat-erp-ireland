@@ -6,6 +6,8 @@ import { useRouter, useSearchParams } from "next/navigation";
 import type { StoredInvoice, StoredItem, ChartAccount, Branch } from "@/lib/types";
 import { computeLines } from "@/lib/vat";
 import { isCategoryUnrelated } from "@/lib/matching";
+import InvoiceHistory from "@/components/InvoiceHistory";
+import type { AuditEntry, InvoiceDocument } from "@/lib/reviewStore";
 
 type Cat = { code: string | null; description: string; vat_rate: number };
 
@@ -57,6 +59,9 @@ export default function InvoiceEdit({ params }: { params: { id: string } }) {
   const [accounts, setAccounts] = useState<ChartAccount[]>([]);
   const [branches, setBranches] = useState<Branch[]>([]);
   const [relatedCategories, setRelatedCategories] = useState<string[]>([]);
+  // Trilha e documentos vêm no mesmo GET da nota (camada B3).
+  const [audit, setAudit] = useState<AuditEntry[]>([]);
+  const [documents, setDocuments] = useState<InvoiceDocument[]>([]);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [dirty, setDirty] = useState(false);
@@ -66,6 +71,8 @@ export default function InvoiceEdit({ params }: { params: { id: string } }) {
     fetch(`/api/invoices/${params.id}`).then((r) => r.json()).then((d) => {
       setInv(d.invoice || null);
       setItems(d.items || []);
+      setAudit(d.audit || []);
+      setDocuments(d.documents || []);
     }).finally(() => setLoading(false));
     fetch("/api/base").then((r) => r.json()).then((d) => setCats(d.categories || []));
   }, [params.id]);
@@ -168,6 +175,9 @@ export default function InvoiceEdit({ params }: { params: { id: string } }) {
       const d = await res.json();
       if (!res.ok) throw new Error(d.error || "Save failed.");
       setInv(d.invoice); setItems(d.items); setDirty(false); setMsg("Changes saved.");
+      // A trilha acabou de crescer com esta gravação; buscar de novo é o que faz
+      // o histórico aparecer sem recarregar a página.
+      await refreshHistory();
     } catch (e: any) {
       setMsg(e.message);
     } finally {
@@ -181,13 +191,38 @@ export default function InvoiceEdit({ params }: { params: { id: string } }) {
     router.push(backTo);
   }
 
-  async function markReviewed() {
-    const res = await fetch(`/api/invoices/${params.id}`, {
-      method: "PATCH", headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ header: { needs_review: false } }),
+  async function refreshHistory() {
+    const d = await (await fetch(`/api/invoices/${params.id}`, { cache: "no-store" })).json();
+    setAudit(d.audit || []);
+    setDocuments(d.documents || []);
+    return d;
+  }
+
+  /**
+   * Aprovar passa pela mesma rota do lote (camada B3), e não por um PATCH que
+   * apagaria `needs_review` sem registrar nada: é assim que a aprovação fica na
+   * trilha com nome e hora, em vez de a nota simplesmente parar de pedir revisão.
+   */
+  async function approve() {
+    const res = await fetch("/api/invoices/approve", {
+      method: "POST", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ ids: [params.id] }),
     });
     const d = await res.json();
-    if (res.ok) { setInv(d.invoice); setItems(d.items); }
+    if (!res.ok) { setMsg(d.error || "Erro ao aprovar."); return; }
+    const fresh = await refreshHistory();
+    setInv(fresh.invoice);
+    setMsg("Nota aprovada.");
+  }
+
+  async function reopen() {
+    if (!confirm("Desfazer a aprovação desta nota? Fica registrado no histórico.")) return;
+    const res = await fetch(`/api/invoices/${params.id}/reopen`, { method: "POST" });
+    const d = await res.json();
+    if (!res.ok) { setMsg(d.error || "Só administrador pode desfazer uma aprovação."); return; }
+    const fresh = await refreshHistory();
+    setInv(fresh.invoice);
+    setMsg("Aprovação desfeita.");
   }
 
   if (loading) return <p className="text-muted">Loading…</p>;
@@ -226,10 +261,38 @@ export default function InvoiceEdit({ params }: { params: { id: string } }) {
                 </ul>
               )}
             </div>
-            <button className="btn-ghost shrink-0" onClick={markReviewed}>Mark as reviewed</button>
+            <button className="btn-ghost shrink-0" onClick={approve}>Conferi — aprovar</button>
           </div>
         </div>
       )}
+
+      {inv.reviewed_at ? (
+        <div className="rounded-xl2 border border-line bg-surface-2/60 px-4 py-3">
+          <div className="flex flex-wrap items-center justify-between gap-3 text-sm">
+            <p>
+              <span className="chip-ok mr-2">conferida</span>
+              Aprovada por <strong>{inv.reviewed_by_email || "usuário não registrado"}</strong> em{" "}
+              <span className="tnum">{inv.reviewed_at.slice(0, 16).replace("T", " ")}</span>
+            </p>
+            <button className="btn-ghost h-8 shrink-0 px-3 text-xs" onClick={reopen}>
+              Desfazer aprovação
+            </button>
+          </div>
+        </div>
+      ) : !inv.needs_review ? (
+        // A leitura veio confiante, então ninguém foi obrigado a olhar — e é
+        // exatamente por isso que vale dizer que ainda não houve conferência.
+        // Antes desta camada, "não pede revisão" e "alguém conferiu" eram a mesma
+        // tela, e a diferença entre as duas é o que uma auditoria pergunta.
+        <div className="rounded-xl2 border border-line bg-surface-2/40 px-4 py-3">
+          <div className="flex flex-wrap items-center justify-between gap-3 text-sm text-muted">
+            <p>A leitura veio confiante e <strong>ninguém conferiu ainda</strong>.</p>
+            <button className="btn-ghost h-8 shrink-0 px-3 text-xs" onClick={approve}>
+              Conferi — aprovar
+            </button>
+          </div>
+        </div>
+      ) : null}
 
       {unrelatedCount > 0 && (
         <div className="rounded-xl2 border border-warning bg-warning-50 p-4">
@@ -371,6 +434,11 @@ export default function InvoiceEdit({ params }: { params: { id: string } }) {
           </table>
         </div>
       </div>
+
+      <InvoiceHistory
+        audit={audit} documents={documents}
+        mainDocument={Boolean(inv.document_file)} invoiceId={inv.id}
+      />
 
       <p className="text-xs text-muted">
         Everything here is editable: header fields (including the date), each item&apos;s description,

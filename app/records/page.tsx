@@ -36,6 +36,11 @@ export default function Records() {
   const [start, setStart] = useState("");
   const [end, setEnd] = useState("");
   const [onlyReview, setOnlyReview] = useState(false);
+  // Aprovação em lote (camada B3): o que está marcado, e o resultado da última
+  // passada.
+  const [picked, setPicked] = useState<Set<string>>(new Set());
+  const [approving, setApproving] = useState(false);
+  const [approveMsg, setApproveMsg] = useState<{ text: string; error?: boolean } | null>(null);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -62,6 +67,50 @@ export default function Records() {
   }, [tab, query, clientId, branchId, start, end, onlyReview, batchIds]);
 
   const highlightId = useScrollToRow(invoices.map((i) => i.id));
+
+  // A seleção não sobrevive a uma troca de filtro: manter marcada uma nota que
+  // saiu da tela faria alguém aprovar em lote o que não está mais vendo.
+  useEffect(() => { setPicked(new Set()); setApproveMsg(null); }, [tab, query, clientId, branchId, start, end, onlyReview, batchIds]);
+
+  const pending = invoices.filter((i) => !i.reviewed_at);
+  const pickedPending = pending.filter((i) => picked.has(i.id));
+
+  function toggle(id: string) {
+    setPicked((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id); else next.add(id);
+      return next;
+    });
+  }
+  function toggleAll() {
+    setPicked((prev) => (prev.size === pending.length ? new Set() : new Set(pending.map((i) => i.id))));
+  }
+
+  /**
+   * "Conferi estas vinte, todas certas."
+   *
+   * Aprovar não mexe em valor, crédito nem alíquota — é reversível e por isso não
+   * exige administrador. O que ele grava é NOME e HORA na trilha de cada nota,
+   * que é o que faltava: antes, "não pede revisão" e "alguém conferiu" eram a
+   * mesma tela.
+   */
+  async function approvePicked() {
+    if (!pickedPending.length) return;
+    setApproving(true); setApproveMsg(null);
+    try {
+      const res = await fetch("/api/invoices/approve", {
+        method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ ids: pickedPending.map((i) => i.id) }),
+      });
+      const d = await res.json();
+      if (!res.ok) { setApproveMsg({ text: d.error || "Erro ao aprovar.", error: true }); return; }
+      const parts = [`${d.approved.length} nota(s) aprovada(s)`];
+      if (d.alreadyApproved?.length) parts.push(`${d.alreadyApproved.length} já estava(m)`);
+      setApproveMsg({ text: parts.join(" · ") });
+      setPicked(new Set());
+      await load();
+    } finally { setApproving(false); }
+  }
 
   const filtersOn = !!(start || end || onlyReview || clientId || branchId || query);
   function clearFilters() {
@@ -210,6 +259,26 @@ export default function Records() {
         </div>
       )}
 
+      {tab === "invoices" && pending.length > 0 && (
+        <div className="card flex flex-wrap items-center gap-3 p-4">
+          <label className="flex cursor-pointer items-center gap-2 text-sm">
+            <input type="checkbox" className="h-3.5 w-3.5 accent-[rgb(var(--c-brand))]"
+              checked={picked.size > 0 && picked.size === pending.length} onChange={toggleAll} />
+            marcar as {pending.length} não conferidas
+          </label>
+          <button className="btn-primary h-9 px-4 text-sm" disabled={approving || !pickedPending.length}
+            onClick={approvePicked}>
+            {approving ? "Aprovando…" : `Conferi — aprovar (${pickedPending.length})`}
+          </button>
+          {approveMsg && (
+            <span className={`text-sm ${approveMsg.error ? "text-danger" : "text-brand-700"}`}>{approveMsg.text}</span>
+          )}
+          <span className="ml-auto text-xs text-muted">
+            Aprovar grava nome e hora no histórico de cada nota. Não mexe em valor nem em crédito.
+          </span>
+        </div>
+      )}
+
       {/* Invoices */}
       {tab === "invoices" && (
         <div className="card overflow-hidden">
@@ -217,6 +286,7 @@ export default function Records() {
             <table className="w-full text-sm">
               <thead>
                 <tr className="border-b border-line bg-surface-2/60 text-left text-xs uppercase tracking-wide text-muted">
+                  <th className="w-8 px-3 py-3 font-medium"></th>
                   <th className="px-4 py-3 font-medium">{t("analyze.supplier")}</th>
                   <th className="px-4 py-3 font-medium">{t("records.branch")}</th>
                   <th className="px-4 py-3 font-medium">{t("analyze.issued")}</th>
@@ -234,12 +304,24 @@ export default function Records() {
                     key={inv.id} id={`row-${inv.id}`}
                     className={`border-b border-line/70 align-top transition-colors ${highlightId === inv.id ? "bg-brand-50/70" : ""}`}
                   >
+                    <td className="px-3 py-3 align-middle">
+                      {!inv.reviewed_at && (
+                        <input type="checkbox" className="h-3.5 w-3.5 accent-[rgb(var(--c-brand))]"
+                          checked={picked.has(inv.id)} onChange={() => toggle(inv.id)}
+                          aria-label={`Marcar ${inv.supplier_name || "nota"}`} />
+                      )}
+                    </td>
                     <td className="px-4 py-3">
-                      <div className="flex items-center gap-1.5">
+                      <div className="flex flex-wrap items-center gap-1.5">
                         <span className="font-medium">{inv.supplier_name || "Unknown"}</span>
                         {inv.needs_review && (
                           <span className="chip-warn" title={inv.review_notes?.join("; ") || t("analyze.lowConfidence")}>
                             {t("records.review")}
+                          </span>
+                        )}
+                        {inv.reviewed_at && (
+                          <span className="chip-ok" title={`Aprovada por ${inv.reviewed_by_email || "usuário não registrado"} em ${inv.reviewed_at.slice(0, 16).replace("T", " ")}`}>
+                            conferida
                           </span>
                         )}
                       </div>
@@ -280,7 +362,7 @@ export default function Records() {
                 ))}
                 {!invoices.length && !loading && (
                   <tr>
-                    <td colSpan={9} className="px-4 py-10 text-center text-muted">
+                    <td colSpan={10} className="px-4 py-10 text-center text-muted">
                       {t("records.empty")}
                     </td>
                   </tr>
