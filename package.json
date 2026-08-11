@@ -7,16 +7,18 @@
     "build": "next build",
     "start": "next start",
     "lint": "next lint",
-    "test": "tsc lib/bankStatement.ts lib/sheet.ts lib/bankMatch.ts lib/bankRules.ts lib/pdfStatement.ts lib/bankSplit.ts lib/closingReport.ts lib/supplierRules.ts --outDir .test-build --module commonjs --target es2020 --lib es2020,dom --moduleResolution node --esModuleInterop --skipLibCheck --strict && node tests/bankStatement.test.js && node tests/sheet.test.js && node tests/bankMatch.test.js && node tests/bankRules.test.js && node tests/pdfStatement.test.js && node tests/bankSplit.test.js && node tests/closingReport.test.js && node tests/supplierRules.test.js"
+    "test": "tsc lib/bankStatement.ts lib/sheet.ts lib/bankMatch.ts lib/bankRules.ts lib/pdfStatement.ts lib/bankSplit.ts lib/closingReport.ts lib/supplierRules.ts lib/mailIngest.ts --outDir .test-build --module commonjs --target es2020 --lib es2020,dom --moduleResolution node --esModuleInterop --skipLibCheck --strict && node tests/bankStatement.test.js && node tests/sheet.test.js && node tests/bankMatch.test.js && node tests/bankRules.test.js && node tests/pdfStatement.test.js && node tests/bankSplit.test.js && node tests/closingReport.test.js && node tests/supplierRules.test.js && node tests/mailIngest.test.js"
   },
   "dependencies": {
     "@google/generative-ai": "^0.21.0",
     "@supabase/supabase-js": "^2.45.4",
     "bcryptjs": "^2.4.3",
     "exceljs": "^4.4.0",
+    "imapflow": "^1.6.6",
     "jose": "^5.9.6",
     "jspdf": "^2.5.2",
     "jspdf-autotable": "^3.8.4",
+    "mailparser": "^3.9.15",
     "next": "14.2.35",
     "pdf-lib": "^1.17.1",
     "pdf-parse": "^1.1.1",
