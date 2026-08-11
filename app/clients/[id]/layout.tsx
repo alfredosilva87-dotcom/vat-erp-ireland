@@ -19,6 +19,7 @@ const TABS: { seg: string; key: TKey }[] = [
   { seg: "purchases", key: "client.tabPurchases" },
   { seg: "sales", key: "client.tabSales" },
   { seg: "bank", key: "client.tabBank" },
+  { seg: "suppliers", key: "client.tabSuppliers" },
   { seg: "obligations", key: "client.tabObligations" },
   { seg: "vat", key: "client.tabVat" },
   { seg: "accounts", key: "client.tabAccounts" },

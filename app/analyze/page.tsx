@@ -13,10 +13,18 @@ type Header = {
   invoice_time: string | null; doc_type: string;
   total_net: number | null; total_vat: number | null; total_gross: number | null;
 };
+// Qual regra de fornecedor pegou este documento (camada B1). Aparece na tela
+// porque uma nota que chega preenchida sem dizer por quê é indistinguível de
+// uma nota que a IA adivinhou.
+type SupplierRuleHit = {
+  id: string; label: string; matched_by: "vat" | "name" | null;
+  account_code: string | null; vat_category_code: string | null; line_items_off: boolean;
+};
 type Result = {
   filename: string; engine: string; confidence: number; needs_review: boolean; issues: string[];
   audit?: { engine: string; confidence: number }[]; base_source: string;
-  ai_matched?: number; cache_matched?: number; header: Header; items: AnalyzedItem[];
+  ai_matched?: number; cache_matched?: number; supplier_rule?: SupplierRuleHit | null;
+  header: Header; items: AnalyzedItem[];
 };
 type ApiDoc = Result & { page_range: [number, number] | null; pdf_base64: string | null };
 type RowStatus = "pending" | "reading" | "read" | "error" | "saving" | "saved" | "duplicate" | "discarded" | "split";
@@ -47,6 +55,17 @@ const docCredit = (r: Row) => {
   return r.result.items.reduce((a, it, i) => a + (it.take_credit ? lines[i].vat : 0), 0);
 };
 const engineLabel = (e?: string) => e === "pdf-native" ? "PDF" : e === "gemini-vision" ? "AI" : e === "tesseract" ? "OCR" : "—";
+
+// O que a regra fez neste documento, escrito por extenso. Sem isto, o crachá
+// diria apenas que uma regra existiu — e o contador continuaria sem saber se
+// ela mexeu na conta, na alíquota, ou nas duas.
+const ruleHint = (r: SupplierRuleHit) => {
+  const parts = [`Regra de fornecedor, reconhecida pelo ${r.matched_by === "vat" ? "número de VAT" : "nome"}`];
+  if (r.account_code) parts.push(`conta ${r.account_code}`);
+  if (r.vat_category_code) parts.push(`categoria ${r.vat_category_code}`);
+  if (r.line_items_off) parts.push("itens de linha desligados: uma linha com o total do documento, sem classificação por IA");
+  return parts.join(" · ");
+};
 
 // How many documents are read in parallel. Saving stays sequential — see saveAll().
 // Measured locally at ~21s per document (one Gemini vision call), so a 50-file
@@ -115,6 +134,10 @@ export default function Analyze() {
         const fd = new FormData();
         fd.append("file", rows[i].file);
         fd.append("activity_code", activity);
+        // Sem cliente escolhido não há regra de fornecedor: as regras são por
+        // cliente, porque a mesma Vodafone vai para contas diferentes em
+        // empresas diferentes.
+        fd.append("client_id", clientId || "");
         fd.append("default_credit_unmatched", String(selectedClient?.default_credit_unmatched ?? false));
         fd.append("related_categories", JSON.stringify(selectedClient?.related_categories ?? []));
         const res = await fetch("/api/extract", { method: "POST", body: fd });
@@ -184,6 +207,9 @@ export default function Analyze() {
           vat_rate_on_invoice: it.vat_rate_on_invoice, vat_amount_on_invoice: it.vat_amount_on_invoice,
           expected_vat_rate: it.expected_vat_rate, category_code: it.matched_category?.code ?? null,
           category_name: it.matched_category?.description ?? null, take_credit: !!it.take_credit,
+          // A conta vem decidida pela regra de fornecedor; sem ela, a gravação
+          // pergunta à memória item→conta (camada B1).
+          account_code: it.account_code ?? null, account_name: it.account_name ?? null,
         })),
       };
       const fd = new FormData();
@@ -373,8 +399,17 @@ export default function Analyze() {
                         <td className="px-4 py-3 text-right tnum font-semibold text-brand-700">{r.status === "read" || r.status === "saved" ? money(docCredit(r)) : "—"}</td>
                         <td className="px-4 py-3 text-center">
                           {r.result ? (
-                            <span className="inline-flex items-center gap-1.5">
+                            <span className="inline-flex flex-wrap items-center justify-center gap-1.5">
                               <span className="chip bg-surface-2 border border-line text-muted">{engineLabel(r.result.engine)}</span>
+                              {r.result.supplier_rule && (
+                                <span
+                                  className="chip bg-brand-50 text-brand-700"
+                                  title={ruleHint(r.result.supplier_rule)}
+                                >
+                                  {r.result.supplier_rule.label}
+                                  {r.result.supplier_rule.line_items_off ? " · 1 linha" : ""}
+                                </span>
+                              )}
                               {r.result.needs_review && (
                                 <span className="chip-warn" title={r.result.issues.join("; ") || t("analyze.lowConfidence")}>
                                   {t("analyze.needsReview")}

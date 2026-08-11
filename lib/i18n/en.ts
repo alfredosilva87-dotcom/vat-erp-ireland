@@ -109,6 +109,7 @@ const en = {
   "client.tabPurchases": "Purchases (T2)",
   "client.tabSales": "Sales (T1)",
   "client.tabBank": "Bank",
+  "client.tabSuppliers": "Suppliers",
   "client.tabObligations": "Obligations",
   "client.tabVat": "VAT by rate",
   "client.tabAccounts": "Chart of accounts",

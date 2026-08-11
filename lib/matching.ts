@@ -190,7 +190,11 @@ export function analyzeExtraction(
   );
 }
 
-// Apply a category chosen by a non-keyword source (learned cache or AI).
+// Apply a category chosen by a non-keyword source (supplier rule, learned
+// cache or AI). A supplier rule is a decision the accountant wrote down, not a
+// guess about the item text, so it carries full confidence — anything less
+// would make creditRiskSummary() below flag a document for review because the
+// accountant's own rule was applied.
 export function applyCategoryFromSource(
   item: AnalyzedItem,
   category: VatCategory,
@@ -198,7 +202,7 @@ export function applyCategoryFromSource(
   invoiceDate: string | null,
   ctx: CreditContext
 ): AnalyzedItem {
-  const confidence = source === "learned" ? 0.9 : 0.7;
+  const confidence = source === "supplier_rule" ? 1 : source === "learned" ? 0.9 : 0.7;
   return build(item, category, confidence, source, invoiceDate, ctx);
 }
 
@@ -249,7 +253,21 @@ export function categoryRelationSummary(items: AnalyzedItem[], relatedCategories
 }
 
 export function creditRiskSummary(items: AnalyzedItem[]): CreditRiskSummary {
-  const noRate = items.filter((it) => it.take_credit && it.expected_vat_rate == null).length;
+  // "Sem alíquota" quer dizer que a VAT da linha não tem de onde sair, e o
+  // crédito computaria €0 em silêncio. Uma linha que traz o VAT impresso no
+  // documento não está nesse caso: `lineVat` (lib/vat.ts) prefere justamente
+  // esse valor a qualquer alíquota. Conferir só `expected_vat_rate` mandava
+  // para revisão toda nota que imprime o VAT por linha e não casou categoria —
+  // e a linha única do fornecedor com itens desligados (camada B1) cairia
+  // sempre aí. Alarme falso é o jeito mais rápido de ensinar o contador a
+  // ignorar avisos.
+  const noRate = items.filter(
+    (it) =>
+      it.take_credit &&
+      it.expected_vat_rate == null &&
+      it.vat_rate_on_invoice == null &&
+      it.vat_amount_on_invoice == null
+  ).length;
   const mismatch = items.filter((it) => it.take_credit && it.inconsistency === "rate_mismatch").length;
   const lowConfidence = items.filter(
     (it) => it.take_credit && it.matched_category && it.match_confidence < LOW_MATCH_CONFIDENCE

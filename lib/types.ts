@@ -16,7 +16,9 @@ export type InconsistencyFlag =
   | "no_vat_on_doc"
   | "unmatched";
 
-export type MatchSource = "keyword" | "learned" | "ai" | "none";
+// "supplier_rule" (camada B1) fica acima de keyword/learned/ai: é decisão
+// escrita pelo contador, não dedução sobre o texto do item.
+export type MatchSource = "keyword" | "learned" | "ai" | "none" | "supplier_rule";
 
 export interface VatCategory {
   id: string;
@@ -88,6 +90,13 @@ export interface AnalyzedItem extends RawItem {
   credit_suggested: boolean | null;
   credit_rationale: string | null;
   take_credit: boolean | null;
+  /**
+   * Conta contábil já decidida na leitura por uma regra de fornecedor (B1).
+   * Ausente = ninguém decidiu ainda, e a memória de item→conta preenche na
+   * gravação (lib/store.ts). Ver a precedência em lib/supplierRules.ts.
+   */
+  account_code?: string | null;
+  account_name?: string | null;
 }
 
 // ---- Persistence (local store) ----

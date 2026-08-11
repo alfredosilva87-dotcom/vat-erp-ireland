@@ -170,6 +170,8 @@ export interface SaveItem {
   description: string; quantity: number | null; unit_price: number | null; net_amount: number | null;
   vat_rate_on_invoice: number | null; vat_amount_on_invoice: number | null; expected_vat_rate: number | null;
   category_code: string | null; category_name: string | null; take_credit: boolean;
+  /** Conta já decidida por regra de fornecedor (camada B1). Ver saveInvoice. */
+  account_code?: string | null; account_name?: string | null;
 }
 export interface SavePayload {
   client_id: string | null; branch_id: string | null; activity_code: string; engine: string; original_filename: string | null;
@@ -217,8 +219,18 @@ export async function saveInvoice(payload: SavePayload, fileBuffer: Buffer | nul
     if (!error) documentPath = path;
   }
 
-  // Pre-fill accounting account from the client's learned de-para (item -> account)
-  const learned = client ? await learnedAccounts(client.id, payload.items.map((i) => i.description)) : {};
+  // Conta contábil: REGRA DE FORNECEDOR primeiro, memória item→conta depois.
+  //
+  // Essa ordem é a precedência da camada B1 (ver lib/supplierRules.ts). Antes
+  // daqui a memória era a única fonte e sobrescrevia tudo, então uma regra de
+  // fornecedor recém-escrita não teria efeito nenhum na gravação — o defeito
+  // mais mudo possível, porque a regra está na tela, certa, e a nota chega com
+  // outra conta.
+  //
+  // A memória é consultada só para o que ainda não tem conta, o que também
+  // evita a consulta inteira quando a regra resolveu todas as linhas.
+  const needLearned = payload.items.filter((i) => !i.account_code && !i.account_name).map((i) => i.description);
+  const learned = client && needLearned.length ? await learnedAccounts(client.id, needLearned) : {};
 
   const credits = creditsForInvoice(payload.items, {
     total_net: payload.header.total_net,
@@ -233,7 +245,9 @@ export async function saveInvoice(payload: SavePayload, fileBuffer: Buffer | nul
     const masterId = await findOrCreateMaster(it.description, it.category_code, it.category_name, it.expected_vat_rate);
     const cv = credits[idx];
     totalCredit += cv;
-    const acc = learned[normKey(it.description)] || { code: null, name: null };
+    const acc = it.account_code || it.account_name
+      ? { code: it.account_code ?? null, name: it.account_name ?? null }
+      : learned[normKey(it.description)] || { code: null, name: null };
     itemRows.push({
       invoice_id: id, master_item_id: masterId, description: it.description, quantity: it.quantity,
       unit_price: it.unit_price,

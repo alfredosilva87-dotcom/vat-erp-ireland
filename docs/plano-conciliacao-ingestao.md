@@ -660,7 +660,97 @@ Verificado na tela, ponta a ponta (2026-08-11):
 > Pode começar em paralelo à Fase A a partir da A2, se houver fôlego. Não
 > depende do modelo de dinheiro.
 
-## Camada B1 — Regra por fornecedor `[ ] não iniciada`
+## Camada B1 — Regra por fornecedor `[x] CONCLUÍDA (2026-08-11, v1.27)`
+
+Entregue:
+
+| O quê | Onde |
+|---|---|
+| Motor de reconhecimento e decisão (função pura, 38 testes) | `lib/supplierRules.ts` |
+| Guardar, com normalização na gravação | `lib/supplierRulesStore.ts` |
+| Rotas | `app/api/clients/[id]/supplier-rules/` |
+| Tela com a precedência escrita no topo | `app/clients/[id]/suppliers/page.tsx` |
+| Regra editável no lugar | `components/SupplierRuleCard.tsx` |
+| A precedência aplicada na leitura | `classifyDocument` em `app/api/extract/route.ts` |
+| A precedência aplicada na gravação | `saveInvoice` em `lib/store.ts` |
+| Tabela | `selfhost/schema/007_supplier_rules.sql` |
+
+**A ordem é a camada:** escolha manual > regra de fornecedor > aprendido. A
+regra é decisão que o contador escreveu; o aprendido é média do passado. Média
+não sobrepõe decisão explícita, senão a regra parece quebrada — escreve, salva,
+e a nota seguinte chega com outra conta.
+
+**O defeito que a camada consertou de passagem:** `saveInvoice` sobrescrevia a
+conta contábil de toda linha com a memória item→conta, ignorando o que vinha no
+payload. Sem mexer nisso, a regra apareceria certa na tela de leitura e a nota
+gravaria outra conta — o defeito mais mudo possível.
+
+Decisões tomadas na implementação:
+- **A alíquota não é guardada na regra, só a categoria de VAT.** Guardar as duas
+  criaria duas versões da mesma verdade, e no dia em que a Revenue mudasse uma
+  alíquota a regra continuaria com a antiga. Mesma razão da camada A0, onde
+  situação de pagamento é view e não coluna.
+- **Campo vazio não decide nada.** É o que permite um supermercado ganhar destino
+  contábil *sem* ter as alíquotas das suas linhas (23%, 13,5%, 0%) achatadas num
+  número só. A tela avisa, em amarelo, que categoria preenchida vale para todas
+  as linhas do documento.
+- **Ganha o reconhecimento mais forte, nunca a ordem de cadastro.** Número de VAT
+  bate nome; entre nomes, o padrão mais longo. As regras de banco (A3) precisam
+  de fila ordenada à mão porque competem por um texto solto; regras de fornecedor
+  identificam entidades, e a mais específica é sempre a resposta certa. Não há
+  setas para reordenar, e é de propósito.
+- **Padrão de nome com menos de 3 caracteres é ignorado**: "co" aparece em Tesco,
+  Costa e Vodacom.
+- **Empate que discorda não aplica nenhuma das duas**, e a nota chega marcada
+  para revisão dizendo quais foram. Empate que concorda aplica normalmente —
+  cadastro repetido não é ambiguidade, e recusar aí seria alarme falso.
+- **O detector de conflito da tela foi escrito e removido.** O único conflito
+  provável sem um documento na mão é duas regras com o mesmo número de VAT ou o
+  mesmo pedaço de nome — e o índice único do banco já recusa isso na gravação,
+  com mensagem dizendo qual dos dois repetiu. O detector nunca dispararia, e
+  código que nunca dispara dá a impressão de que uma conferência acontece.
+- **Itens desligados desliga a IA também.** A linha única é o nome do fornecedor;
+  pedir à IA para categorizar isso seria pagar exatamente pela chamada que o
+  interruptor existe para evitar. Medido: 3 linhas e 1 chamada de IA viraram 1
+  linha e 0 chamadas.
+- **A linha única leva o VAT declarado no documento**, não uma alíquota. `lineVat`
+  (`lib/vat.ts`) prefere o VAT declarado, então o crédito sai exato mesmo quando
+  a regra não diz categoria nenhuma.
+- **O valor da linha única vem dos totais do documento, nunca da soma das linhas
+  lidas.** Se a leitura perdeu um item, a soma está errada e o total impresso está
+  certo.
+- **Conta preenchida por regra não ensina a memória.** A memória é de item→conta;
+  gravar nela uma decisão que é do fornecedor faria essa conta vazar para outros
+  fornecedores que vendem o mesmo item.
+- **`creditRiskSummary` deixou de acusar falta de alíquota quando o documento
+  imprime o VAT.** Conferia só `expected_vat_rate`, então toda nota com VAT por
+  linha e sem categoria ia para revisão — e a linha única cairia sempre aí.
+  Alarme falso é o jeito mais rápido de ensinar o contador a ignorar avisos.
+
+Verificado contra o banco:
+- [x] Aplicar e **reaplicar** o schema sem erro (idempotente)
+- [x] Regra sem forma de reconhecer o fornecedor → banco recusa (check)
+- [x] Mesmo número de VAT duas vezes → recusado, com a mensagem certa
+- [x] Mesmo pedaço de nome duas vezes → recusado, com a mensagem certa
+- [x] `"  VodaFone  "` gravado como `vodafone`; `"IE 1234567 X"` como `IE1234567X`
+
+Verificado ponta a ponta (2026-08-11, instância local, nota da Vodafone em PDF
+com camada de texto):
+- [x] Sem regra: 3 linhas, **1 chamada de IA**, nenhuma conta
+- [x] Com a regra (conta 6200 + categoria + itens desligados): **1 linha**,
+      **0 chamadas de IA**, net €150,00 e VAT €34,50 exatos do documento,
+      fonte `supplier_rule`
+- [x] Regra só com conta, itens ligados: **3 linhas**, conta em todas, e as
+      categorias continuam decididas por palavra/IA — "campo vazio não decide"
+- [x] Memória dizia conta **9999**, regra dizia **6200** → gravou **6200**
+- [x] Correção manual para **6400** → fica 6400, e a memória aprende 6400;
+      a regra continua valendo para a nota seguinte
+- [x] Duas regras de mesmo alcance discordando → **nenhuma aplicada**, nota
+      marcada para revisão nomeando as duas
+- [x] Na tela de leitura, o crachá diz qual regra pegou o documento e o quê
+      ela mexeu
+
+### Desenho original da camada
 
 A lacuna mais barata de fechar. O Dext decide categoria em três níveis:
 **escolha manual → regra por fornecedor → modelo aprendido**. Vocês têm o
@@ -673,9 +763,9 @@ primeiro e o terceiro. Falta o do meio, que é o que o contador mais controla.
   ligado; o Dext deixa desligado por padrão — economia de tempo e custo de IA)
 
 **Testável quando:**
-- [ ] Regra sobrepõe a categorização aprendida
-- [ ] Escolha manual sobrepõe a regra
-- [ ] Fornecedor com linha desligada não gasta extração de itens
+- [x] Regra sobrepõe a categorização aprendida
+- [x] Escolha manual sobrepõe a regra
+- [x] Fornecedor com linha desligada não gasta extração de itens
 
 ---
 
@@ -835,13 +925,17 @@ número está certo.
 | 2026-08-11 | A4 | Casos difíceis: várias notas, parcial, tarifa e arredondamento; 215 testes | v1.24 |
 | 2026-08-11 | A5 | Fechamento, relatório de conciliação e trava de período; 241 testes | v1.25 |
 | 2026-08-11 | A7 | Conciliação em massa, sem casar com documento | v1.26 |
+| 2026-08-11 | B1 | Regra por fornecedor, precedência explícita e itens de linha desligáveis; 279 testes | v1.27 |
 
-**Onde parou: FASE A COMPLETA.** Importar extrato (CSV, Excel e PDF) →
-conciliar com sugestão → regras → casos difíceis → fechar o mês com prova → lote.
+**Onde parou: FASE A COMPLETA, e a B1 fechada.** Importar extrato (CSV, Excel e
+PDF) → conciliar com sugestão → regras → casos difíceis → fechar o mês com prova
+→ lote. E, na ingestão, o nível do meio que faltava: a regra por fornecedor.
 
-**A próxima é a Fase B — ingestão de documentos**, começando pela B1 (regra por
-fornecedor), que é a lacuna mais barata de fechar e a que o contador mais
-controla no dia a dia.
+**A próxima é a B2 — entrada por e-mail**, o item de maior impacto do Dext,
+porque o endereço pode ser dado direto ao fornecedor e a fatura chega sozinha.
+A primeira decisão dela é onde a caixa vive: rodando no servidor local sem
+exposição à internet, buscar por IMAP numa caixa do escritório é a única opção
+realista — receber SMTP exigiria expor o servidor.
 
 O primeiro extrato real chegou em 2026-08-11 (AIB, julho) e virou o teste que
 mais ensinou até agora. **Quando chegarem extratos de outros bancos, o certo é
