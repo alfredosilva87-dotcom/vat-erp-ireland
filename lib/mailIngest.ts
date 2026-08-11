@@ -237,9 +237,17 @@ export function selectAttachments(mail: IncomingMail): AttachmentDecision[] {
   });
 }
 
-/** Nome de arquivo seguro para guardar, com o tipo respeitado. */
+/**
+ * Nome de arquivo seguro para guardar, com o tipo respeitado.
+ *
+ * Fora a barra (que faria o nome virar caminho), saem os caracteres de controle
+ * e as aspas: este nome vai para o cabeçalho `Content-Disposition` na rota que
+ * serve o anexo, e nova linha em valor de cabeçalho é o começo de injeção de
+ * cabeçalho. O runtime do Node hoje recusa e devolve erro em vez de injetar, mas
+ * a garantia não pode depender disso.
+ */
 export function safeFilename(a: IncomingAttachment, fallbackIndex: number): string {
-  const raw = String(a.filename ?? "").trim().replace(/[/\\]+/g, "-").slice(-120);
+  const raw = String(a.filename ?? "").trim().replace(/[\u0000-\u001f\u007f"/\\]+/g, "-").slice(-120);
   if (raw) return raw;
   const ext = lower(a.mime_type) === "application/pdf" ? "pdf" : lower(a.mime_type).split("/")[1] || "bin";
   return `anexo-${fallbackIndex + 1}.${ext}`;

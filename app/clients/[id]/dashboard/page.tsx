@@ -5,6 +5,7 @@ import { useEffect, useState } from "react";
 import LineChart from "@/components/LineChart";
 import DonutChart from "@/components/DonutChart";
 import { useT } from "@/lib/i18n";
+import type { StoredInvoice } from "@/lib/types";
 
 type Kpis = {
   salesGross: number; salesVat: number; purchaseGross: number;
@@ -26,6 +27,7 @@ const money = (n: number) =>
 export default function ClientDashboard({ params }: { params: { id: string } }) {
   const { t } = useT();
   const [d, setD] = useState<Data | null>(null);
+  const [recent, setRecent] = useState<StoredInvoice[]>([]);
   const [year, setYear] = useState(new Date().getFullYear());
   const [loading, setLoading] = useState(true);
 
@@ -36,6 +38,12 @@ export default function ClientDashboard({ params }: { params: { id: string } }) 
       .then((data) => setD(data.error ? null : data))
       .finally(() => setLoading(false));
   }, [params.id, year]);
+
+  useEffect(() => {
+    fetch(`/api/invoices?client=${params.id}`)
+      .then((r) => r.json())
+      .then((data) => setRecent(data.invoices || []));
+  }, [params.id]);
 
   const yearOptions = Array.from(new Set([year + 1, year, year - 1, year - 2])).sort((a, b) => b - a);
 
@@ -231,14 +239,58 @@ export default function ClientDashboard({ params }: { params: { id: string } }) 
         </div>
       </section>
 
-      {/* Quick actions */}
-      <section className="card p-5">
-        <h3 className="font-display text-lg font-semibold">{t("client.quickActions")}</h3>
-        <div className="mt-3 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
-          <Action href="/analyze" title={t("client.newPurchase")} desc={t("client.newPurchaseSub")} />
-          <Action href={`/clients/${params.id}/sales`} title={t("client.newSale")} desc={t("client.newSaleSub")} />
-          <Action href={`/clients/${params.id}/vat`} title={t("client.vatReport")} desc={t("client.vatReportSub")} />
-          <Action href={`/api/clients/${params.id}/export.xlsx?year=${d.year}`} title={t("client.exportExcel")} desc={t("client.exportExcelSub")} external />
+      {/*
+        As notas recentes vieram da antiga "Visão geral", que virou parte desta
+        tela. O gráfico que ela também tinha ficou de fora: era o mesmo dado do
+        "Faturamento × Compras" acima, em outro desenho — duas telas
+        respondendo à mesma pergunta é o que fazia a pessoa abrir as duas.
+      */}
+      <section className="card overflow-hidden">
+        <div className="flex items-center justify-between px-5 py-4">
+          <h3 className="font-display text-lg font-semibold">{t("client.recentInvoices")}</h3>
+          <Link href={`/records?client=${params.id}`} className="text-sm text-brand-700">
+            {t("client.openDatabase")}
+          </Link>
+        </div>
+        <div className="overflow-x-auto">
+          <table className="w-full text-sm">
+            <thead>
+              <tr className="border-y border-line bg-surface-2/60 text-left text-xs uppercase tracking-wide text-muted">
+                <th className="px-5 py-3 font-medium">{t("analyze.supplier")}</th>
+                <th className="px-4 py-3 font-medium">{t("common.date")}</th>
+                <th className="px-4 py-3 font-medium text-right">{t("dash.grossSpend")}</th>
+                <th className="px-4 py-3 font-medium text-right">{t("dash.credit")}</th>
+                <th className="px-4 py-3 font-medium text-center">{t("common.actions")}</th>
+              </tr>
+            </thead>
+            <tbody>
+              {recent.slice(0, 10).map((inv) => (
+                <tr key={inv.id} className="border-b border-line/70">
+                  <td className="px-5 py-3">
+                    <div className="flex flex-wrap items-center gap-1.5">
+                      <span className="font-medium">{inv.supplier_name || "—"}</span>
+                      {inv.needs_review && (
+                        <span className="chip-warn" title={inv.review_notes?.join("; ")}>{t("records.review")}</span>
+                      )}
+                      {inv.reviewed_at && <span className="chip-ok">conferida</span>}
+                    </div>
+                    {inv.store_name && <div className="text-xs text-muted">{inv.store_name}</div>}
+                  </td>
+                  <td className="px-4 py-3 tnum">{inv.invoice_date || "—"}</td>
+                  <td className="px-4 py-3 text-right tnum">{money(inv.total_gross ?? 0)}</td>
+                  <td className="px-4 py-3 text-right tnum font-semibold text-brand-700">{money(inv.total_credit ?? 0)}</td>
+                  <td className="px-4 py-3 text-center">
+                    <Link className="btn-ghost h-8 px-3 text-xs" href={`/invoice/${inv.id}?from=/clients/${params.id}/dashboard`}>
+                      {t("common.open")}
+                    </Link>
+                  </td>
+                </tr>
+              ))}
+              {!recent.length && (
+                <tr><td colSpan={5} className="px-4 py-10 text-center text-muted">{t("client.noInvoices")}</td></tr>
+              )}
+            </tbody>
+          </table>
         </div>
       </section>
     </div>
@@ -267,17 +319,6 @@ function Kpi({ label, value, sub, tone, icon }: {
       <div className="mt-2 text-xs text-muted">{sub}</div>
     </div>
   );
-}
-
-function Action({ href, title, desc, external }: { href: string; title: string; desc: string; external?: boolean }) {
-  const inner = (
-    <>
-      <div className="text-sm font-medium">{title}</div>
-      <div className="text-xs text-muted">{desc}</div>
-    </>
-  );
-  const cls = "rounded-xl border border-line bg-surface-2/50 p-3 transition-colors hover:border-brand/50";
-  return external ? <a className={cls} href={href}>{inner}</a> : <Link className={cls} href={href}>{inner}</Link>;
 }
 
 const S = { stroke: "currentColor", strokeWidth: 1.8, strokeLinecap: "round" as const, strokeLinejoin: "round" as const };

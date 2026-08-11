@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { updateBankRule, deleteBankRule, moveBankRule } from "@/lib/bankRulesStore";
+import { denied, requireClient } from "@/lib/access";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -7,6 +8,9 @@ export const dynamic = "force-dynamic";
 type Ctx = { params: { id: string; ruleId: string } };
 
 export async function PATCH(req: NextRequest, { params }: Ctx) {
+  const access = await requireClient(params.id);
+  if (denied(access)) return access.error;
+
   const body = await req.json().catch(() => ({}));
 
   // Mover é um caso à parte: trocar prioridade com a vizinha, não escrever um
@@ -23,5 +27,8 @@ export async function PATCH(req: NextRequest, { params }: Ctx) {
 }
 
 export async function DELETE(_req: NextRequest, { params }: Ctx) {
+  const access = await requireClient(params.id);
+  if (denied(access)) return access.error;
+
   return NextResponse.json({ ok: await deleteBankRule(params.ruleId) });
 }

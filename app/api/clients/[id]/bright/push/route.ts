@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getBrightConnector } from "@/lib/brightApi";
+import { denied, requireClient } from "@/lib/access";
 
 export const runtime = "nodejs";
 // Resposta sempre do banco, nunca de cache: o Next 14 guarda GET de rota por
@@ -8,14 +9,20 @@ export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
 // GET  → estado da conexão (testConnection). Usado pelo card da UI.
-export async function GET(_req: NextRequest, { params: _params }: { params: { id: string } }) {
+export async function GET(_req: NextRequest, { params }: { params: { id: string } }) {
+  const access = await requireClient(params.id);
+  if (denied(access)) return access.error;
+
   const connector = getBrightConnector(); // sem credenciais → api_not_available
   const status = await connector.testConnection();
   return NextResponse.json({ configured: connector.configured, status });
 }
 
 // POST → tenta enviar (contacts | purchases). Hoje responde 501 com motivo.
-export async function POST(req: NextRequest, { params: _params }: { params: { id: string } }) {
+export async function POST(req: NextRequest, { params }: { params: { id: string } }) {
+  const access = await requireClient(params.id);
+  if (denied(access)) return access.error;
+
   const body = await req.json().catch(() => ({}));
   const kind = body?.kind === "contacts" ? "contacts" : "purchases";
   const rows: unknown[] = Array.isArray(body?.rows) ? body.rows : [];

@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { exportData, clientDashboard, ALL_EXPORT_SETS, type ExportSet } from "@/lib/store";
 import { buildClientCsvs } from "@/lib/exportCsv";
+import { denied, requireClient } from "@/lib/access";
 
 export const runtime = "nodejs";
 // Resposta sempre do banco, nunca de cache: o Next 14 guarda GET de rota por
@@ -23,6 +24,9 @@ function readParams(req: NextRequest) {
 // concatenated with a header line naming each, so the user still gets a single
 // file without pulling in a zip dependency.
 export async function GET(req: NextRequest, { params }: { params: { id: string } }) {
+  const access = await requireClient(params.id);
+  if (denied(access)) return access.error;
+
   const { year, start, end, sets } = readParams(req);
 
   const [data, dash] = await Promise.all([

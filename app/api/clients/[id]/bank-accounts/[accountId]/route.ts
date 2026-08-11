@@ -4,6 +4,7 @@ import {
   listBankBalances, listStatementLines, listBankImports,
 } from "@/lib/bankStore";
 import { requireRole } from "@/lib/auth";
+import { denied, requireClient } from "@/lib/access";
 
 export const runtime = "nodejs";
 // Nunca servir saldo ou linha de extrato de cache: o Next guarda resposta de
@@ -24,6 +25,9 @@ async function ownedAccount(params: Ctx["params"]) {
 }
 
 export async function GET(req: NextRequest, { params }: Ctx) {
+  const access = await requireClient(params.id);
+  if (denied(access)) return access.error;
+
   const account = await ownedAccount(params);
   if (!account) return NextResponse.json({ error: "Conta não encontrada." }, { status: 404 });
 
@@ -48,6 +52,9 @@ export async function GET(req: NextRequest, { params }: Ctx) {
 }
 
 export async function PATCH(req: NextRequest, { params }: Ctx) {
+  const access = await requireClient(params.id);
+  if (denied(access)) return access.error;
+
   if (!(await ownedAccount(params))) {
     return NextResponse.json({ error: "Conta não encontrada." }, { status: 404 });
   }
@@ -56,6 +63,9 @@ export async function PATCH(req: NextRequest, { params }: Ctx) {
 }
 
 export async function DELETE(_req: NextRequest, { params }: Ctx) {
+  const access = await requireClient(params.id);
+  if (denied(access)) return access.error;
+
   // Deleting the account takes its statement lines with it (cascade), so this
   // is the most destructive button in the reconciliation area.
   const guard = await requireRole("admin");

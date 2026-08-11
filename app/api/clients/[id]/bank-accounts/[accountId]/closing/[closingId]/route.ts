@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { getBankAccount } from "@/lib/bankStore";
 import { reopenClosing } from "@/lib/bankClosingStore";
 import { requireRole } from "@/lib/auth";
+import { denied, requireClient } from "@/lib/access";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -16,6 +17,9 @@ type Ctx = { params: { id: string; accountId: string; closingId: string } };
  * de outro trabalho é o tipo de coisa que ninguém percebe até a auditoria.
  */
 export async function DELETE(_req: NextRequest, { params }: Ctx) {
+  const access = await requireClient(params.id);
+  if (denied(access)) return access.error;
+
   const guard = await requireRole("admin");
   if ("error" in guard) return guard.error;
 

@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getBankAccount, listBankBalances } from "@/lib/bankStore";
 import { pendingWithSuggestions, outstandingTransactions } from "@/lib/bankReconcile";
+import { denied, requireClient } from "@/lib/access";
 
 export const runtime = "nodejs";
 // Nunca servir saldo ou linha de extrato de cache: o Next guarda resposta de
@@ -20,6 +21,9 @@ type Ctx = { params: { id: string; accountId: string } };
  * the client's purchase history into the page for no gain.
  */
 export async function GET(_req: NextRequest, { params }: Ctx) {
+  const access = await requireClient(params.id);
+  if (denied(access)) return access.error;
+
   const account = await getBankAccount(params.accountId);
   if (!account || account.client_id !== params.id) {
     return NextResponse.json({ error: "Conta não encontrada." }, { status: 404 });

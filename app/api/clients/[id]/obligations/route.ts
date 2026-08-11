@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getObligations, refreshObligations, monthlySeries } from "@/lib/store";
+import { denied, requireClient } from "@/lib/access";
 
 export const runtime = "nodejs";
 // Resposta sempre do banco, nunca de cache: o Next 14 guarda GET de rota por
@@ -8,6 +9,9 @@ export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
 export async function GET(req: NextRequest, { params }: { params: { id: string } }) {
+  const access = await requireClient(params.id);
+  if (denied(access)) return access.error;
+
   const sp = new URL(req.url).searchParams;
   const year = Number(sp.get("year")) || new Date().getFullYear();
   const obligations = sp.get("refresh") === "1"

@@ -5,6 +5,7 @@ import { usePathname } from "next/navigation";
 import { useEffect, useState } from "react";
 import { getCurrentClient, type CurrentClient } from "@/lib/currentClient";
 import { useT } from "@/lib/i18n";
+import ThemeToggleRow from "@/components/ThemeToggleRow";
 
 const NAV = [
   { href: "/", key: "nav.dashboard", icon: IconGrid },
@@ -65,7 +66,7 @@ export default function Sidebar() {
 
   return (
     <aside
-      className={`sticky top-0 flex h-dvh shrink-0 flex-col bg-night px-3 py-5 transition-[width] duration-200 ${
+      className={`sticky top-0 flex h-dvh shrink-0 flex-col border-r border-line bg-night px-3 py-5 transition-[width] duration-200 ${
         collapsed === undefined ? "w-[68px] lg:w-64" : open ? "w-64" : "w-[68px]"
       }`}
     >
@@ -73,7 +74,7 @@ export default function Sidebar() {
       <Link href="/" className="mb-6 flex items-center gap-2.5 px-1" title="VAT Reader">
         <img src="/logo.png" alt="VAT Reader" className="h-9 w-9 shrink-0 rounded-xl shadow-brand" />
         <span className={showLabel}>
-          <span className="block font-display text-lg font-semibold leading-none text-white">
+          <span className="block font-display text-lg font-semibold leading-none text-night-ink">
             VAT Reader
           </span>
           <span className="block text-[11px] font-medium tracking-wide text-night-muted">
@@ -123,7 +124,7 @@ export default function Sidebar() {
             {client ? initials(client.name) : "—"}
           </span>
           <span className={`min-w-0 ${showLabel}`}>
-            <span className="block truncate text-sm font-medium text-white">
+            <span className="block truncate text-sm font-medium text-night-ink">
               {client ? client.name : t("nav.noClient")}
             </span>
             <span className="block text-[11px] text-brand-400">{t("nav.openClient")}</span>
@@ -131,16 +132,23 @@ export default function Sidebar() {
         </Link>
         <Link
           href="/clients"
-          className={`mt-2 text-[11px] text-night-muted transition-colors hover:text-white ${showLabel}`}
+          className={`mt-2 text-[11px] text-night-muted transition-colors hover:text-night-ink ${showLabel}`}
         >
           {t("nav.switchCompany")}
         </Link>
       </div>
 
+      {/*
+        O tema mora aqui desde que a faixa do topo saiu. Ele era o único
+        elemento sobrando lá, e uma faixa inteira para um botão é espaço que a
+        tela precisa para o trabalho.
+      */}
+      <ThemeToggleRow showLabel={showLabel} />
+
       {/* Collapse / pin */}
       <button
         onClick={toggle}
-        className="mt-2 flex h-10 items-center gap-3 rounded-xl px-3 text-sm font-medium text-night-muted transition-colors hover:bg-white/5 hover:text-white"
+        className="mt-2 flex h-10 items-center gap-3 rounded-xl px-3 text-sm font-medium text-night-muted transition-colors hover:bg-night-hover/8 hover:text-night-ink"
         title={open ? t("nav.collapse") : t("nav.expand")}
         aria-label={open ? t("nav.collapse") : t("nav.expand")}
       >
@@ -157,7 +165,7 @@ export default function Sidebar() {
           await fetch("/api/auth/logout", { method: "POST" });
           window.location.href = "/login";
         }}
-        className="flex items-center gap-3 rounded-xl px-3 h-10 text-sm font-medium text-night-muted transition-colors hover:bg-white/5 hover:text-white"
+        className="flex items-center gap-3 rounded-xl px-3 h-10 text-sm font-medium text-night-muted transition-colors hover:bg-night-hover/8 hover:text-night-ink"
         title={t("nav.signOut")}
       >
         <svg width="18" height="18" viewBox="0 0 24 24" fill="none" className="shrink-0" aria-hidden="true">

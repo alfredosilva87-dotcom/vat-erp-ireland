@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { getInvoice, updateInvoiceCredits, updateInvoice, deleteInvoice } from "@/lib/store";
 import { getSessionUser, requireRole } from "@/lib/auth";
 import { listAudit, listInvoiceDocuments } from "@/lib/reviewStore";
+import { denied, requireInvoice } from "@/lib/access";
 
 export const runtime = "nodejs";
 // Resposta sempre do banco, nunca de cache: o Next 14 guarda GET de rota por
@@ -10,6 +11,9 @@ export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
 export async function GET(_req: NextRequest, { params }: { params: { id: string } }) {
+  const access = await requireInvoice(params.id);
+  if (denied(access)) return access.error;
+
   const data = await getInvoice(params.id);
   if (!data) return NextResponse.json({ error: "Not found." }, { status: 404 });
   // A trilha e os documentos extras vem junto (camada B3): a pergunta "quem
@@ -23,6 +27,9 @@ export async function GET(_req: NextRequest, { params }: { params: { id: string 
 }
 
 export async function PATCH(req: NextRequest, { params }: { params: { id: string } }) {
+  const access = await requireInvoice(params.id);
+  if (denied(access)) return access.error;
+
   const body = await req.json();
   // Quem esta alterando vai para a trilha. Sem isto o historico diria "alguem
   // mudou o valor", que numa auditoria nao vale nada.
@@ -37,6 +44,9 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
 }
 
 export async function DELETE(_req: NextRequest, { params }: { params: { id: string } }) {
+  const access = await requireInvoice(params.id);
+  if (denied(access)) return access.error;
+
   // Destructive: administrators only. The UI hides these buttons, but the
   // check has to live here to actually be a permission.
   const guard = await requireRole("admin");

@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { saveInvoice, listInvoices, listMasterItems, stats } from "@/lib/store";
 import type { SavePayload } from "@/lib/store";
 import { findDuplicate } from "@/lib/duplicates";
+import { denied, requireClient, visibleClientIds } from "@/lib/access";
 import { getSessionUser } from "@/lib/auth";
 
 export const runtime = "nodejs";
@@ -21,12 +22,22 @@ export async function GET(req: NextRequest) {
   const idsParam = searchParams.get("ids");
   const ids = idsParam ? idsParam.split(",").filter(Boolean) : undefined;
   const view = searchParams.get("view"); // "items" for de-para master
+
+  // Recorte por empresa (lib/access.ts). Sem ele, esta rota sem `client`
+  // devolvia as notas de TODOS os escritórios da instalação.
+  const allowed = await visibleClientIds();
+  if (allowed && "error" in allowed) return allowed.error;
+  if (clientId) {
+    const access = await requireClient(clientId);
+    if (denied(access)) return access.error;
+  }
+
   if (view === "items") {
-    return NextResponse.json({ items: await listMasterItems(q), stats: await stats(clientId) });
+    return NextResponse.json({ items: await listMasterItems(q), stats: await stats(clientId, allowed) });
   }
   return NextResponse.json({
-    invoices: await listInvoices({ q, clientId, branchId, start, end, needsReview, ids }),
-    stats: await stats(clientId),
+    invoices: await listInvoices({ q, clientId, branchId, start, end, needsReview, ids, allowedClientIds: allowed }),
+    stats: await stats(clientId, allowed),
   });
 }
 
@@ -40,6 +51,12 @@ export async function POST(req: NextRequest) {
     const payload = JSON.parse(metaRaw) as SavePayload;
     if (!payload?.items?.length) {
       return NextResponse.json({ error: "No items to save." }, { status: 400 });
+    }
+    // Gravar nota PARA um cliente é o mesmo que escrever no cliente: quem não
+    // pode ver o cliente não pode lançar nele.
+    if (payload.client_id) {
+      const access = await requireClient(payload.client_id);
+      if (denied(access)) return access.error;
     }
 
     const file = form.get("file");

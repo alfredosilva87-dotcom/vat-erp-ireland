@@ -7,6 +7,7 @@ import {
   filenameFor,
   type BrightExportType,
 } from "@/lib/brightExport";
+import { denied, requireClient } from "@/lib/access";
 
 export const runtime = "nodejs";
 // Resposta sempre do banco, nunca de cache: o Next 14 guarda GET de rota por
@@ -16,6 +17,9 @@ export const dynamic = "force-dynamic";
 
 // GET /api/clients/[id]/bright/export?type=contacts|purchases|journal&year=2026
 export async function GET(req: NextRequest, { params }: { params: { id: string } }) {
+  const access = await requireClient(params.id);
+  if (denied(access)) return access.error;
+
   const type = (req.nextUrl.searchParams.get("type") || "purchases") as BrightExportType;
   const year = Number(req.nextUrl.searchParams.get("year")) || new Date().getFullYear();
 

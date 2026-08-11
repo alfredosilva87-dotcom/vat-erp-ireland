@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { getBankAccount, existingDedupeKeys, importStatementLines } from "@/lib/bankStore";
 import { splitByExisting } from "@/lib/bankStatement";
 import { getSessionUser } from "@/lib/auth";
+import { denied, requireClient } from "@/lib/access";
 
 export const runtime = "nodejs";
 // Nunca servir saldo ou linha de extrato de cache: o Next guarda resposta de
@@ -24,6 +25,9 @@ type Ctx = { params: { id: string; accountId: string } };
  * only feedback about an overlapping period arrives after the fact.
  */
 export async function POST(req: NextRequest, { params }: Ctx) {
+  const access = await requireClient(params.id);
+  if (denied(access)) return access.error;
+
   const account = await getBankAccount(params.accountId);
   if (!account || account.client_id !== params.id) {
     return NextResponse.json({ error: "Conta não encontrada." }, { status: 404 });

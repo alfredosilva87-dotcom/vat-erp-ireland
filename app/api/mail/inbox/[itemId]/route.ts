@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { deleteInboxItem, updateInboxItem } from "@/lib/mailStore";
+import { denied, requireInboxItem } from "@/lib/access";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -7,6 +8,9 @@ export const dynamic = "force-dynamic";
 type Ctx = { params: { itemId: string } };
 
 export async function PATCH(req: NextRequest, { params }: Ctx) {
+  const access = await requireInboxItem(params.itemId);
+  if (denied(access)) return access.error;
+
   const body = await req.json().catch(() => ({}));
   const patch: any = {};
   for (const k of ["status", "client_id", "direction", "invoice_id", "invoice_count", "refused_reason"]) {
@@ -18,6 +22,9 @@ export async function PATCH(req: NextRequest, { params }: Ctx) {
 }
 
 export async function DELETE(_req: NextRequest, { params }: Ctx) {
+  const access = await requireInboxItem(params.itemId);
+  if (denied(access)) return access.error;
+
   const out = await deleteInboxItem(params.itemId);
   if (!out.ok) return NextResponse.json({ error: out.error }, { status: 409 });
   return NextResponse.json({ ok: true });

@@ -6,12 +6,12 @@ import DashboardStats from "@/components/DashboardStats";
 import { useT } from "@/lib/i18n";
 
 const rates = [
-  { rate: "23%", type: "Standard", ex: "Alcohol, electronics, soft drinks, furniture, auto fuel", cls: "bg-ink text-paper" },
-  { rate: "13.5%", type: "Reduced", ex: "Domestic fuel, construction, cleaning services", cls: "bg-brand text-white" },
-  { rate: "9%", type: "Second reduced", ex: "Food & catering, hairdressing (since 01 Jul 2026), newspapers", cls: "bg-brand-500 text-white" },
-  { rate: "4.8%", type: "Livestock", ex: "Live cattle, sheep, horses, greyhounds", cls: "bg-warning text-white" },
-  { rate: "0%", type: "Zero", ex: "Basic raw food, books, children's clothing, oral medicine", cls: "bg-surface text-ink border border-line" },
-  { rate: "—", type: "Exempt", ex: "Financial, medical, education (no credit)", cls: "bg-paper text-muted border border-line" },
+  { rate: "23%", type: "Standard", ex: "Alcohol, electronics, soft drinks, furniture, auto fuel", cls: "bg-brand-600 text-white" },
+  { rate: "13.5%", type: "Reduced", ex: "Domestic fuel, construction, cleaning services", cls: "bg-brand-500 text-white" },
+  { rate: "9%", type: "Second reduced", ex: "Food & catering, hairdressing (since 01 Jul 2026), newspapers", cls: "bg-brand-400 text-white" },
+  { rate: "4.8%", type: "Livestock", ex: "Live cattle, sheep, horses, greyhounds", cls: "bg-warning-50 text-warning" },
+  { rate: "0%", type: "Zero", ex: "Basic raw food, books, children's clothing, oral medicine", cls: "bg-surface-2 text-ink" },
+  { rate: "—", type: "Exempt", ex: "Financial, medical, education (no credit)", cls: "bg-surface-2 text-muted" },
 ];
 
 export default function Home() {

@@ -12,17 +12,19 @@
 :root[data-theme="dark"] {
   color-scheme: dark;
 
-  --c-paper: 21 16 46; /* #15102E app background */
-  --c-surface: 29 23 64; /* #1D1740 cards */
-  --c-surface-2: 38 30 82; /* #261E52 hover / subtle fills */
-  --c-ink: 237 234 250; /* #EDEAFA primary text */
-  --c-muted: 162 156 200; /* #A29CC8 secondary text */
-  --c-line: 47 40 96; /* #2F2860 borders */
+  --c-paper: 25 21 48; /* #191530 — um passo mais claro que o anterior */
+  --c-surface: 33 28 62; /* #211C3E */
+  --c-surface-2: 42 36 76; /* #2A244C */
+  --c-ink: 235 232 247; /* #EBE8F7 */
+  --c-muted: 165 160 196; /* #A5A0C4 */
+  --c-line: 52 46 92; /* #342E5C — menos contraste, borda que não corta */
 
   /* sidebar — deepest shade, stays dark in both themes */
   --c-night: 14 10 32; /* #0E0A20 */
   --c-night-2: 30 23 66; /* #1E1742 */
   --c-night-muted: 152 145 194; /* #9891C2 */
+  --c-night-ink: 255 255 255; /* texto da barra lateral */
+  --c-night-hover: 255 255 255; /* base do hover, usada com opacidade */
 
   /* accent — vibrant purple */
   --c-brand: 124 92 255; /* #7C5CFF */
@@ -37,13 +39,13 @@
   --c-violet-50: 52 32 84;
   --c-success: 52 211 153;
   --c-success-50: 16 62 54;
-  --c-danger: 248 113 113;
-  --c-danger-50: 74 26 34;
-  --c-warning: 251 191 36;
-  --c-warning-50: 71 48 12;
+  --c-danger: 244 128 141; /* rosado, como no tema claro */
+  --c-danger-50: 68 30 40;
+  --c-warning: 245 189 92;
+  --c-warning-50: 66 47 20;
 
   /* elevation tuned for dark surfaces */
-  --shadow-card: 0 1px 2px rgb(0 0 0 / 0.3), 0 16px 40px -24px rgb(0 0 0 / 0.7);
+  --shadow-card: 0 1px 2px rgb(0 0 0 / 0.22), 0 14px 34px -24px rgb(0 0 0 / 0.55);
   --shadow-raised: inset 0 1px 0 rgb(255 255 255 / 0.06), 0 1px 2px rgb(0 0 0 / 0.35);
   --shadow-pressed: inset 0 2px 6px rgb(0 0 0 / 0.45);
   --shadow-brand: inset 0 1px 0 rgb(255 255 255 / 0.22), 0 10px 26px -10px rgb(124 92 255 / 0.65);
@@ -55,44 +57,52 @@
 :root[data-theme="light"] {
   color-scheme: light;
 
-  --c-paper: 246 245 252; /* #F6F5FC */
+  --c-paper: 248 247 254; /* #F8F7FE lavanda quase branco */
   --c-surface: 255 255 255;
-  --c-surface-2: 245 243 253;
-  --c-ink: 26 21 51; /* #1A1533 */
-  --c-muted: 107 101 144; /* #6B6590 */
-  --c-line: 231 228 243; /* #E7E4F3 */
+  --c-surface-2: 247 245 253; /* #F7F5FD preenchimento sutil */
+  --c-ink: 30 27 57; /* #1E1B39 */
+  --c-muted: 110 106 143; /* #6E6A8F cinza-lavanda */
+  --c-line: 236 233 248; /* #ECE9F8 borda macia */
 
-  /* sidebar stays dark (matches the reference design) */
-  --c-night: 26 19 56; /* #1A1338 */
-  --c-night-2: 42 33 82;
-  --c-night-muted: 160 152 200;
+  /* A barra lateral passa a ser CLARA. É a mudança que mais suaviza a tela
+     inteira: com ela escura, o roxo do item ativo precisava brigar com o fundo
+     e a interface ficava com dois pesos. Clara, o único elemento saturado da
+     tela é o que está selecionado — que é justamente o que deve chamar atenção. */
+  --c-night: 255 255 255;
+  --c-night-2: 245 243 253;
+  --c-night-muted: 110 106 143;
+  --c-night-ink: 30 27 57; /* barra clara pede texto escuro */
+  --c-night-hover: 124 92 252;
 
-  --c-brand: 109 74 255; /* #6D4AFF */
-  --c-brand-50: 240 236 255;
-  --c-brand-100: 226 219 255;
-  --c-brand-400: 141 113 255;
-  --c-brand-500: 124 92 255;
-  --c-brand-600: 109 74 255;
-  --c-brand-700: 84 51 214;
+  --c-brand: 124 92 252; /* #7C5CFC */
+  --c-brand-50: 243 240 254; /* #F3F0FE */
+  --c-brand-100: 232 226 253;
+  --c-brand-400: 151 124 253;
+  --c-brand-500: 137 108 252;
+  --c-brand-600: 124 92 252;
+  --c-brand-700: 99 70 224; /* #6346E0 — texto sobre fundo claro */
 
-  --c-violet: 124 58 237;
-  --c-violet-50: 243 236 253;
-  --c-success: 21 154 107;
-  --c-success-50: 230 245 239;
-  --c-danger: 220 38 38;
-  --c-danger-50: 253 235 235;
-  --c-warning: 217 119 6;
-  --c-warning-50: 252 241 226;
+  --c-violet: 139 92 246;
+  --c-violet-50: 245 240 254;
+  --c-success: 22 163 116; /* #16A374 */
+  --c-success-50: 232 247 241;
+  --c-danger: 225 68 89; /* #E14459 — rosado, não vermelho de alerta */
+  --c-danger-50: 253 237 240;
+  --c-warning: 213 128 32; /* #D58020 */
+  --c-warning-50: 254 244 232;
 
-  --shadow-card: 0 1px 2px rgb(20 27 46 / 0.04), 0 12px 30px -18px rgb(20 27 46 / 0.16);
-  --shadow-raised: inset 0 1px 0 rgb(255 255 255 / 0.7), 0 1px 2px rgb(20 27 46 / 0.08),
-    0 8px 18px -10px rgb(20 27 46 / 0.22);
-  --shadow-pressed: inset 0 2px 5px rgb(20 27 46 / 0.16);
-  --shadow-brand: inset 0 1px 0 rgb(255 255 255 / 0.28), 0 1px 2px rgb(109 74 255 / 0.25),
-    0 10px 22px -10px rgb(109 74 255 / 0.55);
+  /* Sombras mais rasas e mais espalhadas: relevo que se percebe sem que se veja
+     a sombra. A anterior tinha três camadas e deixava cada cartão com uma borda
+     escura visível. */
+  --shadow-card: 0 1px 2px rgb(46 40 90 / 0.03), 0 10px 28px -20px rgb(46 40 90 / 0.14);
+  --shadow-raised: inset 0 1px 0 rgb(255 255 255 / 0.85), 0 1px 2px rgb(46 40 90 / 0.05),
+    0 6px 14px -10px rgb(46 40 90 / 0.14);
+  --shadow-pressed: inset 0 2px 4px rgb(46 40 90 / 0.1);
+  --shadow-brand: inset 0 1px 0 rgb(255 255 255 / 0.3), 0 1px 2px rgb(124 92 252 / 0.18),
+    0 10px 22px -12px rgb(124 92 252 / 0.45);
 
   --btn-ghost-from: 255 255 255;
-  --btn-ghost-to: 242 244 249;
+  --btn-ghost-to: 249 248 254;
 }
 
 html,
@@ -186,7 +196,8 @@ body {
     @apply flex items-center gap-3 rounded-xl px-3 h-11 text-sm font-medium text-night-muted transition-colors;
   }
   .nav-item:hover {
-    @apply bg-white/5 text-white;
+    background-color: rgb(var(--c-night-hover) / 0.08);
+    color: rgb(var(--c-night-ink));
   }
   .nav-item-active {
     @apply text-white;

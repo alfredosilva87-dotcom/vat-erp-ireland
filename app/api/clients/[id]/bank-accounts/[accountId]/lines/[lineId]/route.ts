@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { getBankAccount } from "@/lib/bankStore";
 import { reconcileLine, unlinkLine, undoLine, linkExistingTransaction } from "@/lib/bankReconcile";
 import { getSessionUser } from "@/lib/auth";
+import { denied, requireClient } from "@/lib/access";
 
 export const runtime = "nodejs";
 // Nunca servir saldo ou linha de extrato de cache: o Next guarda resposta de
@@ -18,6 +19,9 @@ async function guard(params: Ctx["params"]) {
 
 /** Confirma o casamento: cria a transação e liga à linha. */
 export async function POST(req: NextRequest, { params }: Ctx) {
+  const access = await requireClient(params.id);
+  if (denied(access)) return access.error;
+
   if (!(await guard(params))) {
     return NextResponse.json({ error: "Conta não encontrada." }, { status: 404 });
   }
@@ -57,6 +61,9 @@ export async function POST(req: NextRequest, { params }: Ctx) {
  *   ?mode=undo   → refazer. A transação é apagada e a nota volta a dever.
  */
 export async function DELETE(req: NextRequest, { params }: Ctx) {
+  const access = await requireClient(params.id);
+  if (denied(access)) return access.error;
+
   if (!(await guard(params))) {
     return NextResponse.json({ error: "Conta não encontrada." }, { status: 404 });
   }

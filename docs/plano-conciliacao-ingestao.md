@@ -998,6 +998,59 @@ Verificado ponta a ponta (2026-08-11):
 
 ---
 
+## Camada B4 — Entrada pelo celular do cliente `[ ] guardada, decisão pendente`
+
+> Registrada em 2026-08-11 a pedido do usuário. **Não está no caminho crítico** —
+> é a única entrada do Dext que a Fase B não cobriu, e o que falta primeiro não é
+> programação.
+
+Hoje as três portas do sistema são **todas do escritório**: alguém arrasta,
+alguém busca o e-mail, alguém digita. No Dext, o dono do negócio fotografa o
+recibo no posto de gasolina e acabou — o contador só revisa.
+
+### O que a pesquisa do Dext registrou sobre isso
+
+Ver [pesquisa-dext.md](pesquisa-dext.md), seção "Como os documentos entram":
+
+| O que o app do Dext faz | Onde estamos |
+|---|---|
+| O ponto de entrada define se é compra ou venda | **Já temos** — os dois endereços da B2 |
+| Categoria escolhida à mão vence tudo | **Já temos** — é a precedência da B1 |
+| Fotografa → revisa → envia, do celular do cliente | **Não existe** |
+
+O Dext também aceita **WhatsApp**, com a legenda da mensagem virando descrição.
+Exigiria a API de negócio do WhatsApp.
+
+### O nó, e ele não é técnico
+
+O servidor roda **na rede do escritório, sem exposição à internet** — a exigência
+de compliance que motivou o self-host. O celular do cliente está na rua.
+**Nenhum app alcança o servidor** sem que isso mude.
+
+É o mesmo tipo de conflito do SMTP na B2 (resolvido buscando em vez de receber) e
+do Open Banking (adiado, não descartado).
+
+### Três saídas, da mais barata à mais cara
+
+1. **Nenhum app — o celular já resolve.** O cliente tira foto com a câmera normal
+   e manda para o endereço que a B2 criou. Funciona hoje, sem uma linha de
+   código, e o corpo do e-mail já vira a descrição. **É por onde começar:** em
+   duas semanas de uso dá para saber se o cliente quer mais que isso.
+2. **Página no celular (sem loja de app).** Barato de construir, mas exige
+   **expor o servidor à internet** ou uma VPN por cliente. Aqui a decisão sai da
+   engenharia e vira compliance.
+3. **App nativo.** Mesmo problema de alcance, mais duas lojas de app e revisão da
+   Apple. Só se justifica se o produto for distribuído.
+
+### O que decidir antes de programar qualquer coisa
+
+- [ ] O cliente realmente não manda e-mail? (testar a saída 1 primeiro)
+- [ ] O servidor pode ser alcançado de fora? **Pergunta de compliance, não de
+      engenharia** — e sem um "sim" aqui, as saídas 2 e 3 não existem
+- [ ] Se sim: VPN por cliente ou exposição com TLS e autenticação própria?
+
+---
+
 # O que decidimos NÃO construir
 
 | Item | Motivo |

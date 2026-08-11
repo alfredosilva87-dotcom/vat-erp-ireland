@@ -14,7 +14,7 @@ export default function ThemeToggle() {
   const [theme, setTheme] = useState<Theme | null>(null);
 
   useEffect(() => {
-    const current = (document.documentElement.dataset.theme as Theme) || "dark";
+    const current = (document.documentElement.dataset.theme as Theme) || "light";
     setTheme(current);
   }, []);
 

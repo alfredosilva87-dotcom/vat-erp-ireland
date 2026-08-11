@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getSessionUser } from "@/lib/auth";
 import { approveInvoices } from "@/lib/reviewStore";
+import { filterInvoicesByCompany } from "@/lib/access";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -14,7 +15,9 @@ export const dynamic = "force-dynamic";
  */
 export async function POST(req: NextRequest) {
   const body = await req.json().catch(() => null);
-  const ids = Array.isArray(body?.ids) ? body.ids.filter((x: unknown) => typeof x === "string") : [];
+  const asked = Array.isArray(body?.ids) ? body.ids.filter((x: unknown) => typeof x === "string") : [];
+  const ids = await filterInvoicesByCompany(asked);
+  if (!Array.isArray(ids)) return ids.error;
   const out = await approveInvoices(ids, await getSessionUser());
   if ("error" in out) return NextResponse.json(out, { status: 400 });
   return NextResponse.json(out);

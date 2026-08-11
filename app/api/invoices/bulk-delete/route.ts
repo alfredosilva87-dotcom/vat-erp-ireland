@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { requireRole } from "@/lib/auth";
 import { deleteInvoices } from "@/lib/store";
+import { filterInvoicesByCompany } from "@/lib/access";
 
 export const runtime = "nodejs";
 export const maxDuration = 60;
@@ -12,7 +13,10 @@ export async function POST(req: NextRequest) {
   if ("error" in guard) return guard.error;
 
   const body = await req.json().catch(() => null);
-  const ids = Array.isArray(body?.ids) ? body.ids.filter((x: unknown) => typeof x === "string") : [];
+  const asked = Array.isArray(body?.ids) ? body.ids.filter((x: unknown) => typeof x === "string") : [];
+  const scoped = await filterInvoicesByCompany(asked);
+  if (!Array.isArray(scoped)) return scoped.error;
+  const ids = scoped;
   if (!ids.length) {
     return NextResponse.json({ error: "No invoices selected." }, { status: 400 });
   }

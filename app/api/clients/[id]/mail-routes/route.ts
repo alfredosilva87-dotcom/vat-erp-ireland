@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { ensureMailRoute, listMailRoutes } from "@/lib/mailStore";
 import { readMailConfig } from "@/lib/mailFetch";
+import { denied, requireClient } from "@/lib/access";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -13,6 +14,9 @@ export const dynamic = "force-dynamic";
  * metade do que ele precisa copiar para o pedido do fornecedor.
  */
 export async function GET(_req: NextRequest, { params }: { params: { id: string } }) {
+  const access = await requireClient(params.id);
+  if (denied(access)) return access.error;
+
   const { config } = readMailConfig();
   return NextResponse.json({
     routes: await listMailRoutes(params.id),
@@ -22,6 +26,9 @@ export async function GET(_req: NextRequest, { params }: { params: { id: string 
 }
 
 export async function POST(req: NextRequest, { params }: { params: { id: string } }) {
+  const access = await requireClient(params.id);
+  if (denied(access)) return access.error;
+
   const body = await req.json().catch(() => ({}));
   const direction = body?.direction === "sale" ? "sale" : "purchase";
   const route = await ensureMailRoute(params.id, direction);

@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getDocumentDownload } from "@/lib/store";
+import { denied, requireInvoice } from "@/lib/access";
 
 export const runtime = "nodejs";
 // Resposta sempre do banco, nunca de cache: o Next 14 guarda GET de rota por
@@ -16,6 +17,9 @@ const MIME: Record<string, string> = {
 };
 
 export async function GET(_req: NextRequest, { params }: { params: { id: string } }) {
+  const access = await requireInvoice(params.id);
+  if (denied(access)) return access.error;
+
   const doc = await getDocumentDownload(params.id);
 
   if (doc.kind === "none") {

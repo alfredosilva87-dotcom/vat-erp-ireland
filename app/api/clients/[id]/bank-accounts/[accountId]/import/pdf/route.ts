@@ -4,6 +4,7 @@ import { extractPdfText } from "@/lib/extractor/pdfNative";
 import { extractPdfLines } from "@/lib/extractor/pdfLayout";
 import { pdfTextToRows, pdfLinesToRows } from "@/lib/pdfStatement";
 import { statementRowsFromMedia } from "@/lib/extractor/gemini";
+import { denied, requireClient } from "@/lib/access";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -32,6 +33,9 @@ type Ctx = { params: { id: string; accountId: string } };
  * atalho para gravar sem alguém olhar.
  */
 export async function POST(req: NextRequest, { params }: Ctx) {
+  const access = await requireClient(params.id);
+  if (denied(access)) return access.error;
+
   const account = await getBankAccount(params.accountId);
   if (!account || account.client_id !== params.id) {
     return NextResponse.json({ error: "Conta não encontrada." }, { status: 404 });

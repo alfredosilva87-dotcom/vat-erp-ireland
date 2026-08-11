@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { listBranches, createBranch } from "@/lib/store";
+import { denied, requireClient } from "@/lib/access";
 
 export const runtime = "nodejs";
 // Resposta sempre do banco, nunca de cache: o Next 14 guarda GET de rota por
@@ -8,10 +9,16 @@ export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
 export async function GET(_req: NextRequest, { params }: { params: { id: string } }) {
+  const access = await requireClient(params.id);
+  if (denied(access)) return access.error;
+
   return NextResponse.json({ branches: await listBranches(params.id) });
 }
 
 export async function POST(req: NextRequest, { params }: { params: { id: string } }) {
+  const access = await requireClient(params.id);
+  if (denied(access)) return access.error;
+
   const body = await req.json();
   const branch = await createBranch(params.id, body || {});
   if (!branch) return NextResponse.json({ error: "Name is required." }, { status: 400 });

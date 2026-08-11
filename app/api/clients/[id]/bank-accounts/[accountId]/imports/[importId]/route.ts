@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getBankAccount, listStatementLines, deleteBankImport } from "@/lib/bankStore";
+import { denied, requireClient } from "@/lib/access";
 
 export const runtime = "nodejs";
 // Nunca servir saldo ou linha de extrato de cache: o Next guarda resposta de
@@ -18,6 +19,9 @@ type Ctx = { params: { id: string; accountId: string; importId: string } };
  * which is the case that would actually lose information.
  */
 export async function DELETE(_req: NextRequest, { params }: Ctx) {
+  const access = await requireClient(params.id);
+  if (denied(access)) return access.error;
+
   const account = await getBankAccount(params.accountId);
   if (!account || account.client_id !== params.id) {
     return NextResponse.json({ error: "Conta não encontrada." }, { status: 404 });

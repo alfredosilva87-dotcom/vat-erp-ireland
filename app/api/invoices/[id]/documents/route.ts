@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getSessionUser } from "@/lib/auth";
 import { listInvoiceDocuments, mergeDocument } from "@/lib/reviewStore";
+import { denied, requireInvoice } from "@/lib/access";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -9,6 +10,9 @@ export const maxDuration = 60;
 const ACCEPTED = ["application/pdf", "image/png", "image/jpeg", "image/webp"];
 
 export async function GET(_req: NextRequest, { params }: { params: { id: string } }) {
+  const access = await requireInvoice(params.id);
+  if (denied(access)) return access.error;
+
   return NextResponse.json({ documents: await listInvoiceDocuments(params.id) });
 }
 
@@ -20,6 +24,9 @@ export async function GET(_req: NextRequest, { params }: { params: { id: string 
  * uma média para o sistema fazer sozinho.
  */
 export async function POST(req: NextRequest, { params }: { params: { id: string } }) {
+  const access = await requireInvoice(params.id);
+  if (denied(access)) return access.error;
+
   const form = await req.formData();
   const file = form.get("file");
   if (!(file instanceof File)) {

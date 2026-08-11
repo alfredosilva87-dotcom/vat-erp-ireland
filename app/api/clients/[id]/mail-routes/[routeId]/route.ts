@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { rotateMailRoute, setMailRouteActive } from "@/lib/mailStore";
+import { denied, requireClient } from "@/lib/access";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -7,6 +8,9 @@ export const dynamic = "force-dynamic";
 type Ctx = { params: { id: string; routeId: string } };
 
 export async function PATCH(req: NextRequest, { params }: Ctx) {
+  const access = await requireClient(params.id);
+  if (denied(access)) return access.error;
+
   const body = await req.json().catch(() => ({}));
 
   // Trocar o endereço é o conserto de quando ele vaza para lista de spam:

@@ -17,12 +17,12 @@ export const metadata: Metadata = {
 };
 
 export const viewport: Viewport = {
-  themeColor: "#0E0A20",
+  themeColor: "#F8F7FE",
 };
 
 // Runs before first paint so the saved theme is applied without a flash of the
 // wrong palette. Defaults to dark when nothing is stored.
-const themeScript = `(function(){try{var t=localStorage.getItem("vat-theme");document.documentElement.dataset.theme=t==="light"?"light":"dark"}catch(e){document.documentElement.dataset.theme="dark"}})()`;
+const themeScript = `(function(){try{var t=localStorage.getItem("vat-theme");document.documentElement.dataset.theme=t==="dark"?"dark":"light"}catch(e){document.documentElement.dataset.theme="light"}})()`;
 
 // Supabase's recovery/invite links should land on /reset-password, but if the
 // project's Redirect URLs allowlist doesn't have that exact path it silently
@@ -38,7 +38,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
   return (
     <html
       lang={lang}
-      data-theme="dark"
+      data-theme="light"
       className={`${display.variable} ${sans.variable} ${mono.variable}`}
       suppressHydrationWarning
     >

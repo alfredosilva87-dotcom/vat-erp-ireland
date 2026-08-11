@@ -296,6 +296,12 @@ export async function saveInvoice(
 export interface InvoiceFilter {
   q?: string;
   clientId?: string;
+  /**
+   * Os clientes que quem pediu pode ver (camada de acesso, lib/access.ts).
+   * `undefined` = sem recorte, usado só por caminho interno; a rota SEMPRE passa
+   * a lista, porque sem ela a consulta devolve as notas de todos os escritórios.
+   */
+  allowedClientIds?: string[] | null;
   branchId?: string;
   /** Inclusive yyyy-mm-dd bounds on posting_date (falling back to invoice_date). */
   start?: string;
@@ -315,6 +321,10 @@ export async function listInvoices(
 
   let query = sb().from("invoices").select("*").order("created_at", { ascending: false });
   if (f.clientId) query = query.eq("client_id", f.clientId);
+  // Recorte por empresa. Uma nota sem cliente não pertence a escritório nenhum e
+  // fica de fora quando há recorte — é dado solto, e num sistema multiempresa não
+  // há como dizer de quem é.
+  else if (f.allowedClientIds) query = query.in("client_id", f.allowedClientIds.length ? f.allowedClientIds : ["00000000-0000-0000-0000-000000000000"]);
   if (f.branchId) query = query.eq("branch_id", f.branchId);
   if (f.needsReview) query = query.eq("needs_review", true);
   if (f.ids?.length) query = query.in("id", f.ids);
@@ -1069,11 +1079,13 @@ export async function findAppUserByEmail(email: string): Promise<AppUser | null>
 }
 
 // ---------------- Stats ----------------
-export async function stats(clientId?: string) {
+export async function stats(clientId?: string, allowedClientIds?: string[] | null) {
   let iq = sb().from("invoices").select("id,total_gross,total_credit,needs_review");
   if (clientId) iq = iq.eq("client_id", clientId);
+  else if (allowedClientIds) iq = iq.in("client_id", allowedClientIds.length ? allowedClientIds : ["00000000-0000-0000-0000-000000000000"]);
   let sq = sb().from("sales").select("net_amount,vat_amount");
   if (clientId) sq = sq.eq("client_id", clientId);
+  else if (allowedClientIds) sq = sq.in("client_id", allowedClientIds.length ? allowedClientIds : ["00000000-0000-0000-0000-000000000000"]);
 
   const [{ data: invs }, { data: sales }, { count: clientsCount }, { count: itemsCount }, { count: masterCount }] =
     await Promise.all([

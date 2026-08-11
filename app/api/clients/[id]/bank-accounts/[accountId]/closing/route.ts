@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { getBankAccount } from "@/lib/bankStore";
 import { closingReportFor, listClosings, saveClosing } from "@/lib/bankClosingStore";
 import { getSessionUser } from "@/lib/auth";
+import { denied, requireClient } from "@/lib/access";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -16,6 +17,9 @@ type Ctx = { params: { id: string; accountId: string } };
  * de acusar uma linha que nunca foi importada.
  */
 export async function GET(req: NextRequest, { params }: Ctx) {
+  const access = await requireClient(params.id);
+  if (denied(access)) return access.error;
+
   const account = await getBankAccount(params.accountId);
   if (!account || account.client_id !== params.id) {
     return NextResponse.json({ error: "Conta não encontrada." }, { status: 404 });
@@ -37,6 +41,9 @@ export async function GET(req: NextRequest, { params }: Ctx) {
 
 /** Fecha o período: guarda o relatório aceito e liga o cadeado. */
 export async function POST(req: NextRequest, { params }: Ctx) {
+  const access = await requireClient(params.id);
+  if (denied(access)) return access.error;
+
   const account = await getBankAccount(params.accountId);
   if (!account || account.client_id !== params.id) {
     return NextResponse.json({ error: "Conta não encontrada." }, { status: 404 });

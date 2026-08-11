@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { getBankAccount } from "@/lib/bankStore";
 import { bulkSpend } from "@/lib/bankReconcile";
 import { getSessionUser } from "@/lib/auth";
+import { denied, requireClient } from "@/lib/access";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -16,6 +17,9 @@ type Ctx = { params: { id: string; accountId: string } };
  * desfazer. O plano recomenda ficar abaixo de 100.
  */
 export async function POST(req: NextRequest, { params }: Ctx) {
+  const access = await requireClient(params.id);
+  if (denied(access)) return access.error;
+
   const account = await getBankAccount(params.accountId);
   if (!account || account.client_id !== params.id) {
     return NextResponse.json({ error: "Conta não encontrada." }, { status: 404 });

@@ -1,0 +1,120 @@
+/**
+ * Toda rota que recebe um recurso no caminho confere a empresa? — teste.
+ *
+ * Este teste nao exercita codigo: le os arquivos de rota e confere que cada
+ * handler exportado chama um guarda de `lib/access.ts`.
+ *
+ * Existe porque o conserto de hoje foi editar ~50 arquivos, e a proxima rota que
+ * alguem criar vai esquecer. Autorizacao que depende de lembrar tem buraco, e o
+ * buraco nao aparece em teste de tela — a rota funciona perfeitamente, so
+ * funciona para quem nao devia. Aqui o esquecimento quebra o `npm test`.
+ */
+const fs = require("fs");
+const path = require("path");
+
+let pass = 0, fail = 0;
+const ok = (cond, label, extra) => {
+  if (cond) { pass++; console.log("  ok   " + label); }
+  else { fail++; console.log("  FALHA " + label + (extra !== undefined ? "  -> " + JSON.stringify(extra) : "")); }
+};
+
+const API = path.join(__dirname, "..", "app", "api");
+
+function routeFiles(dir) {
+  const out = [];
+  for (const e of fs.readdirSync(dir, { withFileTypes: true })) {
+    const p = path.join(dir, e.name);
+    if (e.isDirectory()) out.push(...routeFiles(p));
+    else if (e.name === "route.ts") out.push(p);
+  }
+  return out;
+}
+
+const rel = (p) => p.slice(p.indexOf("app/api")).replace(/\\/g, "/");
+
+/**
+ * Rotas que NAO precisam do guarda, e o motivo de cada uma. Lista fechada de
+ * proposito: acrescentar uma exige escrever aqui por que ela e segura, e essa
+ * frase e o que uma revisao futura vai ler.
+ */
+const EXEMPT = {
+  "app/api/auth/login/route.ts": "publica por definicao",
+  "app/api/auth/logout/route.ts": "encerra a propria sessao",
+  "app/api/auth/me/route.ts": "devolve a propria sessao",
+  "app/api/auth/forgot-password/route.ts": "publica, fluxo de recuperacao",
+  "app/api/auth/reset-password/route.ts": "publica, fluxo de recuperacao",
+  "app/api/base/route.ts": "tabela de aliquotas: referencia global, igual para todos",
+  "app/api/base/category/route.ts": "tabela de aliquotas: referencia global",
+  "app/api/credit-rules/route.ts": "regras de credito por tipo de negocio: referencia global",
+  "app/api/credit-rules/[id]/route.ts": "referencia global",
+  "app/api/items/route.ts": "items_master e catalogo global de itens, sem dado de cliente",
+  "app/api/items/[id]/route.ts": "catalogo global",
+  "app/api/clients/route.ts": "ja filtra por company_id na propria rota",
+  "app/api/companies/route.ts": "painel do dono do sistema, exige perfil master (conferido: requireRole)",
+  "app/api/companies/[id]/history/route.ts": "painel do dono, exige master (conferido: requireRole)",
+  "app/api/companies/[id]/route.ts": "painel do dono do sistema, exige perfil master",
+  "app/api/companies/[id]/activate/route.ts": "painel do dono, exige master",
+  "app/api/companies/contacts.sage.csv/route.ts": "ja filtra por company_id",
+  "app/api/users/route.ts": "ja filtra por company_id",
+  "app/api/users/[id]/route.ts": "exige perfil admin e filtra por empresa",
+  "app/api/mail/fetch/route.ts": "busca a caixa do proprio escritorio; o roteamento e por token de cliente",
+  "app/api/mail/inbox/route.ts": "rota de lista: usa visibleClientIds",
+  "app/api/invoices/route.ts": "lista usa visibleClientIds; POST confere o cliente do payload",
+  "app/api/invoices/approve/route.ts": "recebe lista de ids: usa filterInvoicesByCompany",
+  "app/api/invoices/bulk-delete/route.ts": "recebe lista de ids: usa filterInvoicesByCompany",
+  "app/api/extract/route.ts": "confere o cliente quando ele vem no formulario",
+};
+
+const GUARDS = [
+  "requireClient", "requireInvoice", "requireSale", "requireObligation",
+  "requireInboxItem", "requireBankAccount", "requireInvoiceDocument",
+  "filterInvoicesByCompany", "visibleClientIds",
+];
+
+const HANDLER = /export async function (GET|POST|PATCH|PUT|DELETE)\b/g;
+
+console.log("\n== toda rota com recurso no caminho confere a empresa ==");
+
+const files = routeFiles(API);
+ok(files.length > 50, `${files.length} rotas encontradas`, files.length);
+
+const missing = [];
+for (const f of files) {
+  const name = rel(f);
+  const src = fs.readFileSync(f, "utf8");
+  const handlers = (src.match(HANDLER) || []).length;
+  if (!handlers) continue;
+
+  const guarded = GUARDS.some((g) => src.includes(g));
+  if (guarded) continue;
+  if (EXEMPT[name]) continue;
+  missing.push(name);
+}
+
+ok(missing.length === 0,
+  "nenhuma rota sem guarda de empresa nem justificativa em EXEMPT",
+  missing);
+
+console.log("\n== o guarda e chamado em TODO handler do arquivo, nao so no primeiro ==");
+const partial = [];
+for (const f of files) {
+  const name = rel(f);
+  if (EXEMPT[name]) continue;
+  const src = fs.readFileSync(f, "utf8");
+  const handlers = (src.match(HANDLER) || []).length;
+  if (!handlers) continue;
+  if (!GUARDS.some((g) => src.includes(g))) continue;
+  // Um `if (denied(...)) return` por handler. Menos que isso quer dizer que um
+  // handler ficou aberto — o caso mais facil de deixar passar, porque a rota
+  // parece protegida.
+  const checks = (src.match(/denied\(/g) || []).length;
+  if (checks < handlers) partial.push({ rota: name, handlers, checks });
+}
+ok(partial.length === 0, "nenhum arquivo com handler destravado", partial);
+
+console.log("\n== a lista de dispensados nao tem entrada morta ==");
+const stale = Object.keys(EXEMPT).filter((k) => !files.some((f) => rel(f) === k));
+ok(stale.length === 0, "toda rota dispensada ainda existe", stale);
+
+console.log(`\n=========== ${pass} passaram, ${fail} falharam ===========`);
+process.exit(fail ? 1 : 0);

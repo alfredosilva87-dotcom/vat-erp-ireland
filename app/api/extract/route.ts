@@ -7,6 +7,7 @@ import type { CreditContext } from "@/lib/matching";
 import { loadBase } from "@/lib/loadBase";
 import { lookupMasterCategories } from "@/lib/store";
 import { listSupplierRules } from "@/lib/supplierRulesStore";
+import { denied, requireClient } from "@/lib/access";
 import { collapseToSingleLine, matchSupplierRule, type SupplierRule } from "@/lib/supplierRules";
 import type { AnalyzedItem, ExtractionResult, RawItem, VatCategory } from "@/lib/types";
 
@@ -195,6 +196,13 @@ export async function POST(req: NextRequest) {
         { error: `Unsupported type "${mimeType}". Upload PDF, PNG, JPEG or WebP.` },
         { status: 415 }
       );
+    }
+
+    // Ler PARA um cliente usa as regras de fornecedor dele: quem não pode ver o
+    // cliente não pode usar a configuração dele.
+    if (clientId) {
+      const access = await requireClient(clientId);
+      if (denied(access)) return access.error;
     }
 
     const buffer = Buffer.from(await file.arrayBuffer());

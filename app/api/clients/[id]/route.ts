@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getClient, updateClient, deleteClient } from "@/lib/store";
 import { requireRole, getSessionUser } from "@/lib/auth";
+import { denied, requireClient } from "@/lib/access";
 
 export const runtime = "nodejs";
 // Resposta sempre do banco, nunca de cache: o Next 14 guarda GET de rota por
@@ -9,6 +10,9 @@ export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
 export async function GET(_req: NextRequest, { params }: { params: { id: string } }) {
+  const access = await requireClient(params.id);
+  if (denied(access)) return access.error;
+
   const company = (await getSessionUser())?.company_id ?? null;
   const client = await getClient(params.id, company);
   if (!client) return NextResponse.json({ error: "Not found." }, { status: 404 });
@@ -16,6 +20,9 @@ export async function GET(_req: NextRequest, { params }: { params: { id: string 
 }
 
 export async function PATCH(req: NextRequest, { params }: { params: { id: string } }) {
+  const access = await requireClient(params.id);
+  if (denied(access)) return access.error;
+
   const patch = await req.json();
   const client = await updateClient(params.id, patch);
   if (!client) return NextResponse.json({ error: "Not found." }, { status: 404 });
@@ -23,6 +30,9 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
 }
 
 export async function DELETE(_req: NextRequest, { params }: { params: { id: string } }) {
+  const access = await requireClient(params.id);
+  if (denied(access)) return access.error;
+
   // Destructive: administrators only. The UI hides these buttons, but the
   // check has to live here to actually be a permission.
   const guard = await requireRole("admin");

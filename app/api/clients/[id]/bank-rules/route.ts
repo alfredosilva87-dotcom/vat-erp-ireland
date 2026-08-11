@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { listBankRules, createBankRule } from "@/lib/bankRulesStore";
 import { findShadowedRules } from "@/lib/bankRules";
+import { denied, requireClient } from "@/lib/access";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -14,6 +15,9 @@ export const dynamic = "force-dynamic";
  * sempre.
  */
 export async function GET(_req: NextRequest, { params }: { params: { id: string } }) {
+  const access = await requireClient(params.id);
+  if (denied(access)) return access.error;
+
   const rules = await listBankRules(params.id);
   const shadowed = findShadowedRules(rules).map((s) => ({
     ruleId: s.rule.id,
@@ -24,6 +28,9 @@ export async function GET(_req: NextRequest, { params }: { params: { id: string 
 }
 
 export async function POST(req: NextRequest, { params }: { params: { id: string } }) {
+  const access = await requireClient(params.id);
+  if (denied(access)) return access.error;
+
   const rule = await createBankRule(params.id, await req.json().catch(() => ({})));
   if (!rule) return NextResponse.json({ error: "Dê um nome à regra." }, { status: 400 });
   return NextResponse.json({ rule });

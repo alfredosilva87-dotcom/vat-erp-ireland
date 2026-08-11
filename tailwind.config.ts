@@ -20,6 +20,8 @@ const config: Config = {
         night: v("night"),
         "night-2": v("night-2"),
         "night-muted": v("night-muted"),
+        "night-ink": v("night-ink"),
+        "night-hover": v("night-hover"),
         // primary = purple
         brand: {
           DEFAULT: v("brand"),

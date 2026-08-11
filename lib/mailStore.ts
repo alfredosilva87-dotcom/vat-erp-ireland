@@ -182,11 +182,26 @@ export async function deleteMailSender(id: string): Promise<boolean> {
 export interface InboxFilter {
   clientId?: string;
   status?: InboxStatus[];
+  /** Clientes visíveis para quem pediu (lib/access.ts). Nulo = sem recorte. */
+  allowedClientIds?: string[] | null;
+  /** Item sem cliente entra na lista? Ver canSeeUnroutedMail em lib/access.ts. */
+  includeUnrouted?: boolean;
 }
 
 export async function listInboxItems(f: InboxFilter = {}): Promise<InboxItem[]> {
   let q = sb().from("inbox_items").select("*").order("created_at", { ascending: false });
   if (f.clientId) q = q.eq("client_id", f.clientId);
+  // Item recusado não tem cliente (não foi roteado) e por isso não pertence a
+  // escritório nenhum: fica visível, porque é justamente o que precisa de decisão.
+  else if (f.allowedClientIds) {
+    const ids = f.allowedClientIds;
+    const unrouted = f.includeUnrouted ? ",client_id.is.null" : "";
+    // Lista vazia (usuário sem cliente nenhum) não pode virar `in.()`: é sintaxe
+    // inválida, e consulta que falha é pior que consulta que não devolve nada.
+    if (ids.length) q = q.or(`client_id.in.(${ids.join(",")})${unrouted}`);
+    else if (f.includeUnrouted) q = q.is("client_id", null);
+    else q = q.eq("client_id", "00000000-0000-0000-0000-000000000000");
+  }
   if (f.status?.length) q = q.in("status", f.status);
   const { data } = await q;
   return (data ?? []) as InboxItem[];
@@ -213,11 +228,20 @@ export interface NewInboxItem {
   refused_reason?: string | null;
 }
 
+/**
+ * A extensão com que o anexo é guardado.
+ *
+ * O `mime` vem do cabeçalho `Content-Type` do e-mail, que é de quem manda. Hoje
+ * `selectAttachments` já restringe a quatro tipos antes de chegar aqui, mas essa
+ * garantia mora em outro arquivo — e o caminho do storage é montado com este
+ * valor. Só letras e dígitos, cinco no máximo.
+ */
 const extOf = (mime: string, filename: string): string => {
+  const clean = (v: string) => v.toLowerCase().replace(/[^a-z0-9]/g, "").slice(0, 5);
   const fromName = /\.([a-z0-9]{2,5})$/i.exec(filename || "");
-  if (fromName) return fromName[1].toLowerCase();
+  if (fromName) return clean(fromName[1]) || "bin";
   if (mime === "application/pdf") return "pdf";
-  return (mime.split("/")[1] || "bin").toLowerCase();
+  return clean(mime.split("/")[1] || "") || "bin";
 };
 
 export type AddResult =
