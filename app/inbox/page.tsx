@@ -18,6 +18,7 @@ import { useCallback, useEffect, useState } from "react";
 import Link from "next/link";
 import { base64ToFile, mergeIntoExisting, readDocumentFile, saveDocument, type DuplicateMatch, type IngestDocument } from "@/lib/ingestFlow";
 import { computeLines } from "@/lib/vat";
+import { useT } from "@/lib/i18n";
 
 type Client = {
   id: string; name: string; client_code: string; activity_code: string;
@@ -58,6 +59,7 @@ const docCredit = (doc: IngestDocument) => {
 };
 
 export default function Inbox() {
+  const { t } = useT();
   const [clients, setClients] = useState<Client[]>([]);
   const [clientId, setClientId] = useState("");
   const [branches, setBranches] = useState<{ id: string; name: string; code: string | null }[]>([]);
@@ -114,12 +116,12 @@ export default function Inbox() {
       if (d.error) {
         setMsg({ text: d.error, error: true });
       } else {
-        const parts = [`${d.seen} mensagem(ns) lida(s)`, `${d.accepted} anexo(s) na fila`];
-        if (d.duplicate) parts.push(`${d.duplicate} já estava(m)`);
-        if (d.refused) parts.push(`${d.refused} recusada(s)`);
+        const parts = [t("inbox.msgRead", { n: d.seen }), t("inbox.msgQueued", { n: d.accepted })];
+        if (d.duplicate) parts.push(t("inbox.msgAlready", { n: d.duplicate }));
+        if (d.refused) parts.push(t("inbox.msgRefused", { n: d.refused }));
         // O que ficou para a próxima é DITO. Silêncio aqui leria como
         // "chegou tudo", e o escritório fecharia o mês sem as notas que sobraram.
-        if (d.remaining) parts.push(`${d.remaining} ficou(aram) para a próxima busca`);
+        if (d.remaining) parts.push(t("inbox.msgRemaining", { n: d.remaining }));
         setMsg({ text: parts.join(" · ") });
       }
       await load();
@@ -135,7 +137,7 @@ export default function Inbox() {
     setW(item.id, { busy: true, error: undefined });
     try {
       const res = await fetch(`/api/mail/inbox/${item.id}/file`, { cache: "no-store" });
-      if (!res.ok) throw new Error("O anexo não pôde ser baixado.");
+      if (!res.ok) throw new Error(t("inbox.downloadFailed"));
       const blob = await res.blob();
       const file = new File([blob], item.filename || "anexo", { type: item.mime_type || blob.type });
       const docs = await readDocumentFile(file, {
@@ -210,7 +212,7 @@ export default function Inbox() {
         body: JSON.stringify({ status: "duplicate", invoice_id: w.duplicate.id }),
       });
       setW(item.id, { busy: false, duplicate: null });
-      setMsg({ text: "Documento juntado ao lançamento que já existia." });
+      setMsg({ text: t("inbox.merged") });
       await load();
     } catch (e: any) {
       setW(item.id, { busy: false, error: e.message });
@@ -218,7 +220,7 @@ export default function Inbox() {
   }
 
   async function discard(item: Item) {
-    if (!confirm("Descartar este item? O anexo é apagado junto.")) return;
+    if (!confirm(t("inbox.discardConfirm"))) return;
     const res = await fetch(`/api/mail/inbox/${item.id}`, { method: "DELETE" });
     if (!res.ok) { const d = await res.json(); setMsg({ text: d.error, error: true }); return; }
     await load();
@@ -230,20 +232,16 @@ export default function Inbox() {
   return (
     <div className="space-y-6">
       <div className="rise">
-        <h1 className="font-display text-3xl font-semibold tracking-tight">Caixa de entrada</h1>
-        <p className="mt-1 text-muted">
-          O que chegou por e-mail. O endereço pode ser dado <strong>direto ao fornecedor</strong> — aí o cliente
-          não faz nada e a fatura aparece aqui sozinha.
-        </p>
+        <h1 className="font-display text-3xl font-semibold tracking-tight">{t("inbox.title")}</h1>
+        <p className="mt-1 text-muted">{t("inbox.subtitle")}</p>
       </div>
 
       {config && !config.configured && (
         <div className="card rise border border-warning/30 bg-warning-50 p-5 text-sm text-warning">
-          <p className="font-medium">A entrada por e-mail ainda não está ligada.</p>
+          <p className="font-medium">{t("inbox.notConfigured")}</p>
           <p className="mt-1">
-            Falta no ambiente do servidor: <code className="font-mono">{config.missing.join(", ")}</code>. A senha
-            da caixa vem do ambiente de propósito — um despejo do banco não pode carregar a senha do e-mail do
-            escritório junto com as notas.
+            {t("inbox.missingEnv")} <code className="font-mono">{config.missing.join(", ")}</code>{" "}
+            {t("inbox.passwordFromEnv")}
           </p>
         </div>
       )}
@@ -251,27 +249,24 @@ export default function Inbox() {
       <div className="card rise p-5">
         <div className="grid gap-5 sm:grid-cols-[260px_1fr]">
           <div>
-            <label className="label" htmlFor="client">Cliente</label>
+            <label className="label" htmlFor="client">{t("analyze.client")}</label>
             <select id="client" className="input" value={clientId} onChange={(e) => setClientId(e.target.value)}>
-              <option value="">Todos os clientes</option>
+              <option value="">{t("inbox.allClients")}</option>
               {clients.map((c) => (
                 <option key={c.id} value={c.id}>{c.client_code} · {c.name}</option>
               ))}
             </select>
-            <p className="mt-2 text-xs text-muted">
-              Escolher o cliente é o que libera ler e gravar: a leitura usa o tipo de negócio e as regras de
-              fornecedor dele.
-            </p>
+            <p className="mt-2 text-xs text-muted">{t("inbox.clientHelp")}</p>
 
-            <label className="label mt-4" htmlFor="posting">Data de lançamento</label>
+            <label className="label mt-4" htmlFor="posting">{t("analyze.postingDate")}</label>
             <input id="posting" type="date" className="input" value={postingDate}
               onChange={(e) => setPostingDate(e.target.value)} />
 
             {branchRequired && (
               <>
-                <label className="label mt-4" htmlFor="branch">Filial / loja</label>
+                <label className="label mt-4" htmlFor="branch">{t("analyze.branch")}</label>
                 <select id="branch" className="input" value={branchId} onChange={(e) => setBranchId(e.target.value)}>
-                  <option value="">Escolha a filial</option>
+                  <option value="">{t("inbox.pickBranch")}</option>
                   {branches.map((b) => (
                     <option key={b.id} value={b.id}>{b.code ? `${b.code} · ` : ""}{b.name}</option>
                   ))}
@@ -283,15 +278,15 @@ export default function Inbox() {
           <div>
             <div className="flex flex-wrap items-center gap-3">
               <button className="btn-primary" onClick={runFetch} disabled={fetching || !config?.configured}>
-                {fetching ? "Buscando…" : "Buscar agora"}
+                {fetching ? t("inbox.fetching") : t("inbox.fetchNow")}
               </button>
               <label className="flex items-center gap-1.5 text-sm text-muted">
                 <input type="checkbox" checked={showDone} onChange={(e) => setShowDone(e.target.checked)} />
-                mostrar o que já foi resolvido
+                {t("inbox.showDone")}
               </label>
               <div className="ml-auto flex gap-2 text-sm">
-                {pending > 0 && <span className="chip bg-brand text-white">{pending} esperando</span>}
-                {refused > 0 && <span className="chip-warn">{refused} recusado(s)</span>}
+                {pending > 0 && <span className="chip bg-brand text-white">{t("inbox.waitingCount", { n: pending })}</span>}
+                {refused > 0 && <span className="chip-warn">{t("inbox.refusedCount", { n: refused })}</span>}
               </div>
             </div>
             {msg && (
@@ -299,9 +294,9 @@ export default function Inbox() {
             )}
             {config?.inbox_address && (
               <p className="mt-3 text-xs text-muted">
-                Caixa buscada: <span className="font-mono">{config.inbox_address}</span>
-                {config.mailbox ? ` · pasta ${config.mailbox}` : ""}. O endereço de cada cliente está na aba
-                E-mail dele.
+                {t("inbox.mailboxLine", { address: "" })}<span className="font-mono">{config.inbox_address}</span>
+                {config.mailbox ? t("inbox.folderLine", { folder: config.mailbox }) : ""}.{" "}
+                {t("inbox.addressPerClient")}
               </p>
             )}
           </div>
@@ -309,10 +304,10 @@ export default function Inbox() {
       </div>
 
       {loading ? (
-        <p className="card p-6 text-muted">Carregando…</p>
+        <p className="card p-6 text-muted">{t("common.loading")}</p>
       ) : !items.length ? (
         <p className="card p-6 text-muted">
-          Nada na fila. {config?.configured ? "Use “Buscar agora” para conferir a caixa." : ""}
+          {t("inbox.empty")} {config?.configured ? t("inbox.emptyHint") : ""}
         </p>
       ) : (
         <div className="space-y-3">
@@ -331,18 +326,18 @@ export default function Inbox() {
       {!!fetches.length && (
         <div className="card overflow-hidden rise">
           <p className="border-b border-line bg-surface-2/60 px-4 py-2.5 text-xs uppercase tracking-wide text-muted">
-            Buscas
+            {t("inbox.fetchesTitle")}
           </p>
           <div className="divide-y divide-line/70 text-sm">
             {fetches.slice(0, 8).map((f) => (
               <div key={f.id} className="flex flex-wrap items-center gap-x-4 gap-y-1 px-4 py-2.5">
                 <span className="tnum text-muted">{f.started_at.slice(0, 16).replace("T", " ")}</span>
-                <span>{f.seen_count} lida(s)</span>
-                <span className="text-brand-700">{f.accepted_count} na fila</span>
-                {f.duplicate_count > 0 && <span className="text-muted">{f.duplicate_count} repetido(s)</span>}
-                {f.refused_count > 0 && <span className="text-warning">{f.refused_count} recusado(s)</span>}
+                <span>{t("inbox.fetchRead", { n: f.seen_count })}</span>
+                <span className="text-brand-700">{t("inbox.fetchQueued", { n: f.accepted_count })}</span>
+                {f.duplicate_count > 0 && <span className="text-muted">{t("inbox.fetchRepeated", { n: f.duplicate_count })}</span>}
+                {f.refused_count > 0 && <span className="text-warning">{t("inbox.fetchRefused", { n: f.refused_count })}</span>}
                 {f.error && <span className="text-danger">{f.error}</span>}
-                {!f.finished_at && <span className="text-muted">em andamento…</span>}
+                {!f.finished_at && <span className="text-muted">{t("inbox.fetchRunning")}</span>}
               </div>
             ))}
           </div>
@@ -359,6 +354,7 @@ function InboxCard({
   canRead: boolean; canSave: boolean;
   onRead: () => void; onSave: (force?: boolean) => void; onMerge: () => void; onDiscard: () => void;
 }) {
+  const { t } = useT();
   const client = clients.find((c) => c.id === item.client_id);
   const docs = work?.docs ?? [];
 
@@ -367,13 +363,13 @@ function InboxCard({
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div className="min-w-0">
           <p className="font-medium">
-            {item.filename || "(sem anexo)"}
+            {item.filename || t("inbox.noAttachment")}
             {item.size_bytes ? <span className="ml-2 text-xs font-normal text-muted">{kb(item.size_bytes)}</span> : null}
           </p>
           <p className="mt-0.5 text-sm text-muted">
-            {item.sender || "sem remetente"} · {day(item.received_at || item.created_at)}
-            {client ? ` · ${client.client_code} ${client.name}` : " · sem cliente"}
-            {item.direction ? ` · ${item.direction === "sale" ? "venda" : "compra"}` : ""}
+            {item.sender || t("inbox.noSender")} · {day(item.received_at || item.created_at)}
+            {client ? ` · ${client.client_code} ${client.name}` : ` · ${t("inbox.noClient")}`}
+            {item.direction ? ` · ${item.direction === "sale" ? t("inbox.sale") : t("inbox.purchase")}` : ""}
           </p>
           {item.subject && <p className="mt-0.5 truncate text-sm">{item.subject}</p>}
         </div>
@@ -388,7 +384,7 @@ function InboxCard({
 
       {item.status === "refused" && item.refused_reason && (
         <p className="mt-3 rounded-lg bg-warning-50 px-3 py-2 text-sm text-warning">
-          Não entrou: {item.refused_reason}
+          {t("inbox.didNotEnter", { reason: item.refused_reason })}
         </p>
       )}
 
@@ -398,24 +394,24 @@ function InboxCard({
         <div className="mt-3 space-y-2">
           {docs.map((d, i) => (
             <div key={i} className="flex flex-wrap items-center gap-x-4 gap-y-1 rounded-lg border border-line px-3 py-2 text-sm">
-              <span className="font-medium">{d.header.supplier_name || "fornecedor não lido"}</span>
-              <span className="tnum text-muted">{d.header.invoice_date || "sem data"}</span>
+              <span className="font-medium">{d.header.supplier_name || t("inbox.supplierNotRead")}</span>
+              <span className="tnum text-muted">{d.header.invoice_date || t("inbox.noDate")}</span>
               <span className="tnum">€ {money(d.header.total_gross)}</span>
-              <span className="tnum text-brand-700">crédito € {money(docCredit(d))}</span>
+              <span className="tnum text-brand-700">{t("inbox.creditLabel")} € {money(docCredit(d))}</span>
               {d.supplier_rule && (
                 <span className="chip bg-brand-50 text-brand-700">
                   {d.supplier_rule.label}{d.supplier_rule.line_items_off ? " · 1 linha" : ""}
                 </span>
               )}
               {d.needs_review && (
-                <span className="chip-warn" title={d.issues.join("; ")}>revisar</span>
+                <span className="chip-warn" title={d.issues.join("; ")}>{t("inbox.reviewChip")}</span>
               )}
-              <span className="ml-auto text-xs text-muted">{d.items.length} linha(s)</span>
+              <span className="ml-auto text-xs text-muted">{t("inbox.linesCount", { n: d.items.length })}</span>
             </div>
           ))}
           {docs.length > 1 && (
             <p className="text-xs text-muted">
-              O anexo trazia {docs.length} notas dentro — cada uma vira um lançamento próprio.
+              {t("inbox.splitNote", { n: docs.length })}
             </p>
           )}
         </div>
@@ -423,15 +419,14 @@ function InboxCard({
 
       {work?.duplicate !== undefined && work.duplicate && (
         <p className="mt-3 rounded-lg bg-warning-50 px-3 py-2 text-sm text-warning">
-          Já existe uma nota igual ({work.duplicate.invoice_number || "sem número"} ·{" "}
-          {work.duplicate.posting_date || "sem data"}).{" "}
-          <Link href={`/invoice/${work.duplicate.id}`} className="underline">Abrir</Link>,{" "}
-          <button className="underline" onClick={onMerge}>juntar este documento à que existe</button>{" "}
-          ou <button className="underline" onClick={() => onSave(true)}>gravar de todo jeito</button>.
-          <span className="mt-1 block text-xs">
-            Juntar anexa a imagem ao lançamento e não muda valor nem crédito — a segunda foto do mesmo
-            recibo costuma ser a mais legível das duas.
-          </span>
+          {t("inbox.dupExists", {
+            number: work.duplicate.invoice_number || t("inbox.dupNoNumber"),
+            date: work.duplicate.posting_date || t("inbox.noDate"),
+          })}{" "}
+          <Link href={`/invoice/${work.duplicate.id}`} className="underline">{t("inbox.dupOpen")}</Link>,{" "}
+          <button className="underline" onClick={onMerge}>{t("inbox.dupMerge")}</button>{" "}
+          <button className="underline" onClick={() => onSave(true)}>{t("inbox.dupSaveAnyway")}</button>.
+          <span className="mt-1 block text-xs">{t("inbox.dupMergeHelp")}</span>
         </p>
       )}
 
@@ -440,37 +435,35 @@ function InboxCard({
           <>
             {!docs.length ? (
               <button className="btn-primary h-9 px-4 text-sm" onClick={onRead} disabled={work?.busy || !canRead}>
-                {work?.busy ? "Lendo…" : "Ler"}
+                {work?.busy ? t("inbox.reading") : t("inbox.read")}
               </button>
             ) : (
               <button className="btn-primary h-9 px-4 text-sm" onClick={() => onSave(false)} disabled={work?.busy || !canSave}>
-                {work?.busy ? "Gravando…" : `Gravar (${docs.length})`}
+                {work?.busy ? t("inbox.saving") : t("inbox.save", { n: docs.length })}
               </button>
             )}
           </>
         )}
         {item.status !== "saved" && (
           <button className="btn-ghost ml-auto h-9 px-3 text-sm text-danger" onClick={onDiscard} disabled={work?.busy}>
-            Descartar
+            {t("inbox.discard")}
           </button>
         )}
         {item.status === "saved" && item.invoice_id && (
           <Link className="btn-ghost ml-auto h-9 px-3 text-sm" href={`/invoice/${item.invoice_id}`}>
-            Abrir a nota
+            {t("inbox.openInvoice")}
           </Link>
         )}
       </div>
 
       {!canRead && (item.status === "pending" || item.status === "read") && item.client_id && (
         <p className="mt-2 text-xs text-muted">
-          Escolha <strong>{client ? `${client.client_code} · ${client.name}` : "o cliente deste item"}</strong> no
-          filtro acima para ler e gravar — a leitura depende das regras dele.
+          {t("inbox.pickClientToRead", { client: client ? `${client.client_code} · ${client.name}` : t("inbox.thisItemsClient") })}
         </p>
       )}
       {!item.client_id && item.status === "refused" && (
         <p className="mt-2 text-xs text-muted">
-          Sem cliente, não há o que ler: o anexo não foi guardado. Se o remetente é legítimo, libere-o na aba
-          E-mail do cliente e peça o reenvio.
+          {t("inbox.noClientNoRead")}
         </p>
       )}
     </div>
@@ -478,14 +471,15 @@ function InboxCard({
 }
 
 function StatusChip({ item, savedIds }: { item: Item; savedIds?: string[] }) {
+  const { t } = useT();
   if (item.status === "saved" || savedIds?.length) {
     const n = item.invoice_count || savedIds?.length || 1;
-    return <span className="chip-ok">{n > 1 ? `${n} notas gravadas` : "gravada"}</span>;
+    return <span className="chip-ok">{n > 1 ? t("inbox.stSavedMany", { n }) : t("inbox.stSaved")}</span>;
   }
-  if (item.status === "duplicate") return <span className="chip-warn">duplicata</span>;
-  if (item.status === "refused") return <span className="chip-warn">não entrou</span>;
-  if (item.status === "read") return <span className="chip bg-surface-2 border border-line text-muted">lido</span>;
-  if (item.status === "discarded") return <span className="chip bg-surface-2 border border-line text-muted">descartado</span>;
-  return <span className="chip bg-brand-50 text-brand-700">esperando</span>;
+  if (item.status === "duplicate") return <span className="chip-warn">{t("inbox.stDuplicate")}</span>;
+  if (item.status === "refused") return <span className="chip-warn">{t("inbox.stRefused")}</span>;
+  if (item.status === "read") return <span className="chip bg-surface-2 border border-line text-muted">{t("inbox.stRead")}</span>;
+  if (item.status === "discarded") return <span className="chip bg-surface-2 border border-line text-muted">{t("inbox.stDiscarded")}</span>;
+  return <span className="chip bg-brand-50 text-brand-700">{t("inbox.stWaiting")}</span>;
 }
 

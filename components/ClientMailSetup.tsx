@@ -13,6 +13,7 @@
 
 import { useCallback, useEffect, useState } from "react";
 import Link from "next/link";
+import { useT } from "@/lib/i18n";
 
 type Route = {
   id: string; client_id: string; direction: "purchase" | "sale";
@@ -23,12 +24,13 @@ type Sender = {
   mode: "allow" | "block"; note: string | null;
 };
 
-const DIRECTIONS: { v: "purchase" | "sale"; label: string; hint: string }[] = [
-  { v: "purchase", label: "Compras (T2)", hint: "Fatura que o fornecedor emite contra o cliente." },
-  { v: "sale", label: "Vendas (T1)", hint: "Nota que o cliente emite. Entra como venda, não como compra." },
+const DIRECTIONS = [
+  { v: "purchase" as const, label: "mail.dirPurchase" as const, hint: "mail.dirPurchaseHint" as const },
+  { v: "sale" as const, label: "mail.dirSale" as const, hint: "mail.dirSaleHint" as const },
 ];
 
 export default function ClientMailSetup({ clientId }: { clientId: string }) {
+  const { t } = useT();
   const [routes, setRoutes] = useState<Route[]>([]);
   const [base, setBase] = useState<string | null>(null);
   const [configured, setConfigured] = useState(true);
@@ -69,7 +71,7 @@ export default function ClientMailSetup({ clientId }: { clientId: string }) {
         body: JSON.stringify({ direction }),
       });
       const d = await res.json();
-      setMsg(res.ok ? { text: "Endereço criado." } : { text: d.error || "Erro.", error: true });
+      setMsg(res.ok ? { text: t("mail.created") } : { text: d.error || t("sup.error"), error: true });
       await load();
     } finally { setBusy(false); }
   }
@@ -81,13 +83,13 @@ export default function ClientMailSetup({ clientId }: { clientId: string }) {
         method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body),
       });
       const d = await res.json();
-      setMsg(res.ok ? { text: message } : { text: d.error || "Erro.", error: true });
+      setMsg(res.ok ? { text: message } : { text: d.error || t("sup.error"), error: true });
       await load();
     } finally { setBusy(false); }
   }
 
   async function addSender() {
-    if (!pattern.trim()) { setMsg({ text: "Escreva o endereço ou o domínio.", error: true }); return; }
+    if (!pattern.trim()) { setMsg({ text: t("mail.needPattern"), error: true }); return; }
     setBusy(true);
     try {
       const res = await fetch(`/api/clients/${clientId}/mail-senders`, {
@@ -95,8 +97,8 @@ export default function ClientMailSetup({ clientId }: { clientId: string }) {
         body: JSON.stringify({ pattern, mode, global }),
       });
       const d = await res.json();
-      if (!res.ok) { setMsg({ text: d.error || "Erro.", error: true }); return; }
-      setPattern(""); setMsg({ text: mode === "allow" ? "Remetente liberado." : "Remetente bloqueado." });
+      if (!res.ok) { setMsg({ text: d.error || t("sup.error"), error: true }); return; }
+      setPattern(""); setMsg({ text: mode === "allow" ? t("mail.senderAllowed") : t("mail.senderBlocked") });
       await load();
     } finally { setBusy(false); }
   }
@@ -115,18 +117,16 @@ export default function ClientMailSetup({ clientId }: { clientId: string }) {
   return (
     <div className="space-y-4">
       <div>
-        <h2 className="font-display text-lg font-semibold">Entrada por e-mail</h2>
+        <h2 className="font-display text-lg font-semibold">{t("mail.title")}</h2>
         <p className="mt-0.5 text-sm text-muted">
-          Um endereço por cliente e por direção. Pode ser dado <strong>direto ao fornecedor</strong> — aí a
-          fatura chega sozinha na <Link href="/inbox" className="text-brand-700">caixa de entrada</Link> e o
-          cliente não faz nada.
+          {t("mail.subtitle1")} <strong>{t("mail.subtitleStrong")}</strong> {t("mail.subtitle2")}{" "}
+          <Link href="/inbox" className="text-brand-700">{t("mail.inboxLink")}</Link> {t("mail.subtitle3")}
         </p>
       </div>
 
       {!configured && (
         <div className="card border border-warning/30 bg-warning-50 p-4 text-sm text-warning">
-          A busca de e-mail ainda não está ligada no servidor. Os endereços abaixo podem ser criados desde já,
-          mas nada será buscado até o ambiente ter <code className="font-mono">MAIL_IMAP_*</code> configurado.
+          {t("mail.notConfigured")}
         </div>
       )}
 
@@ -138,14 +138,13 @@ export default function ClientMailSetup({ clientId }: { clientId: string }) {
             <div key={d.v} className={`card p-4 ${route && !route.active ? "opacity-60" : ""}`}>
               <div className="flex flex-wrap items-start justify-between gap-3">
                 <div className="min-w-0">
-                  <p className="font-medium">{d.label}</p>
-                  <p className="mt-0.5 text-sm text-muted">{d.hint}</p>
+                  <p className="font-medium">{t(d.label)}</p>
+                  <p className="mt-0.5 text-sm text-muted">{t(d.hint)}</p>
                   {route && (
                     <p className="mt-2 break-all font-mono text-sm">
                       {address ?? (
                         <span className="text-muted">
-                          token <strong>{route.token}</strong> — o endereço base vem do ambiente
-                          (<code>MAIL_INBOX_ADDRESS</code>) e ainda não está configurado
+                          {t("mail.tokenOnly", { token: route.token })}
                         </span>
                       )}
                     </p>
@@ -154,27 +153,27 @@ export default function ClientMailSetup({ clientId }: { clientId: string }) {
                 <div className="flex flex-wrap items-center gap-2">
                   {!route ? (
                     <button className="btn-primary h-9 px-4 text-sm" disabled={busy}
-                      onClick={() => createRoute(d.v)}>Criar endereço</button>
+                      onClick={() => createRoute(d.v)}>{t("mail.createAddress")}</button>
                   ) : (
                     <>
                       {address && (
                         <button className="btn-ghost h-9 px-3 text-sm"
-                          onClick={() => { navigator.clipboard?.writeText(address); setMsg({ text: "Endereço copiado." }); }}>
-                          Copiar
+                          onClick={() => { navigator.clipboard?.writeText(address); setMsg({ text: t("mail.copied") }); }}>
+                          {t("mail.copy")}
                         </button>
                       )}
                       <label className="flex items-center gap-1 text-xs text-muted">
                         <input type="checkbox" checked={route.active} disabled={busy}
                           onChange={(e) => patchRoute(route.id, { active: e.target.checked },
-                            e.target.checked ? "Endereço ligado." : "Endereço desligado — o que chegar nele será recusado.")} />
-                        ativo
+                            e.target.checked ? t("mail.activeOn") : t("mail.activeOff"))} />
+                        {t("common.active").toLowerCase()}
                       </label>
                       <button className="btn-ghost h-9 px-3 text-sm" disabled={busy}
                         onClick={() => {
-                          if (!confirm("Trocar o endereço? O antigo para de funcionar na hora, e quem já tem o antigo (fornecedor, pedido impresso) precisa receber o novo.")) return;
-                          patchRoute(route.id, { rotate: true }, "Endereço trocado. Avise quem usava o antigo.");
+                          if (!confirm(t("mail.rotateConfirm"))) return;
+                          patchRoute(route.id, { rotate: true }, t("mail.rotated"));
                         }}>
-                        Trocar
+                        {t("mail.rotate")}
                       </button>
                     </>
                   )}
@@ -186,54 +185,46 @@ export default function ClientMailSetup({ clientId }: { clientId: string }) {
       </div>
 
       <p className="text-xs text-muted">
-        O pedaço depois do <span className="font-mono">+</span> é aleatório de propósito. Um endereço como
-        <span className="font-mono"> notas+c0001@</span> contaria quantos clientes o escritório tem e deixaria
-        adivinhar o endereço do vizinho — e esse endereço vai para as mãos de fornecedores.
-        <strong> Trocar</strong> é o conserto de quando o endereço vaza para lista de spam: melhor que desligar a
-        entrada do cliente inteiro.
+        {t("mail.tokenNote")}
       </p>
 
       <div className="card p-4">
-        <p className="label mb-2">Quem pode mandar</p>
+        <p className="label mb-2">{t("mail.sendersTitle")}</p>
         <div className="grid gap-3 sm:grid-cols-[1fr_150px_auto]">
-          <input className="input" placeholder="ap@fornecedor.ie ou @fornecedor.ie"
+          <input className="input" placeholder={t("mail.senderPlaceholder")}
             value={pattern} onChange={(e) => setPattern(e.target.value)} />
           <select className="input" value={mode} onChange={(e) => setMode(e.target.value as "allow" | "block")}>
-            <option value="allow">liberar</option>
-            <option value="block">bloquear</option>
+            <option value="allow">{t("mail.allow")}</option>
+            <option value="block">{t("mail.block")}</option>
           </select>
-          <button className="btn-primary" onClick={addSender} disabled={busy}>Adicionar</button>
+          <button className="btn-primary" onClick={addSender} disabled={busy}>{t("common.add")}</button>
         </div>
         <label className="mt-2 flex items-center gap-1.5 text-xs text-muted">
           <input type="checkbox" checked={global} onChange={(e) => setGlobal(e.target.checked)} />
-          valer para <strong>todos os clientes</strong> do escritório (um domínio de spam não precisa ser
-          bloqueado vinte vezes)
+          {t("mail.globalPre")} <strong>{t("mail.globalStrong")}</strong> {t("mail.globalPost")}
         </label>
 
         <div className="mt-3 rounded-lg bg-surface-2/60 px-3 py-2 text-xs text-muted">
-          <strong>Bloqueio ganha da liberação:</strong> quem bloqueia um remetente está corrigindo algo que já
-          aconteceu, e uma liberação ampla escrita meses antes não pode desfazer isso em silêncio.
+          <strong>{t("mail.blockWinsStrong")}</strong> {t("mail.blockWins")}
           <br />
-          <strong>Nenhuma liberação = caixa aberta.</strong> Enquanto a lista de liberação estiver vazia,
-          qualquer remetente que não esteja bloqueado passa — quem ligou a entrada por e-mail e ainda não
-          cadastrou ninguém quer receber, não recusar tudo.
+          <strong>{t("mail.openBoxStrong")}</strong> {t("mail.openBox")}
           {allows.length > 0 && (
             <>
               <br />
               <strong className="text-warning">
-                A lista de liberação está preenchida, então só estes {allows.length} passam.
+                {t("mail.allowListOn", { n: allows.length })}
               </strong>
             </>
           )}
         </div>
 
         {loading ? (
-          <p className="mt-3 text-sm text-muted">Carregando…</p>
+          <p className="mt-3 text-sm text-muted">{t("common.loading")}</p>
         ) : !senders.length ? (
-          <p className="mt-3 text-sm text-muted">Nenhum remetente cadastrado — a caixa deste cliente está aberta.</p>
+          <p className="mt-3 text-sm text-muted">{t("mail.noSenders")}</p>
         ) : (
           <div className="mt-3 space-y-3">
-            {[{ list: allows, title: "Liberados (só estes passam)" }, { list: blocks, title: "Bloqueados" }]
+            {[{ list: allows, title: t("mail.allowedTitle") }, { list: blocks, title: t("mail.blockedTitle") }]
               .filter((g) => g.list.length)
               .map((g) => (
                 <div key={g.title}>
@@ -243,12 +234,12 @@ export default function ClientMailSetup({ clientId }: { clientId: string }) {
                       <div key={s.id} className="flex flex-wrap items-center gap-x-3 gap-y-1 px-3 py-2 text-sm">
                         <span className="font-mono">{s.pattern}</span>
                         {s.client_id == null && (
-                          <span className="chip bg-surface-2 border border-line text-muted">todos os clientes</span>
+                          <span className="chip bg-surface-2 border border-line text-muted">{t("mail.everyClient")}</span>
                         )}
                         {s.note && <span className="text-xs text-muted">{s.note}</span>}
                         <button className="ml-auto text-xs text-danger underline underline-offset-2"
                           disabled={busy} onClick={() => removeSender(s.id)}>
-                          remover
+                          {t("mail.removeSender")}
                         </button>
                       </div>
                     ))}
