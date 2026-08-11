@@ -1,0 +1,206 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>VAT ERP — Cloud version / Versão nuvem</title>
+<link rel="stylesheet" href="manual.css">
+</head>
+<body>
+
+<div class="cover">
+  <div class="cover-inner">
+    <div class="logo">
+      <span class="logo-mark">V</span>
+      <span>VAT Reader<small>IRELAND · ERP</small></span>
+    </div>
+    <h1 data-lang="en" class="on">The cloud version</h1>
+    <h1 data-lang="pt">A versão nuvem</h1>
+    <p data-lang="en" class="on">Nothing to install: open a link and sign in. Same code as the server version — what changes is where the data lives, and that changes what you may put in it.</p>
+    <p data-lang="pt">Nada para instalar: abre um link e entra. Mesmo código da versão servidor — o que muda é onde o dado mora, e isso muda o que se pode colocar nele.</p>
+    <div class="meta">v1.30 · 2026</div>
+  </div>
+</div>
+
+<div class="langbar">
+  <div class="langbar-inner">
+    <span>Language / Idioma</span>
+    <button class="langbtn" data-set="en" aria-pressed="true">English</button>
+    <button class="langbtn" data-set="pt" aria-pressed="false">Português</button>
+  </div>
+</div>
+
+<div class="wrap">
+
+<!-- ==================== ENGLISH ==================== -->
+<main data-lang="en" class="on">
+
+<h2>What this version is for</h2>
+<p class="lead">Trying the system out, showing it to someone, and finding out what still needs improving — without installing anything.</p>
+
+<div class="warn">
+  <b>Read this before putting anything real in.</b>
+  In the cloud version the data sits on managed infrastructure outside the practice. The whole reason the server version exists is the Irish data-protection requirement that the practice's data stays in the practice. <b>Use the cloud version for demonstration and testing; keep real client books on the server version.</b>
+</div>
+
+<h2>The difference, in one table</h2>
+<table>
+  <tr><th></th><th>Cloud</th><th>Server</th></tr>
+  <tr><td><b>To install</b></td><td>Nothing</td><td>Node, Docker, the installer</td></tr>
+  <tr><td><b>Where the data is</b></td><td>Managed hosting</td><td>The practice's own machine</td></tr>
+  <tr><td><b>Where the invoice files are</b></td><td>Managed storage</td><td>The practice's own disk</td></tr>
+  <tr><td><b>Reachable from</b></td><td>Anywhere with a browser</td><td>The practice network</td></tr>
+  <tr><td><b>Email intake</b></td><td>Off</td><td>Available</td></tr>
+  <tr><td><b>Backups</b></td><td>The provider's</td><td>Yours — <code>backup</code>, off the machine</td></tr>
+  <tr><td><b>Good for</b></td><td>Demos, testing, deciding what to improve</td><td>Real work</td></tr>
+</table>
+<p>The application is <b>the same code</b> in both. Only environment variables differ, which is why anything you learn in the cloud applies to the server too.</p>
+
+<h2>Getting in</h2>
+<ol class="steps">
+  <li>Open the address the practice gave you.</li>
+  <li>Sign in with your e-mail and password. First sign-in asks you to change the password.</li>
+  <li>Set the <b>language</b> and the <b>theme</b> at the foot of the left sidebar.</li>
+</ol>
+<p>From here on, everything works exactly as in the <b>user manual</b> — same screens, same buttons, same order of work.</p>
+
+<h2>What is not available here</h2>
+<table>
+  <tr><th>Feature</th><th>Why</th></tr>
+  <tr><td><b>Email intake</b></td><td>It needs a mailbox configured on the server and an IMAP password in the environment. The Inbox screen opens and says plainly which variables are missing, instead of failing quietly.</td></tr>
+  <tr><td><b>Backup and restore scripts</b></td><td>They act on a local Docker installation. In the cloud the provider handles backups.</td></tr>
+</table>
+<p>Everything else is there: reading invoices, supplier rules, bank reconciliation with CSV/Excel/PDF statements, rules, hard cases, closing the month, the audit trail, bulk approval, VAT3 preparation and every export.</p>
+
+<h2>A sensible way to test it</h2>
+<p>Half an hour, in this order, gives you an opinion about the whole system rather than one screen.</p>
+<ol class="steps">
+  <li><b>Create a fake client.</b> Give it a chart of accounts with four or five accounts.</li>
+  <li><b>Drag in five real invoices</b> from different suppliers — including one supermarket receipt with many lines, which is the hardest case.</li>
+  <li><b>Correct one line on purpose.</b> Then open the invoice's <b>History</b> and check it recorded who, what and when.</li>
+  <li><b>Write a supplier rule</b> for a recurring supplier, with line items switched off. Import an invoice from them again and watch it come in as a single line.</li>
+  <li><b>Import a bank statement</b> — the real file from your bank, whatever shape it is in. This is the step that teaches the most.</li>
+  <li><b>Reconcile</b> a payment against one of the invoices, and check the invoice becomes paid.</li>
+  <li><b>Close the month</b>, typing in the closing balance from the paper statement. If the difference is not zero, some bank line never got imported — that is the check earning its keep.</li>
+  <li><b>Approve everything in bulk</b> from the Database screen.</li>
+</ol>
+
+<div class="note">
+  <b>What to send back.</b>
+  Any file the reader got wrong — a bank statement in a shape it misread, an invoice whose totals came out wrong. Those are worth more than a list of opinions: the first real AIB statement corrected two wrong assumptions in the PDF reader, and the first real mail server corrected the duplicate key in the inbox queue.
+</div>
+
+<h2>Limits worth knowing</h2>
+<ul>
+  <li><b>Reading is the slow part.</b> Roughly twenty seconds per document, eight at a time — a batch of fifty lands around three minutes. Saving is fast.</li>
+  <li><b>Reading uses an AI quota.</b> On the free tier a very large batch can hit the limit; it retries and reports rather than failing silently.</li>
+  <li><b>Test data is test data.</b> Anything you enter here should be disposable.</li>
+</ul>
+
+<h2>Moving to the server version</h2>
+<p>When testing is done and it goes into real use, follow the <b>server installation manual</b>. The cloud data does not migrate automatically, and that is deliberate: the server database is meant to be born clean, with structure, the VAT rate base and one administrator — never with somebody's test invoices inside.</p>
+
+<footer>
+  Support tool — classification is suggested and editable; it does not replace an accountant. VAT rates: Revenue Ireland.
+</footer>
+
+</main>
+
+<!-- ==================== PORTUGUÊS ==================== -->
+<main data-lang="pt">
+
+<h2>Para que serve esta versão</h2>
+<p class="lead">Experimentar o sistema, mostrar para alguém, e descobrir o que ainda precisa melhorar — sem instalar nada.</p>
+
+<div class="warn">
+  <b>Leia isto antes de colocar algo real.</b>
+  Na versão nuvem o dado fica em infraestrutura gerenciada, fora do escritório. A razão de a versão servidor existir é justamente a exigência irlandesa de proteção de dados, de que o dado do escritório fique no escritório. <b>Use a nuvem para demonstração e teste; mantenha a contabilidade real de cliente na versão servidor.</b>
+</div>
+
+<h2>A diferença, numa tabela</h2>
+<table>
+  <tr><th></th><th>Nuvem</th><th>Servidor</th></tr>
+  <tr><td><b>Para instalar</b></td><td>Nada</td><td>Node, Docker, o instalador</td></tr>
+  <tr><td><b>Onde o dado está</b></td><td>Hospedagem gerenciada</td><td>A máquina do escritório</td></tr>
+  <tr><td><b>Onde os arquivos das notas estão</b></td><td>Storage gerenciado</td><td>O disco do escritório</td></tr>
+  <tr><td><b>Alcançável de</b></td><td>Qualquer lugar com navegador</td><td>A rede do escritório</td></tr>
+  <tr><td><b>Entrada por e-mail</b></td><td>Desligada</td><td>Disponível</td></tr>
+  <tr><td><b>Backup</b></td><td>Do provedor</td><td>Seu — <code>backup</code>, fora da máquina</td></tr>
+  <tr><td><b>Boa para</b></td><td>Demonstração, teste, decidir o que melhorar</td><td>Trabalho real</td></tr>
+</table>
+<p>A aplicação é <b>o mesmo código</b> nas duas. Só as variáveis de ambiente mudam — e é por isso que o que você aprende na nuvem vale para o servidor também.</p>
+
+<h2>Entrar</h2>
+<ol class="steps">
+  <li>Abra o endereço que o escritório passou.</li>
+  <li>Entre com e-mail e senha. No primeiro acesso ele pede para trocar a senha.</li>
+  <li>Escolha o <b>idioma</b> e o <b>tema</b> no pé da barra lateral esquerda.</li>
+</ol>
+<p>Daqui em diante tudo funciona exatamente como no <b>manual do usuário</b> — mesmas telas, mesmos botões, mesma ordem de trabalho.</p>
+
+<h2>O que não está disponível aqui</h2>
+<table>
+  <tr><th>Recurso</th><th>Por quê</th></tr>
+  <tr><td><b>Entrada por e-mail</b></td><td>Precisa de uma caixa configurada no servidor e de uma senha IMAP no ambiente. A tela da Caixa de entrada abre e diz com clareza quais variáveis faltam, em vez de falhar calada.</td></tr>
+  <tr><td><b>Scripts de backup e restauração</b></td><td>Eles agem sobre uma instalação Docker local. Na nuvem o backup é do provedor.</td></tr>
+</table>
+<p>Todo o resto está: leitura de notas, regras de fornecedor, conciliação bancária com extrato em CSV/Excel/PDF, regras, casos difíceis, fechamento do mês, trilha de auditoria, aprovação em lote, preparação do VAT3 e todas as exportações.</p>
+
+<h2>Um jeito sensato de testar</h2>
+<p>Meia hora, nesta ordem, dá uma opinião sobre o sistema inteiro em vez de sobre uma tela.</p>
+<ol class="steps">
+  <li><b>Crie um cliente fictício.</b> Dê a ele um plano de contas com quatro ou cinco contas.</li>
+  <li><b>Arraste cinco notas de verdade</b> de fornecedores diferentes — incluindo um recibo de supermercado com muitas linhas, que é o caso mais difícil.</li>
+  <li><b>Corrija uma linha de propósito.</b> Depois abra o <b>Histórico</b> da nota e confira que ficou registrado quem, o quê e quando.</li>
+  <li><b>Escreva uma regra de fornecedor</b> para um fornecedor recorrente, com os itens de linha desligados. Importe outra nota dele e veja entrar como uma linha só.</li>
+  <li><b>Importe um extrato bancário</b> — o arquivo real do seu banco, na forma que ele vier. É o passo que mais ensina.</li>
+  <li><b>Concilie</b> um pagamento com uma das notas, e confira que a nota vira paga.</li>
+  <li><b>Feche o mês</b>, digitando o saldo final do extrato de papel. Se a diferença não for zero, alguma linha do banco nunca foi importada — é a conferência fazendo o que ela existe para fazer.</li>
+  <li><b>Aprove tudo em lote</b> na tela da Base de dados.</li>
+</ol>
+
+<div class="note">
+  <b>O que vale mandar de volta.</b>
+  Qualquer arquivo que o leitor errou — um extrato numa forma que ele leu torto, uma nota cujos totais saíram errados. Vale mais que uma lista de opiniões: o primeiro extrato real do AIB corrigiu duas suposições erradas do leitor de PDF, e o primeiro servidor de e-mail real corrigiu a chave de duplicata da fila.
+</div>
+
+<h2>Limites que vale conhecer</h2>
+<ul>
+  <li><b>A leitura é a parte lenta.</b> Cerca de vinte segundos por documento, oito ao mesmo tempo — um lote de cinquenta fica em torno de três minutos. Gravar é rápido.</li>
+  <li><b>A leitura consome cota de IA.</b> No plano gratuito um lote muito grande pode bater no limite; ele tenta de novo e relata, em vez de falhar em silêncio.</li>
+  <li><b>Dado de teste é dado de teste.</b> Tudo o que você lançar aqui deve ser descartável.</li>
+</ul>
+
+<h2>Passar para a versão servidor</h2>
+<p>Quando o teste terminar e for para uso real, siga o <b>manual de instalação no servidor</b>. O dado da nuvem não migra automaticamente, e isso é de propósito: o banco do servidor nasce limpo, com estrutura, a base de alíquotas e um administrador — nunca com as notas de teste de alguém dentro.</p>
+
+<footer>
+  Ferramenta de apoio — a classificação é sugerida e editável; não substitui o contador. Alíquotas: Revenue Irlanda.
+</footer>
+
+</main>
+</div>
+
+<script>
+(function () {
+  var btns = document.querySelectorAll(".langbtn");
+  function set(lang) {
+    document.querySelectorAll("[data-lang]").forEach(function (el) {
+      el.classList.toggle("on", el.getAttribute("data-lang") === lang);
+    });
+    btns.forEach(function (b) {
+      b.setAttribute("aria-pressed", String(b.getAttribute("data-set") === lang));
+    });
+    document.documentElement.lang = lang;
+    try { localStorage.setItem("vat-manual-lang", lang); } catch (e) {}
+  }
+  btns.forEach(function (b) {
+    b.addEventListener("click", function () { set(b.getAttribute("data-set")); });
+  });
+  var saved = null;
+  try { saved = localStorage.getItem("vat-manual-lang"); } catch (e) {}
+  set(saved === "pt" ? "pt" : "en");
+})();
+</script>
+</body>
+</html>

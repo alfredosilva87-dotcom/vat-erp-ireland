@@ -1,0 +1,74 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>VAT ERP — Manuals / Manuais</title>
+<link rel="stylesheet" href="manual.css">
+<style>
+  .grid { display: grid; gap: 16px; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); margin-top: 24px; }
+  .man { display: block; text-decoration: none; color: inherit; }
+  .man .card { margin: 0; height: 100%; transition: border-color .15s; }
+  .man:hover .card { border-color: #cdbffb; }
+  .man h3 { margin: 0 0 4px; }
+  .man p { margin: 0; font-size: 14.5px; color: var(--muted); }
+</style>
+</head>
+<body>
+<div class="cover">
+  <div class="cover-inner">
+    <div class="logo"><span class="logo-mark">V</span><span>VAT Reader<small>IRELAND · ERP</small></span></div>
+    <h1>Manuals · Manuais</h1>
+    <p data-lang="en" class="on">Three documents. Each one carries both languages — switch at the top of the page.</p>
+    <p data-lang="pt">Três documentos. Cada um traz os dois idiomas — troque no topo da página.</p>
+    <div class="meta">v1.30 · 2026</div>
+  </div>
+</div>
+<div class="langbar"><div class="langbar-inner">
+  <span>Language / Idioma</span>
+  <button class="langbtn" data-set="en" aria-pressed="true">English</button>
+  <button class="langbtn" data-set="pt" aria-pressed="false">Português</button>
+</div></div>
+<div class="wrap">
+  <div class="grid">
+    <a class="man" href="user-manual.html"><div class="card">
+      <h3 data-lang="en" class="on">User manual</h3><h3 data-lang="pt">Manual do usuário</h3>
+      <p data-lang="en" class="on">How to operate everything, from the document arriving to the VAT3 going out.</p>
+      <p data-lang="pt">Como operar tudo, do documento entrando ao VAT3 saindo.</p>
+    </div></a>
+    <a class="man" href="install-server.html"><div class="card">
+      <h3 data-lang="en" class="on">Server installation</h3><h3 data-lang="pt">Instalação no servidor</h3>
+      <p data-lang="en" class="on">Downloading, installing and running the practice's central machine.</p>
+      <p data-lang="pt">Baixar, instalar e manter a máquina central do escritório.</p>
+    </div></a>
+    <a class="man" href="cloud.html"><div class="card">
+      <h3 data-lang="en" class="on">The cloud version</h3><h3 data-lang="pt">A versão nuvem</h3>
+      <p data-lang="en" class="on">Nothing to install — and what may and may not go into it.</p>
+      <p data-lang="pt">Nada para instalar — e o que pode e o que não pode entrar nela.</p>
+    </div></a>
+  </div>
+  <div class="note" style="margin-top:28px">
+    <b data-lang="en" class="on">Handing it to someone?</b>
+    <b data-lang="pt">Vai entregar para alguém?</b>
+    <span data-lang="en" class="on">Open the manual and print to PDF (Cmd/Ctrl+P). The printed version keeps the colours and drops the language switch.</span>
+    <span data-lang="pt">Abra o manual e imprima em PDF (Cmd/Ctrl+P). A versão impressa mantém as cores e tira o botão de idioma.</span>
+  </div>
+</div>
+<script>
+(function () {
+  var btns = document.querySelectorAll(".langbtn");
+  function set(lang) {
+    document.querySelectorAll("[data-lang]").forEach(function (el) {
+      el.classList.toggle("on", el.getAttribute("data-lang") === lang);
+    });
+    btns.forEach(function (b) { b.setAttribute("aria-pressed", String(b.getAttribute("data-set") === lang)); });
+    document.documentElement.lang = lang;
+    try { localStorage.setItem("vat-manual-lang", lang); } catch (e) {}
+  }
+  btns.forEach(function (b) { b.addEventListener("click", function () { set(b.getAttribute("data-set")); }); });
+  var saved = null; try { saved = localStorage.getItem("vat-manual-lang"); } catch (e) {}
+  set(saved === "pt" ? "pt" : "en");
+})();
+</script>
+</body>
+</html>

@@ -1,0 +1,594 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>VAT ERP — User manual / Manual do usuário</title>
+<link rel="stylesheet" href="manual.css">
+</head>
+<body>
+
+<div class="cover">
+  <div class="cover-inner">
+    <div class="logo">
+      <span class="logo-mark">V</span>
+      <span>VAT Reader<small>IRELAND · ERP</small></span>
+    </div>
+    <h1 data-lang="en" class="on">User manual</h1>
+    <h1 data-lang="pt">Manual do usuário</h1>
+    <p data-lang="en" class="on">Reading invoices, bank reconciliation and VAT for Ireland — from the document arriving to the VAT3 going out.</p>
+    <p data-lang="pt">Leitura de notas, conciliação bancária e VAT da Irlanda — do documento entrando ao VAT3 saindo.</p>
+    <div class="meta">v1.30 · 2026</div>
+  </div>
+</div>
+
+<div class="langbar">
+  <div class="langbar-inner">
+    <span>Language / Idioma</span>
+    <button class="langbtn" data-set="en" aria-pressed="true">English</button>
+    <button class="langbtn" data-set="pt" aria-pressed="false">Português</button>
+  </div>
+</div>
+
+<div class="wrap">
+
+<!-- ==================== ENGLISH ==================== -->
+<main data-lang="en" class="on">
+
+<h2 id="en-what">What the system does</h2>
+<p class="lead">In one line: a document comes in, the system classifies it, you check it, money comes in from the bank statement, reconciling ties the two together, the month closes with proof, and the VAT3 comes out.</p>
+
+<div class="card">
+  <table>
+    <tr><th>Stage</th><th>What happens</th></tr>
+    <tr><td><b>Documents in</b></td><td>Drag files, let them arrive by email, or type sales in by hand.</td></tr>
+    <tr><td><b>Reading</b></td><td>Supplier, date, number, totals, VAT category and ledger account are filled in automatically.</td></tr>
+    <tr><td><b>Checking</b></td><td>You confirm or correct. Every correction teaches the system.</td></tr>
+    <tr><td><b>Bank</b></td><td>Import the statement, reconcile each line against an invoice or a sale.</td></tr>
+    <tr><td><b>Closing</b></td><td>The month closes only when the figures reconcile — that is the proof.</td></tr>
+    <tr><td><b>Out</b></td><td>VAT3 preparation, obligations with due dates, and exports (Excel, CSV, Sage 50, Bright).</td></tr>
+  </table>
+</div>
+
+<div class="note">
+  <b>The system suggests; you decide.</b>
+  Nothing is posted to the books on its own. Classification, credit and reconciliation always arrive filled in and always wait for a human click.
+</div>
+
+<h3>Contents</h3>
+<nav class="toc">
+  <a href="#en-signin">1. Signing in and the language</a>
+  <a href="#en-setup">2. Setting up a client</a>
+  <a href="#en-suppliers">3. Supplier rules</a>
+  <a href="#en-email">4. Email intake</a>
+  <a href="#en-in">5. Getting documents in</a>
+  <a href="#en-check">6. Checking and approving</a>
+  <a href="#en-bank">7. Bank: import and reconcile</a>
+  <a href="#en-rules">8. Bank rules</a>
+  <a href="#en-hard">9. Hard cases</a>
+  <a href="#en-close">10. Closing the month</a>
+  <a href="#en-out">11. VAT3, obligations and exports</a>
+  <a href="#en-trouble">12. When something looks wrong</a>
+</nav>
+
+<h2 id="en-signin">1. Signing in and the language</h2>
+<p>Open the address the practice gave you, type your e-mail and password. First sign-in asks you to change the password.</p>
+<p><b>Language.</b> Bottom of the left sidebar, in <b>Settings</b>. English and Portuguese are complete; Polish, Romanian and Spanish fall back to English phrase by phrase, so a partial translation can never leave a blank screen. The <b>theme</b> (light or dark) is also in the sidebar, at the bottom.</p>
+
+<h2 id="en-setup">2. Setting up a client</h2>
+<p>Everything about one company lives on that company's screen. Open <b>Clients</b> → <b>New client</b>, then use the <b>Details</b> tab for the rest.</p>
+
+<div class="screen">
+  <div class="screen-bar"><span class="dot"></span><span class="dot"></span><span class="dot"></span> Clients → A1 Test Ltd</div>
+  <div class="screen-body">
+    <div style="display:flex;gap:12px;align-items:center;flex-wrap:wrap;margin-bottom:14px">
+      <span style="width:40px;height:40px;border-radius:12px;background:linear-gradient(180deg,#977cfd,#7c5cfc);color:#fff;display:grid;place-items:center;font-weight:700">AT</span>
+      <div><b style="font-size:18px">A1 Test Ltd</b><div style="font-size:12.5px;color:var(--muted)">C0001 · Restaurant / catering</div></div>
+      <div style="margin-left:auto;display:flex;gap:6px">
+        <span class="btn btn-primary">+ New purchase</span>
+        <span class="btn btn-ghost">New sale</span>
+        <span class="btn btn-ghost">Export</span>
+      </div>
+    </div>
+    <div class="screen-tabs">
+      <span class="tab on">Dashboard</span><span class="tab">Purchases (T2)</span><span class="tab">Sales (T1)</span>
+      <span class="tab">Bank</span><span class="tab">Suppliers</span><span class="tab">Obligations</span>
+      <span class="tab">VAT by rate</span><span class="tab">Chart of accounts</span><span class="tab">Details</span>
+    </div>
+    <div class="kpis">
+      <div class="kpi"><div class="lbl">Revenue (T1)</div><div class="val">€ 1,230.00</div></div>
+      <div class="kpi"><div class="lbl">Purchases (T2)</div><div class="val">€ 1,357.18</div></div>
+      <div class="kpi"><div class="lbl">VAT payable (T3)</div><div class="val">€ 216.91</div></div>
+      <div class="kpi"><div class="lbl">Input credit</div><div class="val">€ 13.09</div></div>
+    </div>
+  </div>
+</div>
+<p class="caption">The client screen. The most-used actions sit beside the name; everything else is a tab.</p>
+
+<h3>The order to set things up</h3>
+<ol class="steps">
+  <li><b>Details</b> — company name, VAT number, Tax Registration Number, business type. The client code is generated once and never changes: it travels on entries and in exported files.</li>
+  <li><b>Chart of accounts</b> — the ledger accounts you post to (6200 meals, 6300 bank charges…). You can import a spreadsheet.</li>
+  <li><b>Details → Branches</b> — only if the company has more than one shop. <b>Once a branch exists, every save must say which one</b>, so an invoice never lands with no store.</li>
+  <li><b>Details → Categories this client sells / uses</b> — optional. Once you tick at least one, a purchase line whose category is outside the list arrives flagged “verify”. Leave it empty to keep the check off.</li>
+  <li><b>Suppliers</b> — the supplier rules. See the next section.</li>
+  <li><b>Bank</b> — one bank account per real account, with its opening balance and date.</li>
+</ol>
+
+<h2 id="en-suppliers">3. Supplier rules</h2>
+<p>A supplier rule says: “every invoice from this supplier goes to this account, this VAT category, and I don't care about the line detail”. It is the setting that makes the second month faster than the first.</p>
+
+<div class="card">
+  <h4>Who decides what, in this order</h4>
+  <ol class="steps">
+    <li><b>What you pick on the invoice.</b> Always wins. Correcting one invoice does not change the rule.</li>
+    <li><b>The supplier rule.</b> Overrides what the system learned, because it is a decision you wrote on purpose.</li>
+    <li><b>What the system learned</b> — item→account memory, keyword and AI categorisation. Fills in whatever nobody decided.</li>
+  </ol>
+</div>
+
+<div class="note">
+  <b>A field left on “does not decide” decides nothing.</b>
+  That is how a supermarket gets a ledger account <em>without</em> having its line VAT rates (23%, 13.5%, 0%) flattened into one. Fill in the VAT category only for a supplier that always issues the same thing — telecom, rent, insurance.
+</div>
+
+<h3>Creating one</h3>
+<ol class="steps">
+  <li>Open the client → <b>Suppliers</b> → give the rule a name (e.g. “Vodafone — telecom”).</li>
+  <li>Say how to recognise the supplier: the <b>VAT number</b> (the strong identifier — “Tesco Stores”, “TESCO IRELAND LTD” and “Tesco” are one supplier with three names but one number), or <b>part of the name</b> for receipts with no VAT number. Between two names that match, the longer one wins.</li>
+  <li><b>Create</b>, then <b>Edit</b> to say what it decides: ledger account, VAT category, and whether to detail line items.</li>
+</ol>
+
+<h3>Line items off</h3>
+<p>Switched off, the invoice enters as <b>one line</b> carrying the document's own total, and AI classification does not run. Use it for the supplier whose detail nobody checks — the electricity bill, the rent, the monthly fee. Measured: three lines and one AI call became one line and none.</p>
+
+<h2 id="en-email">4. Email intake</h2>
+<p>This is the one that saves the most work: the address can be given <b>straight to the supplier</b>, and then the client does nothing at all — the invoice shows up in the inbox on its own.</p>
+
+<ol class="steps">
+  <li>Client → <b>Details</b> → <b>Email intake</b> → <b>Create address</b> for Purchases, and again for Sales.</li>
+  <li>Copy the address (it looks like <code>notes+htvfmk5d@yourpractice.ie</code>) and give it to the supplier, or to the client to forward to.</li>
+  <li>Optionally list who may send. <b>Block beats allow</b>, and an empty allow list means the mailbox is <b>open</b>.</li>
+</ol>
+
+<div class="note">
+  <b>Why the address looks random.</b>
+  It goes into suppliers' hands. An address like <code>notes+c0001@</code> would count how many clients the practice has and let anyone guess the neighbour's. <b>Replace</b> is the fix if an address leaks onto a spam list — better than switching the client's intake off.
+</div>
+
+<p><b>Two addresses, not one.</b> Purchases and sales are separate because an invoice entering on the wrong side flips the sign of the VAT. If you send one to the wrong address, resend it to the right one: the system treats it as a different destination and accepts it.</p>
+
+<h2 id="en-in">5. Getting documents in</h2>
+<p>Three doors, all ending in the same place.</p>
+
+<h3>Dragging files</h3>
+<ol class="steps">
+  <li><b>Analyze</b> (sidebar) or <b>+ New purchase</b> on the client screen.</li>
+  <li>Pick the client, check the posting date, pick the branch if the client has any.</li>
+  <li>Drop one file or fifty. PDF, PNG, JPEG, WebP.</li>
+  <li><b>Read all</b> → <b>Save all</b>.</li>
+</ol>
+<p>A PDF holding forty scanned invoices back to back is split into forty entries, each with its own file. A batch of fifty documents takes a few minutes; reading is the slow part.</p>
+
+<h3>From the inbox (email)</h3>
+<ol class="steps">
+  <li><b>Inbox</b> (sidebar) → <b>Fetch now</b>.</li>
+  <li>Pick the client in the filter — that is what unlocks <b>Read</b> and <b>Save</b>, because the read uses that client's business type and rules.</li>
+  <li><b>Read</b>, look at what came back, <b>Save</b>.</li>
+</ol>
+<p>What did <em>not</em> come in is listed too, with the reason written out: unknown address, sender blocked, no attachment. Nothing disappears silently.</p>
+
+<div class="note">
+  <b>The supplier's logo does not become a queue item.</b>
+  Every corporate signature ships a logo as an attachment. Without the filter, each invoice would create two items and you would spend the day deleting 3&nbsp;KB PNGs.
+</div>
+
+<h3>Sales by hand or by spreadsheet</h3>
+<p>Client → <b>Sales (T1)</b>. Type entries in, or import a spreadsheet — the reader detects the columns and asks you to confirm once.</p>
+
+<h2 id="en-check">6. Checking and approving</h2>
+<p>Open <b>Database</b> (all invoices) or the client's <b>Purchases (T2)</b>, and click <b>Open</b> on a row.</p>
+
+<p>Everything is editable: header fields, each line's description, category, base rate, the rate printed on the document, the amount, and the credit decision. <b>Amount</b> is the figure as printed — Gross, Net and Credit are calculated from it and always reconcile.</p>
+
+<div class="card">
+  <h4>At the bottom of every invoice</h4>
+  <p><b>Documents</b> — the main document plus anything attached later. <b>History</b> — who changed what, from which value to which, and when. Invoices entered before v1.30 have no trail; it starts at the first change from then on.</p>
+</div>
+
+<h3>Approving</h3>
+<p>An invoice that says <span class="chip chip-warn">review</span> had a low-confidence read. One that says nothing was read confidently — <b>and nobody has looked at it yet</b>. That difference is what an audit asks about, so the screen states it.</p>
+<ul>
+  <li><b>One invoice:</b> the button <b>“I checked it — approve”</b>.</li>
+  <li><b>Twenty at once:</b> in <b>Database</b>, tick the unchecked ones and press <b>approve</b>. Limit 200 per pass.</li>
+</ul>
+<p>Approving records your name and the time in each invoice's history. Undoing an approval is administrator-only — approving is routine, undoing is the exception.</p>
+
+<h3>The same invoice twice</h3>
+<p>When a document matches one already on file, three choices appear:</p>
+<table>
+  <tr><th>Choice</th><th>What it does</th></tr>
+  <tr><td><b>attach</b></td><td>Adds this image to the entry that already exists. No second entry, no change to amount or credit. The second photo of a receipt is often the more legible one.</td></tr>
+  <tr><td><b>save anyway</b></td><td>Creates a separate entry. Use it when it really is a different invoice.</td></tr>
+  <tr><td><b>discard</b></td><td>Throws this copy away.</td></tr>
+</table>
+
+<h2 id="en-bank">7. Bank: import and reconcile</h2>
+
+<h3>Importing a statement</h3>
+<ol class="steps">
+  <li>Client → <b>Bank</b> → open the account → <b>Import</b>.</li>
+  <li>Choose the file: <b>CSV, Excel or PDF</b>. The reader finds the columns itself.</li>
+  <li>Confirm the mapping once. From the second import of that bank onwards it asks nothing.</li>
+  <li>Before saving it tells you <b>how many lines are new</b> — e.g. “2 new · 7 already imported (2026-01-02 to 2026-01-28)”.</li>
+</ol>
+<p>No bank format is built into the program. Separate debit/credit columns, a single signed column, European decimal commas, parentheses for negatives, DR/CR markers, preamble rows before the header, files with no header at all — all handled and confirmed on screen.</p>
+
+<div class="ok">
+  <b>Two balances, and that is the point.</b>
+  <b>Statement balance</b> is what the bank says. <b>System balance</b> is what has been posted here. Reconciling changes neither — it only creates the link. The gap between them is exactly what is left to reconcile.
+</div>
+
+<h3>Reconciling</h3>
+<ol class="steps">
+  <li>In the account, press <b>Reconcile</b>. Statement line on the left, the invoice or sale the system believes it is on the right, with the reason written out.</li>
+  <li>Confirm, and the invoice becomes <b>paid</b>.</li>
+  <li>No good candidate? Post it as a standalone entry with a ledger account.</li>
+</ol>
+<p>The proposal is ranked by how hard each signal is to produce by accident: the document number appearing in the description beats the amount matching the outstanding balance, which beats the supplier name appearing, which beats closeness of date. A tie is never turned into a proposal — both candidates are listed instead, because accepting a coin toss with one click is how a wrong link gets made without anyone deciding anything.</p>
+
+<h3>Two different undos</h3>
+<table>
+  <tr><th>Action</th><th>Effect</th></tr>
+  <tr><td><b>Unreconcile</b></td><td>Removes only the link. The payment stays on the invoice and shows up as an outstanding payment.</td></tr>
+  <tr><td><b>Redo</b></td><td>Deletes the entry that was created and gives the statement line back. The invoice owes again.</td></tr>
+</table>
+
+<h2 id="en-rules">8. Bank rules</h2>
+<p>Client → <b>Bank</b> → <b>Rules</b>. A rule makes the monthly bank charge, the electricity direct debit and the rent stop being decided again every month.</p>
+<ul>
+  <li>Conditions on description, payee, reference or amount. Amount is compared by <b>magnitude</b> — you think “above 500”, not “less than −500”.</li>
+  <li>What it produces: supplier, ledger account, VAT rate — and a <b>split</b> across several accounts by percentage or fixed amount.</li>
+  <li><b>Order matters: it stops at the first rule that matches.</b> The screen numbers them, lets you reorder, and <b>warns by name when one rule can never happen</b> because a broader one above swallows it.</li>
+</ul>
+<p>Rules apply when you reconcile, not when you import — so a rule written today also applies to the statement you imported yesterday, with no re-import.</p>
+
+<h2 id="en-hard">9. Hard cases</h2>
+<table>
+  <tr><th>Situation</th><th>How</th></tr>
+  <tr><td>One payment covering three invoices</td><td>Split the line, tick the invoices. The button only lights up when the parts add up to the line.</td></tr>
+  <tr><td>Partial payment</td><td>The invoice takes what was paid and keeps owing the rest.</td></tr>
+  <tr><td>Bank charge inside the line</td><td>An extra part on a fees account.</td></tr>
+  <tr><td>A couple of cents out</td><td>Up to five cents goes to a rounding account as its own visible entry — never added to an invoice's amount.</td></tr>
+  <tr><td>Fifty identical charges</td><td><b>Bulk</b>: filter, select all, apply the account once. By design bulk <b>never matches a document</b> — reconcile what has documents first.</td></tr>
+</table>
+
+<h2 id="en-close">10. Closing the month</h2>
+<p>Client → <b>Bank</b> → account → <b>Closing</b>. This is what the practice uses to prove the month adds up.</p>
+
+<div class="card">
+  <h4>The report separates two differences that are easy to confuse</h4>
+  <p><b>Statement × system</b> — always explained, by construction: unreconciled lines minus entries with no line yet. If this one does not add up, the fault is the system's, and the screen says so.</p>
+  <p><b>Calculated × reported</b> — you type in the closing balance printed on the paper statement. A difference here means <b>a bank line was never imported</b>, and no amount of reconciling will find it, because the line is not there.</p>
+</div>
+
+<p>Legitimate pending items — an uncashed cheque, a payment in transit — do not stop the close. They are recorded in the closing and the month closes. What stops the close is a difference against the reported balance.</p>
+<p>Once closed, the period is locked: reconciling, unreconciling, redoing and importing inside it all answer with a refusal and the message to reopen. <b>Reopening is administrator-only.</b> Importing a file with old and new lines still works — only the new lines enter, and the refused ones are counted.</p>
+
+<h2 id="en-out">11. VAT3, obligations and exports</h2>
+<ul>
+  <li><b>VAT by rate</b> — what was charged on sales against the credit taken on purchases, rate by rate. This is the VAT3 working paper.</li>
+  <li><b>Obligations</b> — VAT3 and RTD periods with due dates, marked <span class="chip chip-danger">Overdue</span>, <span class="chip chip-warn">Due soon</span> or <span class="chip chip-brand">Pending</span>.</li>
+  <li><b>Export</b> (beside the client name) — Excel, CSV, PDF, Sage 50 and Bright/BrightBooks, for the chosen period.</li>
+</ul>
+
+<h2 id="en-trouble">12. When something looks wrong</h2>
+<table>
+  <tr><th>Symptom</th><th>Where to look</th></tr>
+  <tr><td>A supplier rule seems to do nothing</td><td>Someone edited that invoice by hand — a manual choice always wins. Or the field is on “does not decide”.</td></tr>
+  <tr><td>An invoice arrived empty and flagged for review</td><td>Two supplier rules recognise it and disagree, so neither was applied. The message names both.</td></tr>
+  <tr><td>The closing difference is not zero</td><td>A bank line was never imported. Compare the paper statement against the imported lines for the period.</td></tr>
+  <tr><td>A bank rule never fires</td><td>A broader rule above it is swallowing it. The rules screen names the culprit.</td></tr>
+  <tr><td>Nothing arrives in the inbox</td><td>Check <b>Fetches</b> at the foot of the inbox: “never ran” and “nothing arrived” are different, and the log tells them apart.</td></tr>
+  <tr><td>An amount looks wrong on the invoice</td><td><b>History</b>, at the bottom of the invoice: who changed it, from what, when.</td></tr>
+</table>
+
+<footer>
+  Support tool — classification is suggested and editable; it does not replace an accountant. VAT rates: Revenue Ireland.
+  The screens above are illustrations drawn with the application's own colours, not photographs.
+</footer>
+
+</main>
+
+<!-- ==================== PORTUGUÊS ==================== -->
+<main data-lang="pt">
+
+<h2 id="pt-what">O que o sistema faz</h2>
+<p class="lead">Em uma linha: o documento entra, o sistema classifica, você confere, o dinheiro entra pelo extrato, conciliar liga um ao outro, o mês fecha com prova, e sai o VAT3.</p>
+
+<div class="card">
+  <table>
+    <tr><th>Etapa</th><th>O que acontece</th></tr>
+    <tr><td><b>Documento entra</b></td><td>Arrastando arquivo, chegando por e-mail, ou digitando a venda.</td></tr>
+    <tr><td><b>Leitura</b></td><td>Fornecedor, data, número, totais, categoria de VAT e conta contábil vêm preenchidos.</td></tr>
+    <tr><td><b>Conferência</b></td><td>Você confirma ou corrige. Cada correção ensina o sistema.</td></tr>
+    <tr><td><b>Banco</b></td><td>Importa o extrato e concilia cada linha com uma nota ou uma venda.</td></tr>
+    <tr><td><b>Fechamento</b></td><td>O mês fecha só quando os números batem — é isso que serve de prova.</td></tr>
+    <tr><td><b>Saída</b></td><td>Preparação do VAT3, obrigações com prazo, e exportações (Excel, CSV, Sage 50, Bright).</td></tr>
+  </table>
+</div>
+
+<div class="note">
+  <b>O sistema sugere; você decide.</b>
+  Nada é lançado sozinho. Classificação, crédito e conciliação chegam sempre preenchidos e sempre esperam um clique humano.
+</div>
+
+<h3>Conteúdo</h3>
+<nav class="toc">
+  <a href="#pt-signin">1. Entrar e escolher o idioma</a>
+  <a href="#pt-setup">2. Preparar um cliente</a>
+  <a href="#pt-suppliers">3. Regras de fornecedor</a>
+  <a href="#pt-email">4. Entrada por e-mail</a>
+  <a href="#pt-in">5. Colocar documentos para dentro</a>
+  <a href="#pt-check">6. Conferir e aprovar</a>
+  <a href="#pt-bank">7. Banco: importar e conciliar</a>
+  <a href="#pt-rules">8. Regras de banco</a>
+  <a href="#pt-hard">9. Casos difíceis</a>
+  <a href="#pt-close">10. Fechar o mês</a>
+  <a href="#pt-out">11. VAT3, obrigações e exportação</a>
+  <a href="#pt-trouble">12. Quando algo parece errado</a>
+</nav>
+
+<h2 id="pt-signin">1. Entrar e escolher o idioma</h2>
+<p>Abra o endereço que o escritório passou, digite o e-mail e a senha. No primeiro acesso o sistema pede para trocar a senha.</p>
+<p><b>Idioma.</b> No pé da barra lateral, em <b>Configurações</b>. Inglês e português estão completos; polonês, romeno e espanhol caem para o inglês frase por frase, então tradução parcial nunca deixa a tela em branco. O <b>tema</b> (claro ou escuro) também está no pé da barra lateral.</p>
+
+<h2 id="pt-setup">2. Preparar um cliente</h2>
+<p>Tudo de uma empresa fica na tela dela. Abra <b>Clientes</b> → <b>Novo cliente</b>, e depois use a aba <b>Cadastro</b> para o resto.</p>
+
+<div class="screen">
+  <div class="screen-bar"><span class="dot"></span><span class="dot"></span><span class="dot"></span> Clientes → A1 Test Ltd</div>
+  <div class="screen-body">
+    <div style="display:flex;gap:12px;align-items:center;flex-wrap:wrap;margin-bottom:14px">
+      <span style="width:40px;height:40px;border-radius:12px;background:linear-gradient(180deg,#977cfd,#7c5cfc);color:#fff;display:grid;place-items:center;font-weight:700">AT</span>
+      <div><b style="font-size:18px">A1 Test Ltd</b><div style="font-size:12.5px;color:var(--muted)">C0001 · Restaurante / catering</div></div>
+      <div style="margin-left:auto;display:flex;gap:6px">
+        <span class="btn btn-primary">+ Nova compra</span>
+        <span class="btn btn-ghost">Nova venda</span>
+        <span class="btn btn-ghost">Exportar</span>
+      </div>
+    </div>
+    <div class="screen-tabs">
+      <span class="tab on">Painel</span><span class="tab">Compras (T2)</span><span class="tab">Vendas (T1)</span>
+      <span class="tab">Banco</span><span class="tab">Fornecedores</span><span class="tab">Obrigações</span>
+      <span class="tab">VAT por alíquota</span><span class="tab">Plano de contas</span><span class="tab">Cadastro</span>
+    </div>
+    <div class="kpis">
+      <div class="kpi"><div class="lbl">Faturamento (T1)</div><div class="val">€ 1.230,00</div></div>
+      <div class="kpi"><div class="lbl">Compras (T2)</div><div class="val">€ 1.357,18</div></div>
+      <div class="kpi"><div class="lbl">VAT a pagar (T3)</div><div class="val">€ 216,91</div></div>
+      <div class="kpi"><div class="lbl">Crédito de entrada</div><div class="val">€ 13,09</div></div>
+    </div>
+  </div>
+</div>
+<p class="caption">A tela do cliente. As ações mais usadas ficam ao lado do nome; o resto é aba.</p>
+
+<h3>A ordem para configurar</h3>
+<ol class="steps">
+  <li><b>Cadastro</b> — razão social, número de VAT, registro fiscal, tipo de negócio. O código do cliente é gerado uma vez e nunca muda: ele viaja nos lançamentos e nos arquivos exportados.</li>
+  <li><b>Plano de contas</b> — as contas contábeis do cliente (6200 refeições, 6300 tarifas…). Dá para importar planilha.</li>
+  <li><b>Cadastro → Filiais</b> — só se a empresa tem mais de uma loja. <b>Uma vez que existe filial, toda gravação exige dizer de qual é</b>, para a nota nunca cair sem loja.</li>
+  <li><b>Cadastro → Categorias que este cliente vende / usa</b> — opcional. Depois de marcar ao menos uma, um item de compra cuja categoria está fora da lista chega marcado como “verificar”. Deixar vazio mantém a conferência desligada.</li>
+  <li><b>Fornecedores</b> — as regras de fornecedor. Ver a seção seguinte.</li>
+  <li><b>Banco</b> — uma conta bancária por conta real, com saldo inicial e data.</li>
+</ol>
+
+<h2 id="pt-suppliers">3. Regras de fornecedor</h2>
+<p>Uma regra de fornecedor diz: “toda nota deste fornecedor vai para esta conta, esta categoria de VAT, e não me interessa o detalhe das linhas”. É a configuração que faz o segundo mês ser mais rápido que o primeiro.</p>
+
+<div class="card">
+  <h4>Quem decide o quê, nesta ordem</h4>
+  <ol class="steps">
+    <li><b>O que você escolhe na nota.</b> Manda sempre. Corrigir uma nota não muda a regra.</li>
+    <li><b>A regra de fornecedor.</b> Sobrepõe o que o sistema aprendeu, porque é decisão que você escreveu de propósito.</li>
+    <li><b>O que o sistema aprendeu</b> — memória de item→conta, categorização por palavra e por IA. Preenche o que ninguém decidiu.</li>
+  </ol>
+</div>
+
+<div class="note">
+  <b>Campo em “não decide” não decide nada.</b>
+  É assim que um supermercado ganha conta contábil <em>sem</em> ter as alíquotas das suas linhas (23%, 13,5%, 0%) achatadas num número só. Preencha a categoria de VAT apenas para fornecedor que emite sempre a mesma coisa — telecom, aluguel, seguro.
+</div>
+
+<h3>Criando uma</h3>
+<ol class="steps">
+  <li>Abra o cliente → <b>Fornecedores</b> → dê um nome à regra (ex.: “Vodafone — telecom”).</li>
+  <li>Diga como reconhecer o fornecedor: o <b>número de VAT</b> (o reconhecimento forte — “Tesco Stores”, “TESCO IRELAND LTD” e “Tesco” são um fornecedor com três nomes e um número só), ou um <b>pedaço do nome</b>, para recibo que não traz VAT. Entre dois nomes que casam, ganha o mais longo.</li>
+  <li><b>Criar</b>, e depois <b>Editar</b> para dizer o que ela decide: conta contábil, categoria de VAT, e se detalha os itens.</li>
+</ol>
+
+<h3>Itens de linha desligados</h3>
+<p>Desligado, a nota entra como <b>uma linha</b> com o total do próprio documento, e a classificação por IA não roda. Use para o fornecedor cujo detalhe ninguém confere — a fatura da luz, o aluguel, a mensalidade. Medido: três linhas e uma chamada de IA viraram uma linha e nenhuma.</p>
+
+<h2 id="pt-email">4. Entrada por e-mail</h2>
+<p>É a que poupa mais trabalho: o endereço pode ser dado <b>direto ao fornecedor</b>, e aí o cliente não faz nada — a fatura aparece na caixa de entrada sozinha.</p>
+
+<ol class="steps">
+  <li>Cliente → <b>Cadastro</b> → <b>Entrada por e-mail</b> → <b>Criar endereço</b> para Compras, e outro para Vendas.</li>
+  <li>Copie o endereço (fica como <code>notas+htvfmk5d@seuescritorio.ie</code>) e passe ao fornecedor, ou ao cliente para encaminhar.</li>
+  <li>Se quiser, liste quem pode mandar. <b>Bloqueio ganha da liberação</b>, e lista de liberação vazia significa caixa <b>aberta</b>.</li>
+</ol>
+
+<div class="note">
+  <b>Por que o endereço parece aleatório.</b>
+  Ele vai para as mãos de fornecedores. Um endereço como <code>notas+c0001@</code> contaria quantos clientes o escritório tem e deixaria adivinhar o do vizinho. <b>Trocar</b> é o conserto quando um endereço vaza para lista de spam — melhor que desligar a entrada do cliente.
+</div>
+
+<p><b>Dois endereços, não um.</b> Compra e venda são separados porque nota entrando do lado errado troca o sinal do VAT. Se mandar para o endereço errado, reenvie para o certo: o sistema trata como outro destino e aceita.</p>
+
+<h2 id="pt-in">5. Colocar documentos para dentro</h2>
+<p>Três portas, todas terminando no mesmo lugar.</p>
+
+<h3>Arrastando arquivo</h3>
+<ol class="steps">
+  <li><b>Analisar</b> (barra lateral) ou <b>+ Nova compra</b> na tela do cliente.</li>
+  <li>Escolha o cliente, confira a data de lançamento, escolha a filial se o cliente tiver.</li>
+  <li>Solte um arquivo ou cinquenta. PDF, PNG, JPEG, WebP.</li>
+  <li><b>Ler tudo</b> → <b>Salvar tudo</b>.</li>
+</ol>
+<p>Um PDF com quarenta notas escaneadas em sequência é dividido em quarenta lançamentos, cada um com o seu arquivo. Um lote de cinquenta leva alguns minutos; a leitura é a parte lenta.</p>
+
+<h3>Pela caixa de entrada (e-mail)</h3>
+<ol class="steps">
+  <li><b>Caixa de entrada</b> (barra lateral) → <b>Buscar agora</b>.</li>
+  <li>Escolha o cliente no filtro — é isso que libera <b>Ler</b> e <b>Gravar</b>, porque a leitura usa o tipo de negócio e as regras dele.</li>
+  <li><b>Ler</b>, olhe o que voltou, <b>Gravar</b>.</li>
+</ol>
+<p>O que <em>não</em> entrou também aparece, com o motivo escrito: endereço desconhecido, remetente bloqueado, mensagem sem anexo. Nada some em silêncio.</p>
+
+<div class="note">
+  <b>O logotipo do fornecedor não vira item na fila.</b>
+  Toda assinatura corporativa manda o logo como anexo. Sem o filtro, cada fatura criaria dois itens e você passaria o dia apagando PNG de 3&nbsp;KB.
+</div>
+
+<h3>Vendas à mão ou por planilha</h3>
+<p>Cliente → <b>Vendas (T1)</b>. Digite os lançamentos, ou importe planilha — o leitor detecta as colunas e pede confirmação uma vez.</p>
+
+<h2 id="pt-check">6. Conferir e aprovar</h2>
+<p>Abra a <b>Base de dados</b> (todas as notas) ou <b>Compras (T2)</b> do cliente, e clique em <b>Abrir</b> numa linha.</p>
+
+<p>Tudo é editável: campos do cabeçalho, descrição de cada linha, categoria, alíquota da base, alíquota impressa no documento, o valor, e a decisão de crédito. O <b>valor</b> é a cifra como está impressa — Bruto, Líquido e Crédito são calculados a partir dele e sempre fecham.</p>
+
+<div class="card">
+  <h4>No pé de toda nota</h4>
+  <p><b>Documentos</b> — o documento principal mais o que foi juntado depois. <b>Histórico</b> — quem mudou o quê, de qual valor para qual, e quando. Notas lançadas antes da v1.30 não têm trilha; ela começa na primeira alteração dali em diante.</p>
+</div>
+
+<h3>Aprovar</h3>
+<p>Nota que diz <span class="chip chip-warn">revisar</span> teve leitura de baixa confiança. A que não diz nada foi lida com confiança — <b>e ninguém olhou ainda</b>. Essa diferença é o que uma auditoria pergunta, então a tela diz.</p>
+<ul>
+  <li><b>Uma nota:</b> o botão <b>“Conferi — aprovar”</b>.</li>
+  <li><b>Vinte de uma vez:</b> na <b>Base de dados</b>, marque as não conferidas e clique em <b>aprovar</b>. Limite de 200 por passada.</li>
+</ul>
+<p>Aprovar grava seu nome e a hora no histórico de cada nota. Desfazer a aprovação é só de administrador — aprovar é rotina, desfazer é exceção.</p>
+
+<h3>A mesma nota duas vezes</h3>
+<p>Quando um documento bate com um que já existe, aparecem três opções:</p>
+<table>
+  <tr><th>Opção</th><th>O que faz</th></tr>
+  <tr><td><b>juntar</b></td><td>Anexa esta imagem ao lançamento que já existe. Sem segundo lançamento e sem mudar valor nem crédito. A segunda foto de um recibo é muitas vezes a mais legível.</td></tr>
+  <tr><td><b>gravar de todo jeito</b></td><td>Cria um lançamento separado. Use quando for mesmo outra nota.</td></tr>
+  <tr><td><b>descartar</b></td><td>Joga esta cópia fora.</td></tr>
+</table>
+
+<h2 id="pt-bank">7. Banco: importar e conciliar</h2>
+
+<h3>Importar extrato</h3>
+<ol class="steps">
+  <li>Cliente → <b>Banco</b> → abra a conta → <b>Importar</b>.</li>
+  <li>Escolha o arquivo: <b>CSV, Excel ou PDF</b>. O leitor acha as colunas sozinho.</li>
+  <li>Confirme o mapeamento uma vez. Da segunda importação daquele banco em diante ele não pergunta mais.</li>
+  <li>Antes de gravar ele diz <b>quantas linhas são novas</b> — ex.: “2 novas · 7 já importadas (2026-01-02 a 2026-01-28)”.</li>
+</ol>
+<p>Nenhum formato de banco está embutido no programa. Colunas separadas de débito e crédito, coluna única com sinal, vírgula decimal europeia, parênteses para negativo, marcadores DR/CR, linhas de preâmbulo antes do cabeçalho, arquivo sem cabeçalho nenhum — todos tratados e confirmados na tela.</p>
+
+<div class="ok">
+  <b>Dois saldos, e é justamente esse o ponto.</b>
+  O <b>saldo do extrato</b> é o que o banco diz. O <b>saldo no sistema</b> é o que foi lançado aqui. Conciliar não altera nenhum dos dois — só cria o vínculo. A diferença entre eles é exatamente o que falta conciliar.
+</div>
+
+<h3>Conciliar</h3>
+<ol class="steps">
+  <li>Na conta, clique em <b>Conciliar</b>. Linha do extrato à esquerda, a nota ou venda que o sistema acha que é à direita, com o motivo escrito.</li>
+  <li>Confirme, e a nota vira <b>paga</b>.</li>
+  <li>Sem candidato bom? Lance como movimento avulso com uma conta contábil.</li>
+</ol>
+<p>A proposta é ordenada por quão difícil é produzir cada sinal por acidente: o número do documento aparecer na descrição vale mais que o valor bater com o saldo em aberto, que vale mais que o nome do fornecedor aparecer, que vale mais que a proximidade de data. Empate nunca vira proposta — os dois candidatos são listados, porque aceitar um par ou ímpar com um clique é como se cria vínculo errado sem ninguém ter decidido nada.</p>
+
+<h3>Dois desfazeres diferentes</h3>
+<table>
+  <tr><th>Ação</th><th>Efeito</th></tr>
+  <tr><td><b>Desconciliar</b></td><td>Remove só o vínculo. O pagamento continua na nota e aparece como pagamento em aberto.</td></tr>
+  <tr><td><b>Refazer</b></td><td>Apaga o movimento criado e devolve a linha do extrato. A nota volta a dever.</td></tr>
+</table>
+
+<h2 id="pt-rules">8. Regras de banco</h2>
+<p>Cliente → <b>Banco</b> → <b>Regras</b>. Uma regra faz a tarifa mensal, o débito automático da luz e o aluguel deixarem de ser decididos de novo todo mês.</p>
+<ul>
+  <li>Condições sobre descrição, beneficiário, referência ou valor. O valor é comparado pela <b>magnitude</b> — você pensa “acima de 500”, não “menor que −500”.</li>
+  <li>O que ela gera: fornecedor, conta contábil, alíquota — e <b>divisão</b> em várias contas, por percentual ou valor fixo.</li>
+  <li><b>A ordem importa: para na primeira regra que casa.</b> A tela numera, deixa reordenar, e <b>avisa com nome quando uma regra nunca vai acontecer</b> porque outra mais ampla acima engole ela.</li>
+</ul>
+<p>As regras valem na conciliação, não na importação — então regra escrita hoje vale para o extrato importado ontem, sem reimportar nada.</p>
+
+<h2 id="pt-hard">9. Casos difíceis</h2>
+<table>
+  <tr><th>Situação</th><th>Como</th></tr>
+  <tr><td>Um pagamento cobrindo três notas</td><td>Divida a linha e marque as notas. O botão só acende quando as partes somam o valor da linha.</td></tr>
+  <tr><td>Pagamento parcial</td><td>A nota recebe o que foi pago e continua devendo o resto.</td></tr>
+  <tr><td>Tarifa bancária dentro da linha</td><td>Uma parte a mais, numa conta de tarifas.</td></tr>
+  <tr><td>Diferença de centavos</td><td>Até cinco cêntimos vai para uma conta de arredondamento como lançamento visível — nunca somado no valor de uma nota.</td></tr>
+  <tr><td>Cinquenta tarifas iguais</td><td><b>Lote</b>: filtre, marque todas, aplique a conta uma vez. Por desenho o lote <b>nunca casa com documento</b> — concilie primeiro o que tem nota.</td></tr>
+</table>
+
+<h2 id="pt-close">10. Fechar o mês</h2>
+<p>Cliente → <b>Banco</b> → conta → <b>Fechamento</b>. É o que o escritório usa para provar que o mês fecha.</p>
+
+<div class="card">
+  <h4>O relatório separa duas diferenças que se confundem fácil</h4>
+  <p><b>Extrato × sistema</b> — sempre explicada, e por construção: linhas não conciliadas menos lançamentos ainda sem linha. Se esta não bate, o defeito é do sistema, e a tela diz isso.</p>
+  <p><b>Calculado × informado</b> — você digita o saldo final impresso no extrato de papel. Diferença aqui significa que <b>alguma linha do banco nunca foi importada</b>, e nenhuma quantidade de conciliação encontra isso, porque a linha não está lá.</p>
+</div>
+
+<p>Pendência legítima — cheque não compensado, pagamento em trânsito — não impede fechar. Fica registrada no fechamento e o mês fecha. O que impede é a diferença contra o saldo informado.</p>
+<p>Fechado, o período fica travado: conciliar, desconciliar, refazer e importar dentro dele respondem com recusa e a mensagem de reabrir. <b>Reabrir é só de administrador.</b> Importar arquivo com linha antiga e nova continua funcionando — só a nova entra, e a recusada é contada.</p>
+
+<h2 id="pt-out">11. VAT3, obrigações e exportação</h2>
+<ul>
+  <li><b>VAT por alíquota</b> — o que foi cobrado nas vendas contra o crédito tomado nas compras, alíquota por alíquota. É o papel de trabalho do VAT3.</li>
+  <li><b>Obrigações</b> — períodos de VAT3 e RTD com prazo, marcados <span class="chip chip-danger">Vencido</span>, <span class="chip chip-warn">Em breve</span> ou <span class="chip chip-brand">Pendente</span>.</li>
+  <li><b>Exportar</b> (ao lado do nome do cliente) — Excel, CSV, PDF, Sage 50 e Bright/BrightBooks, para o período escolhido.</li>
+</ul>
+
+<h2 id="pt-trouble">12. Quando algo parece errado</h2>
+<table>
+  <tr><th>Sintoma</th><th>Onde olhar</th></tr>
+  <tr><td>Regra de fornecedor parece não fazer nada</td><td>Alguém editou aquela nota à mão — escolha manual manda sempre. Ou o campo está em “não decide”.</td></tr>
+  <tr><td>Nota chegou vazia e marcada para revisão</td><td>Duas regras de fornecedor reconhecem ela e discordam, então nenhuma foi aplicada. A mensagem diz quais são.</td></tr>
+  <tr><td>A diferença do fechamento não é zero</td><td>Alguma linha do banco nunca foi importada. Compare o extrato de papel com as linhas importadas do período.</td></tr>
+  <tr><td>Uma regra de banco nunca dispara</td><td>Uma regra mais ampla acima está engolindo ela. A tela de regras diz qual.</td></tr>
+  <tr><td>Nada chega na caixa de entrada</td><td>Veja <b>Buscas</b> no pé da caixa de entrada: “nunca rodou” e “não chegou nada” são coisas diferentes, e o registro distingue.</td></tr>
+  <tr><td>Um valor parece errado na nota</td><td><b>Histórico</b>, no pé da nota: quem mudou, de quanto para quanto, quando.</td></tr>
+</table>
+
+<footer>
+  Ferramenta de apoio — a classificação é sugerida e editável; não substitui o contador. Alíquotas: Revenue Irlanda.
+  As telas acima são ilustrações desenhadas com as cores do próprio aplicativo, não fotografias.
+</footer>
+
+</main>
+</div>
+
+<script>
+(function () {
+  var btns = document.querySelectorAll(".langbtn");
+  function set(lang) {
+    document.querySelectorAll("[data-lang]").forEach(function (el) {
+      el.classList.toggle("on", el.getAttribute("data-lang") === lang);
+    });
+    btns.forEach(function (b) {
+      b.setAttribute("aria-pressed", String(b.getAttribute("data-set") === lang));
+    });
+    document.documentElement.lang = lang;
+    try { localStorage.setItem("vat-manual-lang", lang); } catch (e) {}
+  }
+  btns.forEach(function (b) {
+    b.addEventListener("click", function () { set(b.getAttribute("data-set")); });
+  });
+  var saved = null;
+  try { saved = localStorage.getItem("vat-manual-lang"); } catch (e) {}
+  set(saved === "pt" ? "pt" : "en");
+})();
+</script>
+</body>
+</html>

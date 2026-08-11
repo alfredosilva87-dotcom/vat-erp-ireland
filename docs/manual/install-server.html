@@ -1,0 +1,312 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>VAT ERP — Server installation / Instalação no servidor</title>
+<link rel="stylesheet" href="manual.css">
+</head>
+<body>
+
+<div class="cover">
+  <div class="cover-inner">
+    <div class="logo">
+      <span class="logo-mark">V</span>
+      <span>VAT Reader<small>IRELAND · ERP</small></span>
+    </div>
+    <h1 data-lang="en" class="on">Server installation</h1>
+    <h1 data-lang="pt">Instalação no servidor</h1>
+    <p data-lang="en" class="on">One central machine in the practice. The application, the database and the invoice files all stay inside it — nothing goes to the cloud.</p>
+    <p data-lang="pt">Uma máquina central no escritório. A aplicação, o banco de dados e os arquivos das notas ficam todos dentro dela — nada vai para a nuvem.</p>
+    <div class="meta">v1.30 · 2026</div>
+  </div>
+</div>
+
+<div class="langbar">
+  <div class="langbar-inner">
+    <span>Language / Idioma</span>
+    <button class="langbtn" data-set="en" aria-pressed="true">English</button>
+    <button class="langbtn" data-set="pt" aria-pressed="false">Português</button>
+  </div>
+</div>
+
+<div class="wrap">
+
+<!-- ==================== ENGLISH ==================== -->
+<main data-lang="en" class="on">
+
+<h2>Which installation is this?</h2>
+<p class="lead">There are two shapes. Pick the wrong one and the data ends up in the wrong place, so read this table first.</p>
+<table>
+  <tr><th></th><th>Per-PC</th><th>Practice server <span class="chip chip-brand">this manual</span></th></tr>
+  <tr><td><b>Who uses it</b></td><td>One person, one machine</td><td>Several people, the same data</td></tr>
+  <tr><td><b>Database</b></td><td>One per PC, not shared</td><td>One, central</td></tr>
+  <tr><td><b>The stations</b></td><td>Each installs everything</td><td>Only open a browser</td></tr>
+  <tr><td><b>Installer</b></td><td><code>install.command</code> / <code>install.bat</code></td><td><code>install-server.bat</code></td></tr>
+</table>
+
+<div class="warn">
+  <b>Several people with the same data? Then it is the server.</b>
+  Two per-PC installs do not sync — each would keep its own separate books, and nobody would notice until the two disagreed.
+</div>
+
+<h2>Before you start</h2>
+
+<h3>The machine</h3>
+<table>
+  <tr><th></th><th>Minimum</th><th>Recommended</th></tr>
+  <tr><td>RAM</td><td>8 GB</td><td>16 GB</td></tr>
+  <tr><td>Free disk</td><td>20 GB</td><td>60 GB (invoice files grow)</td></tr>
+  <tr><td>System</td><td>Windows 10/11 64-bit, or Linux</td><td>—</td></tr>
+  <tr><td>Network</td><td>Fixed IP or reserved DHCP</td><td>A name on the local DNS</td></tr>
+</table>
+<p>It should be a machine that stays on. If it sleeps, the system is unreachable while it sleeps.</p>
+
+<h3>Two programs, in this order</h3>
+<ol class="steps">
+  <li><b>Node.js</b> — the LTS version, from <a href="https://nodejs.org">nodejs.org</a>.</li>
+  <li><b>Docker Desktop</b> — from <a href="https://docs.docker.com/desktop/">docs.docker.com/desktop</a>.
+    <br><small>On Windows it needs WSL2. If Docker opens saying <b>“WSL is not installed”</b>, open PowerShell as administrator, run <code>wsl --install</code>, restart, then open Docker again.</small></li>
+</ol>
+
+<div class="note">
+  <b>macOS 13 (Ventura) or older</b> cannot run Docker Desktop. Use <a href="https://github.com/abiosoft/colima">Colima</a> instead — the installer works with either, because it only needs a working <code>docker</code> command.
+</div>
+
+<h2>Getting the files</h2>
+<p>The repository is private, so downloading needs an account with access.</p>
+<ol class="steps">
+  <li><b>With Git</b> (recommended, because updating is then one command):
+    <br><code>git clone https://github.com/alfredosilva87-dotcom/vat-erp-ireland.git</code>
+    <br>Git asks for your GitHub user and a personal access token as the password.</li>
+  <li><b>Without Git:</b> on the repository page, <b>Code → Download ZIP</b>, then unzip it into a folder with no spaces in the path — for example <code>C:\vat-erp</code>.</li>
+</ol>
+
+<h2>Installing</h2>
+<ol class="steps">
+  <li><b>Open Docker</b> and wait until it says it is running. The installer fails early and clearly if Docker is not up, but waiting saves you the round trip.</li>
+  <li><b>Run the installer</b> from the <code>selfhost</code> folder:
+    <br>Windows: double-click <code>install-server.bat</code>
+    <br>Mac/Linux: <code>node selfhost/scripts/install-server.js</code></li>
+  <li><b>Answer three questions:</b> the administrator e-mail, the administrator password, and the Gemini API key (free, from <a href="https://aistudio.google.com">aistudio.google.com</a> → Get API key).</li>
+  <li><b>Wait.</b> It picks free ports, generates the keys, brings up the database, applies the nine schema files, creates the administrator and builds the application. First run takes several minutes because Docker is downloading images.</li>
+  <li><b>Write down the address it prints at the end</b> — something like <code>https://192.168.0.20:3010</code>. That is what the stations open.</li>
+</ol>
+
+<div class="ok">
+  <b>The database is born empty of client data.</b>
+  Structure, the Irish VAT rate base, the credit rules and one administrator. No client's real data is copied in — that comes from your own imports.
+</div>
+
+<h2>HTTPS, and why it is not optional</h2>
+<p>Sign-in uses a session cookie marked <code>Secure</code>, which browsers only store over HTTPS. Over plain <code>http://</code> on an IP address, sign-in appears to work, the cookie is silently dropped, and the screen bounces back to the login page.</p>
+<p>The server installer generates a certificate and serves HTTPS for exactly this reason. Because the certificate is self-signed, each station shows a warning the first time:</p>
+<ol class="steps">
+  <li><b>Chrome / Edge:</b> Advanced → Proceed.</li>
+  <li><b>Firefox:</b> Advanced → Accept the risk and continue.</li>
+  <li>To remove the warning for good, install the CA on each station — <code>node selfhost/scripts/export-ca.js</code> writes out the file to import.</li>
+</ol>
+
+<h2>Daily use</h2>
+<table>
+  <tr><th>What</th><th>Windows</th><th>Mac / Linux</th></tr>
+  <tr><td>Start</td><td><code>start.bat</code></td><td><code>./start.command</code></td></tr>
+  <tr><td>Stop</td><td><code>stop.bat</code></td><td><code>./stop.command</code></td></tr>
+  <tr><td>Back up</td><td><code>backup.bat</code></td><td><code>node selfhost/scripts/backup.js</code></td></tr>
+  <tr><td>See the logs</td><td colspan="2"><code>node selfhost/scripts/logs.js</code></td></tr>
+</table>
+<p>Set the machine to run <code>start</code> at boot, so a power cut does not leave the practice without the system until somebody notices.</p>
+
+<h3>Backups — the part everyone skips</h3>
+<p><code>backup</code> writes the database <em>and</em> the invoice files to a dated folder. Copy that folder somewhere off the machine — a backup that lives only on the machine it is protecting is not a backup. Test a restore once, before you need it.</p>
+
+<h2>Updating</h2>
+<ol class="steps">
+  <li><b>Back up first.</b> Always.</li>
+  <li><code>git pull</code> (or download the new ZIP over the folder).</li>
+  <li>Run the installer again. It is <b>idempotent</b>: schema files that already ran do nothing, new ones are applied. Existing data is not touched.</li>
+  <li><code>start</code> again.</li>
+</ol>
+
+<h2>Email intake (optional)</h2>
+<p>To let invoices arrive by e-mail, add these to <code>.env.local</code> and restart. The server <b>fetches</b> by IMAP — it never receives SMTP, so no port has to be opened.</p>
+<table>
+  <tr><th>Variable</th><th>What it is</th></tr>
+  <tr><td><code>MAIL_IMAP_HOST</code></td><td><code>imap.gmail.com</code>, <code>outlook.office365.com</code>, …</td></tr>
+  <tr><td><code>MAIL_IMAP_PORT</code></td><td><code>993</code></td></tr>
+  <tr><td><code>MAIL_IMAP_USER</code></td><td>The practice's mailbox</td></tr>
+  <tr><td><code>MAIL_IMAP_PASSWORD</code></td><td><b>An app password</b> — Gmail and Microsoft 365 refuse the account password</td></tr>
+  <tr><td><code>MAIL_INBOX_ADDRESS</code></td><td>The base address, so the app can show <code>notes+token@…</code> per client</td></tr>
+</table>
+<div class="note">
+  <b>The password lives in the environment, never in the database.</b>
+  A database dump must not carry the practice's e-mail password along with the invoices.
+</div>
+
+<h2>When it does not work</h2>
+<table>
+  <tr><th>Symptom</th><th>Cause and fix</th></tr>
+  <tr><td>Installer stops on Docker</td><td>Docker is not running, or WSL2 is missing on Windows. Open Docker, wait for “running”, try again.</td></tr>
+  <tr><td>Sign-in loops back to the login page</td><td>You are on <code>http://</code>. Use the <code>https://</code> address the installer printed.</td></tr>
+  <tr><td>A station cannot reach the server</td><td>Windows Firewall on the server. Allow inbound TCP on the port the installer chose.</td></tr>
+  <tr><td>“Port already in use”</td><td>Another program has it. The installer picks free ports; if you fixed one by hand, free it or change it.</td></tr>
+  <tr><td>Everything was working, then stopped</td><td>The machine restarted and <code>start</code> did not run. Check the logs and set it to start at boot.</td></tr>
+</table>
+
+<footer>
+  Detail beyond this manual: <code>selfhost/README.md</code> (per-PC), <code>selfhost/SERVIDOR.md</code> (server) and <code>selfhost/TESTE.md</code> (test script) in the repository.
+</footer>
+
+</main>
+
+<!-- ==================== PORTUGUÊS ==================== -->
+<main data-lang="pt">
+
+<h2>Qual instalação é esta?</h2>
+<p class="lead">Existem duas formas. Escolher a errada põe o dado no lugar errado, então leia esta tabela antes.</p>
+<table>
+  <tr><th></th><th>Por PC</th><th>Servidor do escritório <span class="chip chip-brand">este manual</span></th></tr>
+  <tr><td><b>Quem usa</b></td><td>Uma pessoa, uma máquina</td><td>Várias pessoas, os mesmos dados</td></tr>
+  <tr><td><b>Banco de dados</b></td><td>Um por PC, não compartilha</td><td>Um, central</td></tr>
+  <tr><td><b>As estações</b></td><td>Cada uma instala tudo</td><td>Só abrem o navegador</td></tr>
+  <tr><td><b>Instalador</b></td><td><code>install.command</code> / <code>install.bat</code></td><td><code>install-server.bat</code></td></tr>
+</table>
+
+<div class="warn">
+  <b>Várias pessoas com os mesmos dados? Então é o servidor.</b>
+  Duas instalações por PC não sincronizam — cada uma manteria a sua contabilidade separada, e ninguém perceberia até as duas discordarem.
+</div>
+
+<h2>Antes de começar</h2>
+
+<h3>A máquina</h3>
+<table>
+  <tr><th></th><th>Mínimo</th><th>Recomendado</th></tr>
+  <tr><td>RAM</td><td>8 GB</td><td>16 GB</td></tr>
+  <tr><td>Disco livre</td><td>20 GB</td><td>60 GB (os arquivos das notas crescem)</td></tr>
+  <tr><td>Sistema</td><td>Windows 10/11 64-bit, ou Linux</td><td>—</td></tr>
+  <tr><td>Rede</td><td>IP fixo ou DHCP reservado</td><td>Um nome no DNS local</td></tr>
+</table>
+<p>Precisa ser uma máquina que fica ligada. Se ela dorme, o sistema fica inacessível enquanto dorme.</p>
+
+<h3>Dois programas, nesta ordem</h3>
+<ol class="steps">
+  <li><b>Node.js</b> — versão LTS, em <a href="https://nodejs.org">nodejs.org</a>.</li>
+  <li><b>Docker Desktop</b> — em <a href="https://docs.docker.com/desktop/">docs.docker.com/desktop</a>.
+    <br><small>No Windows precisa do WSL2. Se o Docker abrir dizendo <b>“WSL is not installed”</b>, abra o PowerShell como administrador, rode <code>wsl --install</code>, reinicie, e abra o Docker de novo.</small></li>
+</ol>
+
+<div class="note">
+  <b>macOS 13 (Ventura) ou mais antigo</b> não roda Docker Desktop. Use o <a href="https://github.com/abiosoft/colima">Colima</a> — o instalador funciona com qualquer um dos dois, porque só precisa do comando <code>docker</code> funcionando.
+</div>
+
+<h2>Baixar os arquivos</h2>
+<p>O repositório é privado, então baixar exige uma conta com acesso.</p>
+<ol class="steps">
+  <li><b>Com Git</b> (recomendado, porque atualizar depois é um comando):
+    <br><code>git clone https://github.com/alfredosilva87-dotcom/vat-erp-ireland.git</code>
+    <br>O Git pede o usuário do GitHub e um token de acesso pessoal como senha.</li>
+  <li><b>Sem Git:</b> na página do repositório, <b>Code → Download ZIP</b>, e descompacte numa pasta sem espaços no caminho — por exemplo <code>C:\vat-erp</code>.</li>
+</ol>
+
+<h2>Instalar</h2>
+<ol class="steps">
+  <li><b>Abra o Docker</b> e espere ele dizer que está rodando. O instalador para cedo e com mensagem clara se o Docker não estiver de pé, mas esperar poupa a ida e volta.</li>
+  <li><b>Rode o instalador</b>, na pasta <code>selfhost</code>:
+    <br>Windows: dois cliques em <code>install-server.bat</code>
+    <br>Mac/Linux: <code>node selfhost/scripts/install-server.js</code></li>
+  <li><b>Responda três perguntas:</b> e-mail do administrador, senha do administrador, e a chave da API do Gemini (grátis, em <a href="https://aistudio.google.com">aistudio.google.com</a> → Get API key).</li>
+  <li><b>Espere.</b> Ele escolhe portas livres, gera as chaves, sobe o banco, aplica os nove arquivos de schema, cria o administrador e compila a aplicação. A primeira vez leva vários minutos porque o Docker está baixando imagens.</li>
+  <li><b>Anote o endereço que ele imprime no fim</b> — algo como <code>https://192.168.0.20:3010</code>. É o que as estações abrem.</li>
+</ol>
+
+<div class="ok">
+  <b>O banco nasce sem dado de cliente.</b>
+  Estrutura, a base de alíquotas irlandesas, as regras de crédito e um administrador. Nenhum dado real de cliente é copiado — isso vem das suas próprias importações.
+</div>
+
+<h2>HTTPS, e por que não é opcional</h2>
+<p>O login usa um cookie de sessão marcado como <code>Secure</code>, que os navegadores só guardam sobre HTTPS. Em <code>http://</code> puro num IP, o login parece funcionar, o cookie é descartado em silêncio, e a tela volta para o login.</p>
+<p>O instalador de servidor gera um certificado e serve HTTPS exatamente por isso. Como o certificado é autoassinado, cada estação mostra um aviso na primeira vez:</p>
+<ol class="steps">
+  <li><b>Chrome / Edge:</b> Avançado → Prosseguir.</li>
+  <li><b>Firefox:</b> Avançado → Aceitar o risco e continuar.</li>
+  <li>Para tirar o aviso de vez, instale a CA em cada estação — <code>node selfhost/scripts/export-ca.js</code> gera o arquivo a importar.</li>
+</ol>
+
+<h2>Uso diário</h2>
+<table>
+  <tr><th>O quê</th><th>Windows</th><th>Mac / Linux</th></tr>
+  <tr><td>Ligar</td><td><code>start.bat</code></td><td><code>./start.command</code></td></tr>
+  <tr><td>Parar</td><td><code>stop.bat</code></td><td><code>./stop.command</code></td></tr>
+  <tr><td>Backup</td><td><code>backup.bat</code></td><td><code>node selfhost/scripts/backup.js</code></td></tr>
+  <tr><td>Ver os registros</td><td colspan="2"><code>node selfhost/scripts/logs.js</code></td></tr>
+</table>
+<p>Configure a máquina para rodar o <code>start</code> ao ligar, para que uma queda de energia não deixe o escritório sem o sistema até alguém perceber.</p>
+
+<h3>Backup — a parte que todos pulam</h3>
+<p>O <code>backup</code> grava o banco <em>e</em> os arquivos das notas numa pasta com data. Copie essa pasta para fora da máquina — backup que mora só na máquina que ele protege não é backup. Teste uma restauração uma vez, antes de precisar.</p>
+
+<h2>Atualizar</h2>
+<ol class="steps">
+  <li><b>Backup primeiro.</b> Sempre.</li>
+  <li><code>git pull</code> (ou baixe o ZIP novo por cima da pasta).</li>
+  <li>Rode o instalador de novo. Ele é <b>idempotente</b>: arquivo de schema que já rodou não faz nada, e os novos são aplicados. Dado existente não é tocado.</li>
+  <li><code>start</code> de novo.</li>
+</ol>
+
+<h2>Entrada por e-mail (opcional)</h2>
+<p>Para as notas chegarem por e-mail, acrescente isto ao <code>.env.local</code> e reinicie. O servidor <b>busca</b> por IMAP — ele nunca recebe SMTP, então nenhuma porta precisa ser aberta.</p>
+<table>
+  <tr><th>Variável</th><th>O que é</th></tr>
+  <tr><td><code>MAIL_IMAP_HOST</code></td><td><code>imap.gmail.com</code>, <code>outlook.office365.com</code>, …</td></tr>
+  <tr><td><code>MAIL_IMAP_PORT</code></td><td><code>993</code></td></tr>
+  <tr><td><code>MAIL_IMAP_USER</code></td><td>A caixa do escritório</td></tr>
+  <tr><td><code>MAIL_IMAP_PASSWORD</code></td><td><b>Uma senha de aplicativo</b> — Gmail e Microsoft 365 recusam a senha da conta</td></tr>
+  <tr><td><code>MAIL_INBOX_ADDRESS</code></td><td>O endereço base, para o app mostrar <code>notas+token@…</code> por cliente</td></tr>
+</table>
+<div class="note">
+  <b>A senha mora no ambiente, nunca no banco.</b>
+  Um despejo do banco não pode carregar a senha do e-mail do escritório junto com as notas.
+</div>
+
+<h2>Quando não funciona</h2>
+<table>
+  <tr><th>Sintoma</th><th>Causa e conserto</th></tr>
+  <tr><td>Instalador para no Docker</td><td>O Docker não está rodando, ou falta o WSL2 no Windows. Abra o Docker, espere o “running”, tente de novo.</td></tr>
+  <tr><td>O login volta para a tela de login</td><td>Você está em <code>http://</code>. Use o endereço <code>https://</code> que o instalador imprimiu.</td></tr>
+  <tr><td>Uma estação não alcança o servidor</td><td>Firewall do Windows no servidor. Libere a entrada TCP na porta que o instalador escolheu.</td></tr>
+  <tr><td>“Porta já em uso”</td><td>Outro programa está com ela. O instalador escolhe portas livres; se você fixou uma à mão, libere ou troque.</td></tr>
+  <tr><td>Funcionava e parou</td><td>A máquina reiniciou e o <code>start</code> não rodou. Veja os registros e configure para iniciar junto com o sistema.</td></tr>
+</table>
+
+<footer>
+  Detalhe além deste manual: <code>selfhost/README.md</code> (por PC), <code>selfhost/SERVIDOR.md</code> (servidor) e <code>selfhost/TESTE.md</code> (roteiro de teste), no repositório.
+</footer>
+
+</main>
+</div>
+
+<script>
+(function () {
+  var btns = document.querySelectorAll(".langbtn");
+  function set(lang) {
+    document.querySelectorAll("[data-lang]").forEach(function (el) {
+      el.classList.toggle("on", el.getAttribute("data-lang") === lang);
+    });
+    btns.forEach(function (b) {
+      b.setAttribute("aria-pressed", String(b.getAttribute("data-set") === lang));
+    });
+    document.documentElement.lang = lang;
+    try { localStorage.setItem("vat-manual-lang", lang); } catch (e) {}
+  }
+  btns.forEach(function (b) {
+    b.addEventListener("click", function () { set(b.getAttribute("data-set")); });
+  });
+  var saved = null;
+  try { saved = localStorage.getItem("vat-manual-lang"); } catch (e) {}
+  set(saved === "pt" ? "pt" : "en");
+})();
+</script>
+</body>
+</html>
