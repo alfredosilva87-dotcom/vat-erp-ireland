@@ -603,7 +603,45 @@ Duas correções que só o extrato real revelou:
 
 ---
 
-## Camada A7 — Conciliação em massa `[ ] não iniciada`
+## Camada A7 — Conciliação em massa `[x] CONCLUÍDA (2026-08-11, v1.26)`
+
+Entregue:
+
+| O quê | Onde |
+|---|---|
+| Gravação do lote em duas idas ao banco | `bulkSpend` em `lib/bankReconcile.ts` |
+| Rota com as recusas explícitas | `.../bank-accounts/[accountId]/lines/bulk/` |
+| Tela planilha, ordenável, com propagação | `app/clients/[id]/bank/[accountId]/bulk/page.tsx` |
+
+**A regra que dá forma à camada: o lote nunca casa com documento.** Não é
+limitação técnica, é ordem de trabalho — quem passa o lote primeiro consome com
+"tarifa bancária" linhas que eram pagamento de nota, e a nota fica em aberto
+para sempre com o dinheiro já lançado noutro lugar.
+
+Por isso a linha que **tem** proposta de documento aparece marcada na tela, com
+caixa e conta desabilitadas, e a rota recusa `invoiceId`/`saleId` com mensagem
+explícita — para ficar claro que é decisão, não esquecimento.
+
+Decisões tomadas na implementação:
+- **Regra da camada A3 preenche a conta**, quando ela resolve a linha inteira
+  numa conta só. Regra com divisão fica de fora: dividir é decisão de uma linha,
+  não de lote.
+- **Limite de 200 linhas, e aviso acima de 100.** Lote grande é onde o erro
+  passa despercebido, porque ninguém confere 500 linhas na tela — e lote errado
+  é caro de desfazer.
+- **Duas idas ao banco, não uma por linha.** Cinquenta tarifas não podem levar
+  meio minuto, senão ninguém usa e volta a conciliar uma a uma.
+- **Aviso de linha sem conta contábil** antes de gravar: entra sem destino e
+  alguém vai ter que voltar nela.
+- O cadeado de período (A5) vale aqui também, linha a linha.
+
+Verificado na tela, ponta a ponta (2026-08-11):
+- [x] 12 tarifas iguais: filtrar, marcar todas, aplicar a conta de uma vez,
+      gravar → **12 movimentos**, todos em `6300`, VAT 0, nenhum ligado a documento
+- [x] Linha com proposta de documento fica **travada** na tela
+- [x] Rota recusa lote com `invoiceId` e lote acima de 200
+
+### Desenho original da camada
 
 **Entrega**
 - Tela planilha, ordenável, seleção múltipla, propagação de conta
@@ -612,7 +650,8 @@ Duas correções que só o extrato real revelou:
 - Lote recomendado abaixo de 100 linhas
 
 **Testável quando:**
-- [ ] 50 linhas de tarifa conciliadas numa passada
+- [x] Linhas de tarifa conciliadas numa passada *(testado com 12; o limite é 200,
+      com aviso acima de 100)*
 
 ---
 
@@ -795,13 +834,14 @@ número está certo.
 | 2026-08-11 | A6 | Leitura por coordenada; primeiro extrato REAL (AIB) lido inteiro; 184 testes | v1.23.1 |
 | 2026-08-11 | A4 | Casos difíceis: várias notas, parcial, tarifa e arredondamento; 215 testes | v1.24 |
 | 2026-08-11 | A5 | Fechamento, relatório de conciliação e trava de período; 241 testes | v1.25 |
+| 2026-08-11 | A7 | Conciliação em massa, sem casar com documento | v1.26 |
 
-**Onde parou: A5 concluída. Falta só a A7 (conciliação em massa) na Fase A**, e
-a Fase B inteira (ingestão de documentos).
+**Onde parou: FASE A COMPLETA.** Importar extrato (CSV, Excel e PDF) →
+conciliar com sugestão → regras → casos difíceis → fechar o mês com prova → lote.
 
-Com a A5 pronta, a Fase A já entrega o ciclo completo: importar extrato →
-conciliar → fechar o mês com prova. A A7 é conforto para lote grande, não
-pré-requisito de nada.
+**A próxima é a Fase B — ingestão de documentos**, começando pela B1 (regra por
+fornecedor), que é a lacuna mais barata de fechar e a que o contador mais
+controla no dia a dia.
 
 O primeiro extrato real chegou em 2026-08-11 (AIB, julho) e virou o teste que
 mais ensinou até agora. **Quando chegarem extratos de outros bancos, o certo é

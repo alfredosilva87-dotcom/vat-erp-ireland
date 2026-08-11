@@ -90,6 +90,9 @@ export default function BankAccountDetail({
           <Link href={`/clients/${params.id}/bank/${params.accountId}/closing`} className="btn-ghost">
             Fechamento
           </Link>
+          <Link href={`/clients/${params.id}/bank/${params.accountId}/bulk`} className="btn-ghost">
+            Em massa
+          </Link>
           <Link href={`/clients/${params.id}/bank/${params.accountId}/reconcile`} className="btn-primary">
             Conciliar
             {!!balance?.unreconciled_statement_count && ` (${balance.unreconciled_statement_count})`}

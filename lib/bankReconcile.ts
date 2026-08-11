@@ -20,7 +20,7 @@ import { getServerSupabase } from "@/lib/supabase";
 import { suggestMatches, bestSuggestion, type MatchCandidate, type MatchSuggestion } from "@/lib/bankMatch";
 import { applyRules, type RuleOutcome, type ResolvedAllocation } from "@/lib/bankRules";
 import { listBankRules } from "@/lib/bankRulesStore";
-import { periodLockError } from "@/lib/bankClosingStore";
+import { periodLockError, lockedThrough } from "@/lib/bankClosingStore";
 import type { StoredStatementLine } from "@/lib/types";
 
 const sb = () => getServerSupabase();
@@ -347,6 +347,90 @@ export async function undoLine(
   await sb().from("bank_statement_lines")
     .update({ status: "unreconciled", reconciled_at: null }).eq("id", lineId);
   return { ok: true, affected: (data ?? []).length };
+}
+
+export interface BulkItem {
+  lineId: string;
+  accountCode?: string | null;
+  vatRate?: number | null;
+  description?: string | null;
+  reason?: "rule" | "manual";
+}
+
+export interface BulkOutcome {
+  done: number;
+  skipped: Array<{ lineId: string; reason: string }>;
+}
+
+/**
+ * Conciliação em massa (camada A7).
+ *
+ * **Só cria lançamento avulso — nunca casa com documento**, e isso não é
+ * limitação técnica, é a ordem certa do trabalho: quem passa o lote primeiro
+ * consome com "tarifa bancária" linhas que eram pagamento de nota, e a nota
+ * fica em aberto para sempre com o dinheiro já lançado noutro lugar. Documento
+ * primeiro, lote depois.
+ *
+ * Faz tudo em duas idas ao banco em vez de uma por linha: cinquenta tarifas não
+ * podem levar meio minuto, senão ninguém usa e volta a conciliar uma a uma.
+ */
+export async function bulkSpend(
+  accountId: string, clientId: string, items: BulkItem[], userId: string | null
+): Promise<BulkOutcome> {
+  const skipped: Array<{ lineId: string; reason: string }> = [];
+  if (!items.length) return { done: 0, skipped };
+
+  const ids = items.map((i) => i.lineId);
+  const [{ data: lines }, until] = await Promise.all([
+    sb().from("bank_statement_lines").select("id,line_date,amount,description,payee,status")
+      .eq("bank_account_id", accountId).in("id", ids),
+    lockedThrough(accountId),
+  ]);
+
+  const byId = new Map((lines ?? []).map((l: any) => [l.id, l]));
+  const now = new Date().toISOString();
+  const rows: any[] = [];
+  const okIds: string[] = [];
+
+  for (const item of items) {
+    const l = byId.get(item.lineId);
+    if (!l) { skipped.push({ lineId: item.lineId, reason: "Linha não encontrada nesta conta." }); continue; }
+    if (l.status === "reconciled") { skipped.push({ lineId: item.lineId, reason: "Já estava conciliada." }); continue; }
+    if (until && l.line_date <= until) {
+      skipped.push({ lineId: item.lineId, reason: `Período fechado até ${until}.` });
+      continue;
+    }
+
+    const amount = money(l.amount);
+    rows.push({
+      bank_account_id: accountId,
+      client_id: clientId,
+      txn_date: l.line_date,
+      description: item.description?.trim() || l.description,
+      contact_name: l.payee,
+      amount,
+      kind: amount < 0 ? "spend" : "receive",
+      account_code: item.accountCode?.trim() || null,
+      vat_rate: item.vatRate ?? null,
+      invoice_id: null,
+      sale_id: null,
+      statement_line_id: l.id,
+      reconciled_at: now,
+      reason: item.reason ?? "manual",
+      created_by: userId,
+    });
+    okIds.push(l.id);
+  }
+
+  if (!rows.length) return { done: 0, skipped };
+
+  const { error } = await sb().from("bank_transactions").insert(rows);
+  if (error) return { done: 0, skipped: [...skipped, { lineId: "*", reason: error.message }] };
+
+  await sb().from("bank_statement_lines")
+    .update({ status: "reconciled", reconciled_at: now }).in("id", okIds);
+
+  return { done: okIds.length, skipped };
 }
 
 /** Transactions posted here that no statement line accounts for yet. */
