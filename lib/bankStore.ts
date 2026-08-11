@@ -11,6 +11,7 @@
  */
 
 import { getServerSupabase } from "@/lib/supabase";
+import { lockedThrough } from "@/lib/bankClosingStore";
 import type { ColumnMapping, StatementLine } from "@/lib/bankStatement";
 import type {
   BankAccount, BankAccountBalance, BankImport, StoredStatementLine,
@@ -163,6 +164,9 @@ export interface ImportOutcome {
   imported: number;
   skipped: number;
   rejected: number;
+  /** Linhas recusadas por caírem dentro de um período já fechado. */
+  locked?: number;
+  lockedThrough?: string | null;
 }
 
 /**
@@ -184,9 +188,18 @@ export async function importStatementLines(
   }
 ): Promise<ImportOutcome> {
   const candidates = opts.lines.map((l) => toRow(accountId, null, l));
-  const valid = candidates.filter((r): r is NonNullable<typeof r> => r !== null);
-  const rejected = candidates.length - valid.length;
-  if (!valid.length) return { importId: null, imported: 0, skipped: 0, rejected };
+  const all = candidates.filter((r): r is NonNullable<typeof r> => r !== null);
+  const rejected = candidates.length - all.length;
+
+  // Linha dentro de período fechado não entra. Importar por cima de um mês
+  // fechado mudaria um saldo que já foi dado como conferido, e ninguém veria.
+  const until = await lockedThrough(accountId);
+  const valid = until ? all.filter((r) => r.line_date > until) : all;
+  const locked = all.length - valid.length;
+
+  if (!valid.length) {
+    return { importId: null, imported: 0, skipped: 0, rejected, locked, lockedThrough: until };
+  }
 
   const { data: imp, error: impErr } = await sb().from("bank_imports").insert({
     bank_account_id: accountId,
@@ -218,11 +231,11 @@ export async function importStatementLines(
   // keeping — the accountant re-picked a file they had already loaded.
   if (imported === 0) {
     await sb().from("bank_imports").delete().eq("id", importId);
-    return { importId: null, imported: 0, skipped, rejected };
+    return { importId: null, imported: 0, skipped, rejected, locked, lockedThrough: until };
   }
 
   if (opts.mapping) await updateBankAccount(accountId, { column_mapping: opts.mapping });
-  return { importId, imported, skipped, rejected };
+  return { importId, imported, skipped, rejected, locked, lockedThrough: until };
 }
 
 export async function listBankImports(accountId: string): Promise<BankImport[]> {

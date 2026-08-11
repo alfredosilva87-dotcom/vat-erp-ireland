@@ -442,9 +442,58 @@ Verificado na tela, ponta a ponta (2026-08-11):
 
 ---
 
-## Camada A5 — Fechamento e relatório `[ ] não iniciada`
+## Camada A5 — Fechamento e relatório `[x] CONCLUÍDA (2026-08-11, v1.25)`
 
 O que o escritório usa para provar que o mês fecha.
+
+Entregue:
+
+| O quê | Onde |
+|---|---|
+| Relatório (função pura, 26 testes) | `lib/closingReport.ts` |
+| Fechamento gravado e o cadeado | `lib/bankClosingStore.ts`, `selfhost/schema/006_bank_closing.sql` |
+| Rotas de relatório, fechar e reabrir | `.../bank-accounts/[accountId]/closing/` |
+| Tela lida de cima para baixo, como se confere no papel | `app/clients/[id]/bank/[accountId]/closing/page.tsx` |
+
+**O relatório separa duas diferenças que costumam ser confundidas**, e essa é a
+ideia central da camada:
+
+1. **Extrato × sistema** — sempre explicada, e por construção: é a soma das
+   linhas ainda não conciliadas menos os lançamentos ainda sem linha. Se essa
+   conta não bater, o defeito é do sistema, não do trabalho, e a tela diz isso.
+2. **Calculado × informado** — o contador digita o saldo final impresso no
+   extrato de papel. Diferença aqui significa que **alguma linha do banco nunca
+   foi importada**, e nenhuma quantidade de conciliação encontra isso, porque a
+   linha não está lá.
+
+Decisões tomadas na implementação:
+- **Pendência legítima não impede fechar.** Cheque não compensado e pagamento em
+  trânsito são normais; ficam registrados no fechamento e o mês fecha. O que
+  impede é a diferença contra o saldo informado.
+- **O fechamento guarda a fotografia das pendências do dia.** Sem isso, o
+  relatório de março lido em julho mostraria as pendências de julho e deixaria
+  de ser prova de coisa nenhuma.
+- **Linha ignorada sai do saldo mas não do relatório.** É decisão do contador
+  ("isto não é meu"), e decisão precisa continuar visível.
+- **Reabrir é só de administrador.** Fechar é rotina; reabrir é exceção, e
+  apagar o registro da conferência por engano no meio de outro trabalho é o tipo
+  de coisa que ninguém percebe até a auditoria.
+- **O cadeado vale em todos os caminhos**: conciliar, desconciliar, refazer,
+  religar e importar. Ficou num lugar só (`periodLockError`) para não existir um
+  caminho que esqueceu de conferir.
+- **Importação dentro do período fechado avisa.** As linhas são recusadas e a
+  tela diz quantas e até quando — sumir em silêncio com movimento de banco é
+  como um saldo conferido deixa de bater sem ninguém saber por quê.
+
+Verificado na tela, ponta a ponta (2026-08-11):
+- [x] Saldo informado errado (€8.000) → diferença €99,43 em vermelho, **não deixa fechar**
+- [x] Saldo correto (€7.900,57) → diferença zero e o botão libera
+- [x] Fechado → conciliar, desconciliar e refazer no período respondem **409**
+      com a mensagem de reabrir
+- [x] Importar arquivo com linha antiga e linha nova → só a nova entra, e a
+      recusada é contada
+- [x] Reabrir → conciliação volta a funcionar
+- [x] Duplicatas em potencial aparecem como aviso, não como erro
 
 **Entrega**
 - **Resumo de conciliação**: saldo no sistema, pagamentos em aberto, linhas não
@@ -454,8 +503,9 @@ O que o escritório usa para provar que o mês fecha.
 - Trava de período (cadeado) impedindo refazer em mês fechado
 
 **Testável quando:**
-- [ ] Tudo conciliado → diferença zero
-- [ ] Falta uma linha → diferença aponta exatamente ela
+- [x] Tudo conciliado → diferença zero
+- [x] Falta uma linha → diferença aponta exatamente ela (o valor da linha que
+      não foi importada)
 
 ---
 
@@ -744,10 +794,14 @@ número está certo.
 | 2026-08-11 | A6 | Extrato em PDF + correção do `pdf-parse` que derrubava toda leitura nativa; 167 testes | v1.23 |
 | 2026-08-11 | A6 | Leitura por coordenada; primeiro extrato REAL (AIB) lido inteiro; 184 testes | v1.23.1 |
 | 2026-08-11 | A4 | Casos difíceis: várias notas, parcial, tarifa e arredondamento; 215 testes | v1.24 |
+| 2026-08-11 | A5 | Fechamento, relatório de conciliação e trava de período; 241 testes | v1.25 |
 
-**Onde parou: A4 concluída. A próxima é a A5 — fechamento e relatório**, que é
-o que o escritório usa para provar que o mês fecha. Depois dela sobra só a A7
-(conciliação em massa) na Fase A, e a Fase B inteira.
+**Onde parou: A5 concluída. Falta só a A7 (conciliação em massa) na Fase A**, e
+a Fase B inteira (ingestão de documentos).
+
+Com a A5 pronta, a Fase A já entrega o ciclo completo: importar extrato →
+conciliar → fechar o mês com prova. A A7 é conforto para lote grande, não
+pré-requisito de nada.
 
 O primeiro extrato real chegou em 2026-08-11 (AIB, julho) e virou o teste que
 mais ensinou até agora. **Quando chegarem extratos de outros bancos, o certo é

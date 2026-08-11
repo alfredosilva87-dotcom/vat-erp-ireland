@@ -86,10 +86,15 @@ export default function BankAccountDetail({
             {account.opening_date && <span className="ml-1">em {account.opening_date}</span>}
           </p>
         </div>
-        <Link href={`/clients/${params.id}/bank/${params.accountId}/reconcile`} className="btn-primary">
-          Conciliar
-          {!!balance?.unreconciled_statement_count && ` (${balance.unreconciled_statement_count})`}
-        </Link>
+        <div className="flex flex-wrap items-center gap-2">
+          <Link href={`/clients/${params.id}/bank/${params.accountId}/closing`} className="btn-ghost">
+            Fechamento
+          </Link>
+          <Link href={`/clients/${params.id}/bank/${params.accountId}/reconcile`} className="btn-primary">
+            Conciliar
+            {!!balance?.unreconciled_statement_count && ` (${balance.unreconciled_statement_count})`}
+          </Link>
+        </div>
       </div>
 
       <div className="card grid gap-px overflow-hidden bg-line sm:grid-cols-4">

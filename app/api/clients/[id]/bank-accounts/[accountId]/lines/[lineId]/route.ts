@@ -64,5 +64,7 @@ export async function DELETE(req: NextRequest, { params }: Ctx) {
   const result = mode === "undo"
     ? await undoLine(params.accountId, params.lineId)
     : await unlinkLine(params.accountId, params.lineId);
+  // Período fechado recusa: mexer no passado exige reabrir o fechamento.
+  if (!result.ok) return NextResponse.json({ error: result.error }, { status: 409 });
   return NextResponse.json({ ...result, mode });
 }

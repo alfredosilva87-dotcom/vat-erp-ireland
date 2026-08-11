@@ -186,7 +186,12 @@ export default function StatementImport({
       onImported(
         `${d.imported} linha(s) importada(s)` +
         (d.skipped ? `, ${d.skipped} já existiam e foram ignoradas` : "") +
-        (d.rejected ? `, ${d.rejected} recusada(s) por dado inválido` : "") + "."
+        (d.rejected ? `, ${d.rejected} recusada(s) por dado inválido` : "") +
+        // Linha que cai em mês já fechado não entra — e isso precisa ser dito.
+        // Sumir em silêncio com movimento de banco é como um saldo conferido
+        // deixa de bater sem ninguém saber por quê.
+        (d.locked ? `, ${d.locked} recusada(s) por estarem no período fechado até ${d.lockedThrough}` : "") +
+        "."
       );
     } finally { setBusy(false); }
   }

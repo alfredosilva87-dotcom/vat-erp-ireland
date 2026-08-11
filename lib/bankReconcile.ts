@@ -20,6 +20,7 @@ import { getServerSupabase } from "@/lib/supabase";
 import { suggestMatches, bestSuggestion, type MatchCandidate, type MatchSuggestion } from "@/lib/bankMatch";
 import { applyRules, type RuleOutcome, type ResolvedAllocation } from "@/lib/bankRules";
 import { listBankRules } from "@/lib/bankRulesStore";
+import { periodLockError } from "@/lib/bankClosingStore";
 import type { StoredStatementLine } from "@/lib/types";
 
 const sb = () => getServerSupabase();
@@ -228,6 +229,9 @@ export async function reconcileLine(
   const l = line as StoredStatementLine;
   if (l.status === "reconciled") return { ok: false, error: "Esta linha já está conciliada." };
 
+  const locked = await periodLockError(accountId, l.line_date);
+  if (locked) return { ok: false, error: locked };
+
   if (input.invoiceId && input.saleId) {
     return { ok: false, error: "Uma linha liquida uma nota ou uma venda, nunca as duas." };
   }
@@ -311,7 +315,10 @@ export async function reconcileLine(
  */
 export async function unlinkLine(
   accountId: string, lineId: string
-): Promise<{ ok: boolean; affected: number }> {
+): Promise<{ ok: boolean; affected: number; error?: string }> {
+  const locked = await lineLockError(accountId, lineId);
+  if (locked) return { ok: false, affected: 0, error: locked };
+
   const { data } = await sb().from("bank_transactions")
     .update({ statement_line_id: null, reconciled_at: null })
     .eq("statement_line_id", lineId).eq("bank_account_id", accountId).select("id");
@@ -320,10 +327,21 @@ export async function unlinkLine(
   return { ok: true, affected: (data ?? []).length };
 }
 
+/** A data da linha, para o cadeado de período. */
+async function lineLockError(accountId: string, lineId: string): Promise<string | null> {
+  const { data } = await sb().from("bank_statement_lines").select("line_date")
+    .eq("id", lineId).eq("bank_account_id", accountId).maybeSingle();
+  const date = (data as any)?.line_date;
+  return date ? periodLockError(accountId, date) : null;
+}
+
 /** Refazer: the transaction is deleted and the document goes back to owing. */
 export async function undoLine(
   accountId: string, lineId: string
-): Promise<{ ok: boolean; affected: number }> {
+): Promise<{ ok: boolean; affected: number; error?: string }> {
+  const locked = await lineLockError(accountId, lineId);
+  if (locked) return { ok: false, affected: 0, error: locked };
+
   const { data } = await sb().from("bank_transactions").delete()
     .eq("statement_line_id", lineId).eq("bank_account_id", accountId).select("id");
   await sb().from("bank_statement_lines")
@@ -355,6 +373,9 @@ export async function linkExistingTransaction(
     .eq("id", lineId).eq("bank_account_id", accountId).maybeSingle();
   if (!line) return { ok: false, error: "Linha não encontrada nesta conta." };
   if ((line as any).status === "reconciled") return { ok: false, error: "Esta linha já está conciliada." };
+
+  const locked = await lineLockError(accountId, lineId);
+  if (locked) return { ok: false, error: locked };
 
   const { data: txn } = await sb()
     .from("bank_transactions").select("id,amount,statement_line_id")
