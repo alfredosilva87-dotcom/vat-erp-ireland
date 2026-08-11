@@ -10,6 +10,7 @@ const NAV = [
   { href: "/", key: "nav.dashboard", icon: IconGrid },
   { href: "/clients", key: "nav.clients", icon: IconUsers },
   { href: "/analyze", key: "nav.analyze", icon: IconScan },
+  { href: "/inbox", key: "nav.inbox", icon: IconInbox },
   { href: "/records", key: "nav.database", icon: IconStack },
   { href: "/items", key: "nav.items", icon: IconTag },
   { href: "/base", key: "nav.rateBase", icon: IconPercent },
@@ -183,6 +184,7 @@ function base(children: React.ReactNode) {
 const S = { stroke: "currentColor", strokeWidth: 1.8, strokeLinecap: "round" as const, strokeLinejoin: "round" as const };
 function IconGrid() { return base(<><rect x="3" y="3" width="7" height="7" rx="1.5" {...S} /><rect x="14" y="3" width="7" height="7" rx="1.5" {...S} /><rect x="3" y="14" width="7" height="7" rx="1.5" {...S} /><rect x="14" y="14" width="7" height="7" rx="1.5" {...S} /></>); }
 function IconUsers() { return base(<><circle cx="9" cy="8" r="3.2" {...S} /><path d="M3.5 20a5.5 5.5 0 0 1 11 0" {...S} /><path d="M16 5.2a3.2 3.2 0 0 1 0 5.6M17.5 20a5.5 5.5 0 0 0-2-4.3" {...S} /></>); }
+function IconInbox() { return base(<><path d="M4 13h4l2 3h4l2-3h4" {...S} /><path d="M6 4h12l2 9v5a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2v-5l2-9Z" {...S} /></>); }
 function IconScan() { return base(<><path d="M4 8V6a2 2 0 0 1 2-2h2M16 4h2a2 2 0 0 1 2 2v2M20 16v2a2 2 0 0 1-2 2h-2M8 20H6a2 2 0 0 1-2-2v-2" {...S} /><path d="M7 12h10" {...S} /></>); }
 function IconStack() { return base(<><path d="M12 3l9 5-9 5-9-5 9-5Z" {...S} /><path d="M3 12l9 5 9-5M3 16l9 5 9-5" {...S} /></>); }
 function IconTag() { return base(<><path d="M3 12V5a2 2 0 0 1 2-2h7l9 9-9 9-9-9Z" {...S} /><circle cx="7.5" cy="7.5" r="1.3" fill="currentColor" stroke="none" /></>); }

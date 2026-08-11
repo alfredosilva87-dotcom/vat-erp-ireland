@@ -769,7 +769,119 @@ primeiro e o terceiro. Falta o do meio, que é o que o contador mais controla.
 
 ---
 
-## Camada B2 — Entrada por e-mail `[ ] não iniciada`
+## Camada B2 — Entrada por e-mail `[x] CONCLUÍDA (2026-08-11, v1.27.1 e v1.28)`
+
+**Parte 1 — as decisões (v1.27.1):** `lib/mailIngest.ts`, puro, 47 testes.
+
+**Parte 2 — a busca, a fila e as telas (v1.28).**
+
+Entregue:
+
+| O quê | Onde |
+|---|---|
+| Roteamento, remetentes, anexos e corpo (função pura, 47 testes) | `lib/mailIngest.ts` |
+| A busca IMAP e o erro em português | `lib/mailFetch.ts` |
+| Endereços, remetentes, fila e registro das buscas | `lib/mailStore.ts` |
+| Ler e gravar, num lugar só para as duas portas de entrada | `lib/ingestFlow.ts` |
+| Rotas | `app/api/mail/` e `app/api/clients/[id]/mail-routes`, `.../mail-senders` |
+| A fila | `app/inbox/page.tsx` |
+| Endereços e remetentes do cliente | `app/clients/[id]/mail/page.tsx` |
+| Tabelas | `selfhost/schema/008_mail_ingestion.sql` |
+
+**Onde a caixa vive, decidido e implementado: o servidor busca, não recebe.**
+Ele roda na rede do escritório sem exposição à internet, então receber SMTP
+exigiria abrir porta e publicar MX apontando para dentro. Buscando por IMAP numa
+caixa do próprio escritório, nada é aberto e a caixa não passa por terceiro
+processador.
+
+**A fila não existia.** Até aqui, a "fila de extração" era a lista dentro do
+navegador: o arquivo só chegava ao servidor porque alguém o arrastava. E-mail
+chega sem navegador nenhum, e é isso que `inbox_items` resolve.
+
+Decisões tomadas na implementação:
+- **Um endereço por cliente e por direção**, com sub-endereçamento
+  (`notas+htvfmk5d@escritorio.ie`). Uma caixa só, e o pedaço depois do `+` diz de
+  quem é a nota e se é compra ou venda.
+- **O token é opaco, e sem vogal.** O endereço vai para as mãos de fornecedores:
+  `notas+c0001@` contaria quantos clientes o escritório tem e deixaria adivinhar
+  o endereço do vizinho. Sem vogal porque token aleatório com vogal produz
+  palavra; sem `0`/`o` e `1`/`l` porque o endereço vai ser ditado por telefone.
+- **Trocar o endereço** é o conserto de quando ele vaza para lista de spam —
+  melhor que desligar a entrada do cliente inteiro.
+- **A senha do IMAP vem do ambiente, nunca do banco e nunca de um campo na
+  tela.** Um despejo do banco não pode carregar a senha da caixa junto com as
+  notas, e um campo na tela seria o mesmo "guardar credencial de terceiro" que o
+  plano recusou nos portais de fornecedor.
+- **O logotipo da assinatura não vira item na fila.** Toda assinatura corporativa
+  manda o logo como anexo; sem filtro, cada fatura criaria dois itens e o
+  escritório desligaria a entrada por e-mail em uma semana. Pega pelo
+  `Content-ID` inline e, para quem manda o logo como anexo comum, pelo tamanho.
+- **Mensagem com endereço de dois destinos é recusada, não sorteada.** Escolher o
+  primeiro colocaria a nota de uma empresa dentro de outra. Vale também para
+  compra e venda do mesmo cliente.
+- **Bloqueio de remetente ganha da liberação**, e lista de liberação vazia
+  significa caixa **aberta**: quem ligou a entrada e ainda não cadastrou ninguém
+  quer receber, não recusar tudo.
+- **Remetente bloqueado não deixa linha na fila**, só o contador da busca — o
+  escritório já decidiu, e um spammer que insiste toda semana entupiria a fila com
+  avisos de algo que está funcionando. **Todo o resto deixa linha com o motivo**,
+  porque pede decisão.
+- **Recusa nunca guarda o anexo.** Guardar PDF de remetente bloqueado é encher o
+  disco com exatamente o que o bloqueio existe para não receber.
+- **A mensagem é marcada como lida mesmo quando recusada**, senão toda busca
+  reprocessa a mesma mensagem para sempre.
+- **Limite de 50 mensagens por busca, e o que sobrou é dito.** A primeira busca de
+  uma caixa nunca lida encontraria milhares e a rota morreria no meio. Silêncio
+  aqui leria como "chegou tudo".
+- **O corpo do e-mail vira descrição**, com a resposta citada e a assinatura
+  cortadas: numa conversa de cinco trocas o corpo é quase todo repetição, e o
+  recado novo está nas primeiras linhas.
+- **O split de PDF com várias notas fica na leitura, não na chegada.** Dividir na
+  busca gastaria uma chamada de IA por anexo que chega, inclusive nos que ninguém
+  vai abrir. Um anexo na fila pode virar N notas ao ser lido, e o item registra
+  quantas.
+- **`lib/ingestFlow.ts` nasceu aqui:** a nota que entrou por e-mail passa pelo
+  mesmo caminho da que entrou arrastada. Duas cópias divergiriam justamente na
+  montagem do payload de gravação, que é onde mora a conta contábil decidida pela
+  regra de fornecedor (B1) — e a regra pararia de funcionar só numa das telas.
+- **`imapflow` e `mailparser` entraram como dependência** (as duas MIT, conferido
+  no arquivo de licença e não só no metadado do npm, porque o produto é para
+  distribuir). MIME feito à mão é o tipo de coisa que parece pronta e falha no
+  primeiro e-mail real, com quoted-printable e nome de arquivo codificado.
+
+**O defeito que só o servidor de e-mail de verdade revelou:** a chave de
+duplicata era `(cliente, hash do arquivo)`, e com isso o conserto do erro mais
+comum era recusado — quem manda a nota para o endereço errado e reenvia para o
+certo tinha a **segunda, a certa**, engolida como duplicata da primeira. A
+direção entrou na chave.
+
+Verificado ponta a ponta (2026-08-11), com servidor IMAP de teste (greenmail) e
+sete mensagens de verdade passando por SMTP → IMAP → fila → nota:
+- [x] Aplicar e reaplicar o schema sem erro (idempotente)
+- [x] E-mail com 1 PDF **+ o logotipo inline** → **1 item**, o logo fica de fora
+- [x] E-mail com 3 anexos → **3 itens**
+- [x] Reenvio do mesmo arquivo → **duplicata**, não duplicado
+- [x] O mesmo arquivo no endereço de **venda** → entra (é outro destino)
+- [x] Remetente bloqueado → recusado, **sem linha na fila e sem guardar o anexo**
+- [x] Endereço inexistente → linha na fila com o motivo, sem cliente
+- [x] Mensagem sem anexo → linha na fila com o motivo
+- [x] Corpo do e-mail vira descrição, sem a assinatura e sem a resposta citada
+- [x] Buscar de novo **não retraz** o que já foi lido
+- [x] PDF com **3 notas dentro** → lido na fila e gravado como **3 notas**, cada
+      uma com o seu próprio arquivo (`lote-julho (1 of 3).pdf`)
+- [x] Caixa fora do ar → "Conexão recusada… confira a porta", registrado na busca
+- [x] Sem configuração → a tela diz **qual variável falta** e o botão fica
+      desabilitado, sem tentar conectar
+- [x] Regressão: a tela de leitura por arrastar continua lendo e gravando igual
+      depois da extração de `lib/ingestFlow.ts`
+
+**O que ainda não foi feito:** a busca é disparada por botão. Um agendamento
+(cron do sistema chamando `POST /api/mail/fetch`) é o passo natural, mas ficou de
+fora de propósito — vale ver o escritório usar por algumas semanas antes de
+decidir a frequência. E nenhuma caixa real de escritório foi ligada ainda: os
+sete e-mails de teste passaram por um servidor IMAP local.
+
+### Desenho original da camada
 
 O de maior impacto do Dext. O endereço pode ser dado **direto ao fornecedor** —
 aí o cliente não faz nada e a fatura chega sozinha.
@@ -787,12 +899,12 @@ aí o cliente não faz nada e a fatura chega sozinha.
   terceiro processador
 
 **Testável quando:**
-- [ ] E-mail com PDF → item na fila
-- [ ] E-mail com 3 anexos → 3 itens
-- [ ] PDF de 5 notas → 5 itens
-- [ ] Corpo do e-mail vira descrição
-- [ ] Remetente bloqueado é recusado
-- [ ] Mesmo documento duas vezes → marcado duplicata, não duplicado
+- [x] E-mail com PDF → item na fila
+- [x] E-mail com 3 anexos → 3 itens
+- [x] PDF de várias notas → uma nota por documento *(testado com 3)*
+- [x] Corpo do e-mail vira descrição
+- [x] Remetente bloqueado é recusado
+- [x] Mesmo documento duas vezes → marcado duplicata, não duplicado
 
 ---
 
@@ -926,16 +1038,26 @@ número está certo.
 | 2026-08-11 | A5 | Fechamento, relatório de conciliação e trava de período; 241 testes | v1.25 |
 | 2026-08-11 | A7 | Conciliação em massa, sem casar com documento | v1.26 |
 | 2026-08-11 | B1 | Regra por fornecedor, precedência explícita e itens de linha desligáveis; 279 testes | v1.27 |
+| 2026-08-11 | B2 | As decisões da entrada por e-mail, puras; 326 testes | v1.27.1 |
+| 2026-08-11 | B2 | Busca IMAP, fila de entrada e as telas; sete e-mails de verdade ponta a ponta | v1.28 |
 
-**Onde parou: FASE A COMPLETA, e a B1 fechada.** Importar extrato (CSV, Excel e
+**Onde parou: FASE A COMPLETA, B1 e B2 fechadas.** Importar extrato (CSV, Excel e
 PDF) → conciliar com sugestão → regras → casos difíceis → fechar o mês com prova
-→ lote. E, na ingestão, o nível do meio que faltava: a regra por fornecedor.
+→ lote. E, na ingestão: a regra por fornecedor, e o endereço de e-mail que pode
+ser dado direto ao fornecedor.
 
-**A próxima é a B2 — entrada por e-mail**, o item de maior impacto do Dext,
-porque o endereço pode ser dado direto ao fornecedor e a fatura chega sozinha.
-A primeira decisão dela é onde a caixa vive: rodando no servidor local sem
-exposição à internet, buscar por IMAP numa caixa do escritório é a única opção
-realista — receber SMTP exigiria expor o servidor.
+**A próxima é a B3 — melhorias de revisão**: juntar duplicatas em vez de só
+descartar, trilha de auditoria por documento, e aprovação em lote. É a última da
+Fase B.
+
+Duas coisas ficaram explicitamente para depois, e valem uma decisão do
+escritório, não de execução:
+1. **Agendar a busca de e-mail.** Hoje é botão. Um cron chamando
+   `POST /api/mail/fetch` é o passo natural, mas a frequência certa aparece
+   depois de algumas semanas de uso real.
+2. **Ligar uma caixa de verdade.** Os sete e-mails de teste passaram por um
+   servidor IMAP local; falta apontar para a caixa do escritório e confirmar a
+   senha de aplicativo do provedor.
 
 O primeiro extrato real chegou em 2026-08-11 (AIB, julho) e virou o teste que
 mais ensinou até agora. **Quando chegarem extratos de outros bancos, o certo é

@@ -6,7 +6,10 @@ const nextConfig = {
   // runs `next start` from the repo, keeps working exactly as before.
   output: process.env.BUILD_STANDALONE ? "standalone" : undefined,
   experimental: {
-    serverComponentsExternalPackages: ["pdf-parse"],
+    // imapflow abre socket TLS e mailparser carrega tabelas de codificação por
+    // require dinâmico: empacotados pelo webpack, os dois quebram em tempo de
+    // execução em vez de na compilação, que é o pior momento para descobrir.
+    serverComponentsExternalPackages: ["pdf-parse", "imapflow", "mailparser"],
   },
   webpack: (config) => {
     // tesseract.js is an OPTIONAL offline fallback kept external so the app

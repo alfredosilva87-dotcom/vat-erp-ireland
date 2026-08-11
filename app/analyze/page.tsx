@@ -4,43 +4,18 @@ import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { getCurrentClient } from "@/lib/currentClient";
 import { useT } from "@/lib/i18n";
-import type { AnalyzedItem } from "@/lib/types";
 import { computeLines } from "@/lib/vat";
+// O caminho de ler e gravar mora em lib/ingestFlow.ts desde a camada B2, porque
+// a fila do e-mail passou a usar o mesmo caminho. Ver o comentário de lá sobre
+// por que duas cópias divergiriam justo no payload de gravação.
+import {
+  base64ToFile, readDocumentFile, saveDocument,
+  type DuplicateMatch, type IngestDocument, type SupplierRuleHit,
+} from "@/lib/ingestFlow";
 
-type Header = {
-  supplier_name: string | null; store_name: string | null; supplier_vat: string | null;
-  invoice_number: string | null; barcode: string | null; invoice_date: string | null;
-  invoice_time: string | null; doc_type: string;
-  total_net: number | null; total_vat: number | null; total_gross: number | null;
-};
-// Qual regra de fornecedor pegou este documento (camada B1). Aparece na tela
-// porque uma nota que chega preenchida sem dizer por quê é indistinguível de
-// uma nota que a IA adivinhou.
-type SupplierRuleHit = {
-  id: string; label: string; matched_by: "vat" | "name" | null;
-  account_code: string | null; vat_category_code: string | null; line_items_off: boolean;
-};
-type Result = {
-  filename: string; engine: string; confidence: number; needs_review: boolean; issues: string[];
-  audit?: { engine: string; confidence: number }[]; base_source: string;
-  ai_matched?: number; cache_matched?: number; supplier_rule?: SupplierRuleHit | null;
-  header: Header; items: AnalyzedItem[];
-};
-type ApiDoc = Result & { page_range: [number, number] | null; pdf_base64: string | null };
+type Result = IngestDocument;
 type RowStatus = "pending" | "reading" | "read" | "error" | "saving" | "saved" | "duplicate" | "discarded" | "split";
-type DuplicateMatch = { id: string; invoice_number: string | null; posting_date: string | null; total_gross: number | null };
-type Row = { file: File; status: RowStatus; result?: Result; error?: string; savedId?: string; duplicate?: DuplicateMatch; splitCount?: number };
-
-// A batch PDF (e.g. "40 notas") comes back from /api/extract split into one
-// document per invoice, each carrying its own split-out PDF bytes so it can
-// be saved (and later reopened) as its own document instead of the whole
-// original file.
-function base64ToFile(b64: string, filename: string): File {
-  const bin = atob(b64);
-  const bytes = new Uint8Array(bin.length);
-  for (let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
-  return new File([bytes], filename, { type: "application/pdf" });
-}
+type Row = { file: File; status: RowStatus; result?: Result; error?: string; savedId?: string; duplicate?: DuplicateMatch | null; splitCount?: number };
 
 const money = (n: number | null | undefined) =>
   n === null || n === undefined ? "—" : n.toLocaleString("en-IE", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
@@ -131,24 +106,16 @@ export default function Analyze() {
     async function readOne(i: number) {
       setRows((prev) => prev.map((r, k) => (k === i ? { ...r, status: "reading", error: undefined } : r)));
       try {
-        const fd = new FormData();
-        fd.append("file", rows[i].file);
-        fd.append("activity_code", activity);
-        // Sem cliente escolhido não há regra de fornecedor: as regras são por
-        // cliente, porque a mesma Vodafone vai para contas diferentes em
-        // empresas diferentes.
-        fd.append("client_id", clientId || "");
-        fd.append("default_credit_unmatched", String(selectedClient?.default_credit_unmatched ?? false));
-        fd.append("related_categories", JSON.stringify(selectedClient?.related_categories ?? []));
-        const res = await fetch("/api/extract", { method: "POST", body: fd });
-        const data = await res.json();
-        if (!res.ok) throw new Error(data.error || "Reading failed");
-        const docs: ApiDoc[] = data.documents || [];
+        const docs = await readDocumentFile(rows[i].file, {
+          clientId,
+          activityCode: activity,
+          defaultCreditUnmatched: selectedClient?.default_credit_unmatched ?? false,
+          relatedCategories: selectedClient?.related_categories ?? [],
+        });
         if (docs.length <= 1 && docs[0]) {
           setRows((prev) => prev.map((r, k) => (k === i ? { ...r, status: "read", result: docs[0] } : r)));
           return;
         }
-        if (!docs.length) throw new Error("Reading failed");
         // Batch PDF split into several invoices: keep the original row as a
         // marker (appended children preserve every other in-flight index)
         // and append one saveable row per detected invoice.
@@ -189,41 +156,14 @@ export default function Analyze() {
     if (!canSave) return; // guarded again at the button level; belt-and-braces here.
     setRows((prev) => prev.map((x, k) => (k === i ? { ...x, status: "saving" } : x)));
     try {
-      const h = r.result.header;
-      const meta = {
-        client_id: clientId || null, branch_id: branchId || null, activity_code: activity, engine: r.result.engine,
-        original_filename: r.result.filename,
-        confidence: r.result.confidence, needs_review: r.result.needs_review, issues: r.result.issues,
-        audit: r.result.audit,
-        header: {
-          supplier_name: h.supplier_name, store_name: h.store_name ?? null, supplier_vat: h.supplier_vat,
-          invoice_number: h.invoice_number, barcode: h.barcode ?? null, invoice_date: h.invoice_date,
-          posting_date: postingDate || null,
-          invoice_time: h.invoice_time ?? null, doc_type: h.doc_type,
-          total_net: h.total_net, total_vat: h.total_vat, total_gross: h.total_gross,
-        },
-        items: r.result.items.map((it) => ({
-          description: it.description, quantity: it.quantity, unit_price: it.unit_price, net_amount: it.net_amount,
-          vat_rate_on_invoice: it.vat_rate_on_invoice, vat_amount_on_invoice: it.vat_amount_on_invoice,
-          expected_vat_rate: it.expected_vat_rate, category_code: it.matched_category?.code ?? null,
-          category_name: it.matched_category?.description ?? null, take_credit: !!it.take_credit,
-          // A conta vem decidida pela regra de fornecedor; sem ela, a gravação
-          // pergunta à memória item→conta (camada B1).
-          account_code: it.account_code ?? null, account_name: it.account_name ?? null,
-        })),
-      };
-      const fd = new FormData();
-      fd.append("file", r.file);
-      fd.append("meta", JSON.stringify(meta));
-      if (force) fd.append("force", "true");
-      const res = await fetch("/api/invoices", { method: "POST", body: fd });
-      const data = await res.json();
-      if (res.status === 409 && data.error === "duplicate") {
-        setRows((prev) => prev.map((x, k) => (k === i ? { ...x, status: "duplicate", duplicate: data.existing } : x)));
+      const out = await saveDocument(r.file, r.result, {
+        clientId, branchId, activityCode: activity, postingDate, force,
+      });
+      if (out.kind === "duplicate") {
+        setRows((prev) => prev.map((x, k) => (k === i ? { ...x, status: "duplicate", duplicate: out.existing } : x)));
         return;
       }
-      if (!res.ok) throw new Error(data.error || "Save failed");
-      setRows((prev) => prev.map((x, k) => (k === i ? { ...x, status: "saved", savedId: data.invoice.id } : x)));
+      setRows((prev) => prev.map((x, k) => (k === i ? { ...x, status: "saved", savedId: out.id } : x)));
     } catch (e: any) {
       setRows((prev) => prev.map((x, k) => (k === i ? { ...x, status: "error", error: e.message } : x)));
     }
