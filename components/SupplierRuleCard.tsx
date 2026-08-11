@@ -12,6 +12,7 @@
 
 import { useState } from "react";
 import type { SupplierRule } from "@/lib/supplierRules";
+import { useT } from "@/lib/i18n";
 
 export default function SupplierRuleCard({
   rule, accounts, categories, busy, onSave, onDelete,
@@ -23,6 +24,7 @@ export default function SupplierRuleCard({
   onSave: (id: string, patch: Partial<SupplierRule>) => void;
   onDelete: (id: string) => void;
 }) {
+  const { t } = useT();
   const [open, setOpen] = useState(false);
   const [draft, setDraft] = useState<SupplierRule>(rule);
 
@@ -30,14 +32,14 @@ export default function SupplierRuleCard({
 
   const cat = categories.find((c) => c.code === draft.vat_category_code);
   const decides = [
-    draft.account_code ? `conta ${draft.account_code}` : null,
+    draft.account_code ? t("supCard.accountIs", { code: draft.account_code }) : null,
     cat ? `${cat.description} (${cat.vat_rate}%)` : null,
-    draft.extract_line_items === false ? "uma linha, sem detalhar itens" : null,
+    draft.extract_line_items === false ? t("supCard.oneLine") : null,
   ].filter(Boolean);
 
   const recognizes = [
-    draft.supplier_vat ? `VAT ${draft.supplier_vat}` : null,
-    draft.name_match ? `nome contém “${draft.name_match}”` : null,
+    draft.supplier_vat ? t("supCard.vatIs", { value: draft.supplier_vat }) : null,
+    draft.name_match ? t("supCard.nameContains", { value: draft.name_match }) : null,
   ].filter(Boolean);
 
   return (
@@ -46,22 +48,22 @@ export default function SupplierRuleCard({
         <div className="min-w-0">
           <p className="font-medium">{draft.label}</p>
           <p className="mt-0.5 text-sm text-muted">
-            {recognizes.length ? recognizes.join(" ou ") : "Sem forma de reconhecer o fornecedor."}
+            {recognizes.length ? recognizes.join(" / ") : t("supCard.noIdentifier")}
           </p>
           <p className="mt-0.5 text-xs text-muted">
             {decides.length
               ? decides.join(" · ")
-              : "Não decide nada — esta regra casa com o fornecedor e não muda nada na nota."}
+              : t("supCard.decidesNothing")}
           </p>
         </div>
         <div className="flex items-center gap-2">
           <label className="flex items-center gap-1 text-xs text-muted">
             <input type="checkbox" checked={draft.active}
               onChange={(e) => { set({ active: e.target.checked }); onSave(rule.id, { active: e.target.checked }); }} />
-            ativa
+            {t("supCard.active")}
           </label>
           <button className="btn-ghost h-8 px-3 text-xs" onClick={() => setOpen((v) => !v)}>
-            {open ? "Fechar" : "Editar"}
+            {open ? t("common.close") : t("common.edit")}
           </button>
         </div>
       </div>
@@ -69,55 +71,53 @@ export default function SupplierRuleCard({
       {open && (
         <div className="mt-4 space-y-4 border-t border-line pt-4">
           <label className="block">
-            <span className="mb-1 block text-xs text-muted">Nome da regra</span>
+            <span className="mb-1 block text-xs text-muted">{t("supCard.ruleName")}</span>
             <input className="input h-9" value={draft.label} onChange={(e) => set({ label: e.target.value })} />
           </label>
 
           <div>
-            <p className="label mb-2">Como reconhecer o fornecedor</p>
+            <p className="label mb-2">{t("supCard.howToMatch")}</p>
             <div className="grid gap-3 sm:grid-cols-2">
               <label className="block">
-                <span className="mb-1 block text-xs text-muted">Número de VAT</span>
+                <span className="mb-1 block text-xs text-muted">{t("supCard.vatNumber")}</span>
                 <input className="input h-9 font-mono" placeholder="IE1234567X"
                   value={draft.supplier_vat ?? ""}
                   onChange={(e) => set({ supplier_vat: e.target.value || null })} />
               </label>
               <label className="block">
-                <span className="mb-1 block text-xs text-muted">Pedaço do nome</span>
+                <span className="mb-1 block text-xs text-muted">{t("supCard.namePart")}</span>
                 <input className="input h-9" placeholder="vodafone"
                   value={draft.name_match ?? ""}
                   onChange={(e) => set({ name_match: e.target.value || null })} />
               </label>
             </div>
             <p className="mt-2 text-xs text-muted">
-              O número de VAT é o reconhecimento forte: “Tesco Stores”, “TESCO IRELAND LTD” e “Tesco” são o
-              mesmo fornecedor com três nomes, mas um número só. O pedaço do nome serve para o fornecedor cuja
-              nota não traz VAT — e entre dois nomes que casam, ganha o mais longo, que é o mais específico.
+              {t("supCard.matchHelp")}
             </p>
           </div>
 
           <div>
-            <p className="label mb-2">O que a regra decide</p>
+            <p className="label mb-2">{t("supCard.whatItDecides")}</p>
             <div className="grid gap-3 sm:grid-cols-2">
               <label className="block">
-                <span className="mb-1 block text-xs text-muted">Conta contábil</span>
+                <span className="mb-1 block text-xs text-muted">{t("supCard.ledgerAccount")}</span>
                 <select className="input h-9" value={draft.account_code ?? ""}
                   onChange={(e) => {
                     const code = e.target.value || null;
                     const a = accounts.find((x) => x.code === code);
                     set({ account_code: code, account_name: a?.description ?? null });
                   }}>
-                  <option value="">— não decide —</option>
+                  <option value="">{t("supCard.decidesNot")}</option>
                   {accounts.map((a) => (
                     <option key={a.code} value={a.code}>{a.code} · {a.description}</option>
                   ))}
                 </select>
               </label>
               <label className="block">
-                <span className="mb-1 block text-xs text-muted">Categoria de VAT</span>
+                <span className="mb-1 block text-xs text-muted">{t("supCard.vatCategory")}</span>
                 <select className="input h-9" value={draft.vat_category_code ?? ""}
                   onChange={(e) => set({ vat_category_code: e.target.value || null })}>
-                  <option value="">— não decide —</option>
+                  <option value="">{t("supCard.decidesNot")}</option>
                   {categories.map((c) => (
                     <option key={c.code} value={c.code}>{c.description} · {c.vat_rate}%</option>
                   ))}
@@ -125,30 +125,24 @@ export default function SupplierRuleCard({
               </label>
             </div>
             <p className="mt-2 text-xs text-muted">
-              Campo em “não decide” fica com quem decidia antes: a memória do sistema ou a IA. É assim que um
-              supermercado ganha destino contábil <strong>sem</strong> ter as alíquotas das suas linhas
-              (23%, 13,5%, 0%) achatadas num número só.
+              {t("supCard.emptyHelp")}
             </p>
             {draft.vat_category_code && (
               <p className="mt-2 rounded-lg bg-warning-50 px-3 py-2 text-xs text-warning">
-                A categoria escolhida vale para <strong>todas as linhas</strong> do documento. Certo para quem
-                emite sempre a mesma coisa (telecom, aluguel, seguro); errado para quem mistura alíquotas na
-                mesma nota — nesse caso deixe em “não decide”.
+                {t("supCard.categoryWarn")}
               </p>
             )}
           </div>
 
           <div>
-            <p className="label mb-2">Itens de linha</p>
+            <p className="label mb-2">{t("supCard.lineItems")}</p>
             <label className="flex items-start gap-2 text-sm">
               <input type="checkbox" className="mt-1" checked={draft.extract_line_items !== false}
                 onChange={(e) => set({ extract_line_items: e.target.checked })} />
               <span>
-                Detalhar item por item
+                {t("supCard.itemByItem")}
                 <span className="mt-0.5 block text-xs text-muted">
-                  Desligado, a nota entra como <strong>uma linha</strong> com o total do próprio documento e a
-                  classificação por IA não roda. É a economia de tempo e de custo para o fornecedor cujo
-                  detalhe ninguém confere — a fatura da luz, o aluguel, a mensalidade.
+                  {t("supCard.lineItemsHelp")}
                 </span>
               </span>
             </label>
@@ -156,10 +150,10 @@ export default function SupplierRuleCard({
 
           <div className="flex flex-wrap items-center gap-2">
             <button className="btn-primary h-9 px-4 text-sm" disabled={busy}
-              onClick={() => { onSave(rule.id, draft); setOpen(false); }}>Salvar</button>
-            <button className="btn-ghost h-9 px-3 text-sm" onClick={() => { setDraft(rule); setOpen(false); }}>Cancelar</button>
+              onClick={() => { onSave(rule.id, draft); setOpen(false); }}>{t("common.save")}</button>
+            <button className="btn-ghost h-9 px-3 text-sm" onClick={() => { setDraft(rule); setOpen(false); }}>{t("common.cancel")}</button>
             <button className="btn-ghost ml-auto h-9 px-3 text-sm text-danger" disabled={busy}
-              onClick={() => onDelete(rule.id)}>Apagar regra</button>
+              onClick={() => onDelete(rule.id)}>{t("supCard.deleteRule")}</button>
           </div>
         </div>
       )}

@@ -1051,6 +1051,45 @@ do Open Banking (adiado, não descartado).
 
 ---
 
+# Pendências para a próxima sessão (anotadas em 2026-08-11)
+
+## 1. Licença: gerar chave SEM entrar no sistema do cliente `[ ] a fazer`
+
+**O problema, dito pelo usuário:** *"eu não posso entrar no sistema via servidor"*.
+O produto é self-hosted na rede do escritório-cliente. Quem vende a licença não
+tem — e não deve ter — acesso àquela instalação. Mas hoje a chave só existe
+dentro do painel `master`, ou seja: **para liberar um cliente é preciso entrar no
+sistema dele**, que é justamente o que o self-host impede.
+
+O que isso exige (desenho a decidir):
+- Um gerador de chave que roda **fora** da instalação do cliente — linha de
+  comando ou uma página só do vendedor. A chave assinada viaja por e-mail e o
+  cliente cola numa tela de ativação.
+- Assinatura, não segredo compartilhado: chave conferida com chave pública
+  embutida no app, para que gerar chave nova não exija tocar na instalação.
+- A chave precisa carregar o que limita: empresa, validade, e talvez o número de
+  clientes ou usuários.
+
+## 2. Painel de licença: o admin não vê `[ ] a fazer`
+
+O usuário reportou não encontrar a aba de licenças estando como `admin`. É por
+desenho — o painel é do perfil `master` — mas o desenho está errado para o caso
+real: **o dono do escritório é `admin` na instalação dele**, e precisa ver a
+própria licença (validade, o que está incluído), mesmo sem poder alterá-la.
+
+Rever junto:
+- O que o `admin` vê da própria licença (leitura), contra o que só o `master` faz.
+- **Travamento sem chave nova.** Hoje a licença expirada avisa; falta decidir o
+  que ela impede, e o que continua funcionando de qualquer forma — porque
+  bloquear a leitura dos dados que já são do cliente é diferente de bloquear
+  lançamento novo, e a segunda é defensável.
+- Deixar o painel **dinâmico** em vez da lista fixa de hoje.
+
+> Nada disto entra no manual do usuário. É trabalho de produto, não instrução de
+> uso — e o manual descreve o que existe, não o que vai existir.
+
+---
+
 # O que decidimos NÃO construir
 
 | Item | Motivo |
