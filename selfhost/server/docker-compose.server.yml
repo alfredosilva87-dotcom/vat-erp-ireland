@@ -51,6 +51,9 @@ services:
       - "${CADDY_HTTPS_PORT:-443}:443"
     environment:
       SERVER_HOST: ${SERVER_HOST}
+      # Os IPs da maquina, para o certificado interno cobri-los tambem: sem isso
+      # a estacao que acessa por IP ve "nao seguro" mesmo confiando na CA.
+      SERVER_IPS: ${SERVER_IPS:-}
       PUBLIC_ORIGIN: ${PUBLIC_ORIGIN}
     volumes:
       - ../server/Caddyfile:/etc/caddy/Caddyfile:ro

@@ -23,7 +23,21 @@
 	default_sni {$SERVER_HOST}
 }
 
-{$SERVER_HOST} {
+# The site covers the NAME and the machine's IP addresses, and that second part
+# matters more than it looks.
+#
+# With only the name in the certificate, a station browsing by IP still gets a
+# handshake (default_sni above hands it the name's certificate) but the browser
+# then compares the address it typed against the names in the certificate, finds
+# no match, and says "not secure" — even on a station that already trusts the
+# internal CA. Installing the CA fixes "unknown authority"; it cannot fix "wrong
+# name".
+#
+# So the IP goes IN the certificate, as a SAN. Caddy's internal CA issues IP SANs
+# natively. SERVER_IPS is filled by the installer with every LAN address it finds,
+# space-separated (the same separator Caddy uses between site addresses); it is
+# empty when the machine has none, which the parser tolerates.
+{$SERVER_HOST} {$SERVER_IPS} {
 	tls internal
 
 	encode zstd gzip

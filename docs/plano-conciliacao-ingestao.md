@@ -1053,7 +1053,49 @@ do Open Banking (adiado, não descartado).
 
 # Pendências para a próxima sessão (anotadas em 2026-08-11)
 
-## 1. Licença: gerar chave SEM entrar no sistema do cliente `[ ] a fazer`
+## 1. Licença: gerar chave SEM entrar no sistema do cliente `[x] FEITA (2026-08-12, v1.31)`
+
+Entregue: `lib/licenseKey.ts` (assinatura Ed25519, 23 testes),
+`selfhost/scripts/license-keygen.js` (par de chaves, roda uma vez na máquina de
+quem vende), `selfhost/scripts/license-issue.js` (emite a chave), e o caminho
+assinado em `activateLicense` (`lib/store.ts`).
+
+**O defeito era de fluxo, não de código.** A chave antiga era um texto aleatório
+gravado em `companies.pending_license_key` **no banco do cliente**, e a ativação
+só comparava o que o admin digitou com a cópia guardada. A chave não carregava
+informação nenhuma — então liberar um cliente exigia escrever no banco dele, ou
+seja, entrar na instalação dele. Num produto self-hosted na rede do cliente, é
+exatamente o que não se pode fazer.
+
+Agora a chave carrega a própria verdade, assinada:
+`VATERP1.<carga>.<assinatura>`. A carga diz para quem é, até quando vale, quando
+foi emitida e um id. A privada fica em `~/.vat-erp-license/private.pem`, **fora
+do repositório**; a pública está embutida em `lib/licenseKey.ts`, porque é pública.
+
+Decisões:
+- **Assimétrico, não segredo compartilhado.** Com segredo compartilhado, o
+  segredo teria de estar na instalação do cliente para ela conferir — e quem tem
+  o segredo emite licença para si mesmo.
+- **A assinatura é sobre carga canônica** (ordem fixa das chaves), senão duas
+  versões do emissor produziriam assinaturas incompatíveis para a mesma licença.
+- **Chave mais curta que a atual é recusada.** É quase sempre chave antiga
+  reencontrada no e-mail, e aplicá-la encurtaria a licença sem ninguém pedir.
+  Reaplicar a MESMA chave passa, para clique repetido não virar erro.
+- **Cada recusa diz o motivo** — errado, de outra empresa, vencida — menos a
+  assinatura inválida, que não se explica para não ajudar quem tenta forjar.
+- **O caminho antigo continua** para renovação lançada pelo painel `master` numa
+  instalação a que ele tem acesso.
+
+Verificado ponta a ponta: chave que não é chave, chave assinada com outra privada
+(forjada), data esticada depois de assinada, chave de outra empresa, chave
+vencida, e a chave de verdade colada pela tela → licença até 2027-08-12, evento
+`activated_by_key` no histórico.
+
+**Falta decidir:** amarrar a licença à máquina (impressão digital da instalação)
+para uma chave não servir em duas instalações. Exige o cliente mandar a impressão
+antes, o que acrescenta uma ida e volta. Fica anotado, não feito.
+
+## 1b. Antigo item 1 (referência)
 
 **O problema, dito pelo usuário:** *"eu não posso entrar no sistema via servidor"*.
 O produto é self-hosted na rede do escritório-cliente. Quem vende a licença não
@@ -1070,7 +1112,20 @@ O que isso exige (desenho a decidir):
 - A chave precisa carregar o que limita: empresa, validade, e talvez o número de
   clientes ou usuários.
 
-## 2. Painel de licença: o admin não vê `[ ] a fazer`
+## 2. Painel de licença: o admin não vê `[x] PARTE FEITA (2026-08-12, v1.31)`
+
+Feito: **o admin agora vê a própria licença** em Configurações → Licença — estado,
+para quem foi emitida, até quando vale, quantos dias faltam, e se veio de chave
+assinada. Antes a tela só oferecia colar uma chave nova, sem dizer o que já
+existia; o painel de licenças é do perfil `master` e o dono do escritório é
+`admin` na instalação dele. O campo virou área de texto, porque a chave assinada
+tem 251 caracteres e não cabia num `input` estreito.
+
+**Continua a fazer:** o que a licença expirada IMPEDE. Hoje ela avisa e nada mais.
+Bloquear leitura de dado que já é do cliente é diferente de bloquear lançamento
+novo, e só a segunda é defensável — decisão de produto, não de execução.
+
+## 2b. Antigo item 2 (referência)
 
 O usuário reportou não encontrar a aba de licenças estando como `admin`. É por
 desenho — o painel é do perfil `master` — mas o desenho está errado para o caso

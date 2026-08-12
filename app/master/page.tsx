@@ -17,6 +17,7 @@ const EVENT_LABELS: Record<string, string> = {
   deactivated: "Deactivated",
   renewal_generated: "Renewal generated",
   activated_by_admin: "Activated by admin",
+  activated_by_key: "Activated with a signed key",
 };
 
 export default function Master() {

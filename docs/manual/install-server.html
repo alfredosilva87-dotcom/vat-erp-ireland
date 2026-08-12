@@ -18,7 +18,7 @@
     <h1 data-lang="pt">Instalação no servidor</h1>
     <p data-lang="en" class="on">One central machine in the practice. The application, the database and the invoice files all stay inside it — nothing goes to the cloud.</p>
     <p data-lang="pt">Uma máquina central no escritório. A aplicação, o banco de dados e os arquivos das notas ficam todos dentro dela — nada vai para a nuvem.</p>
-    <div class="meta">v1.30 · 2026</div>
+    <div class="meta">v1.31 · 2026</div>
   </div>
 </div>
 
@@ -100,12 +100,19 @@
 
 <h2>HTTPS, and why it is not optional</h2>
 <p>Sign-in uses a session cookie marked <code>Secure</code>, which browsers only store over HTTPS. Over plain <code>http://</code> on an IP address, sign-in appears to work, the cookie is silently dropped, and the screen bounces back to the login page.</p>
-<p>The server installer generates a certificate and serves HTTPS for exactly this reason. Because the certificate is self-signed, each station shows a warning the first time:</p>
+<p>The server installer generates a certificate and serves HTTPS for exactly this reason. Because the certificate is issued by the server's own authority, each station has to trust that authority once:</p>
 <ol class="steps">
   <li><b>Chrome / Edge:</b> Advanced → Proceed.</li>
   <li><b>Firefox:</b> Advanced → Accept the risk and continue.</li>
-  <li>To remove the warning for good, install the CA on each station — <code>node selfhost/scripts/export-ca.js</code> writes out the file to import.</li>
+  <li>To remove the warning for good, install the CA on each station — <code>node selfhost/scripts/export-ca.js</code> writes <code>selfhost/server/root-ca.crt</code>, the file to import. Windows, as administrator:
+    <br><code>Import-Certificate -FilePath .\root-ca.crt -CertStoreLocation Cert:\LocalMachine\Root</code>
+    <br>Firefox keeps its own store: Settings → Certificates → View certificates → Authorities → Import.</li>
 </ol>
+
+<div class="note">
+  <b>Still says “not secure” when you browse by IP?</b>
+  Trusting the CA fixes “unknown authority”. It cannot fix “wrong name”: a certificate issued for the machine's <em>name</em> does not match the <em>IP address</em> you typed, and the browser compares what you typed. From v1.31 the installer puts the machine's LAN addresses <b>inside</b> the certificate, so both the name and the IP are accepted — on a server installed before that, <b>run the installer again</b> to reissue.
+</div>
 
 <h2>Daily use</h2>
 <table>
@@ -142,6 +149,15 @@
   <b>The password lives in the environment, never in the database.</b>
   A database dump must not carry the practice's e-mail password along with the invoices.
 </div>
+
+<h2>The licence</h2>
+<p>The licence key arrives by e-mail and is activated by the practice's own administrator — <b>nobody has to sign in to this installation to issue or renew it</b>.</p>
+<ol class="steps">
+  <li>Open <b>Settings → Licence</b>. It shows what you have: the company it was issued for, the date it runs to, and how many days are left.</li>
+  <li>Paste the key you were sent (it starts with <code>VATERP1.</code>) and press <b>Activate</b>.</li>
+  <li>The system checks the signature on the spot. No internet connection is needed.</li>
+</ol>
+<p>A key issued for another company, one that has expired, or one that would shorten the current licence is refused, and nothing changes. Pasting the same key twice is harmless.</p>
 
 <h2>When it does not work</h2>
 <table>
@@ -227,12 +243,19 @@
 
 <h2>HTTPS, e por que não é opcional</h2>
 <p>O login usa um cookie de sessão marcado como <code>Secure</code>, que os navegadores só guardam sobre HTTPS. Em <code>http://</code> puro num IP, o login parece funcionar, o cookie é descartado em silêncio, e a tela volta para o login.</p>
-<p>O instalador de servidor gera um certificado e serve HTTPS exatamente por isso. Como o certificado é autoassinado, cada estação mostra um aviso na primeira vez:</p>
+<p>O instalador de servidor gera um certificado e serve HTTPS exatamente por isso. Como o certificado é emitido pela autoridade do próprio servidor, cada estação precisa confiar nessa autoridade uma vez:</p>
 <ol class="steps">
   <li><b>Chrome / Edge:</b> Avançado → Prosseguir.</li>
   <li><b>Firefox:</b> Avançado → Aceitar o risco e continuar.</li>
-  <li>Para tirar o aviso de vez, instale a CA em cada estação — <code>node selfhost/scripts/export-ca.js</code> gera o arquivo a importar.</li>
+  <li>Para tirar o aviso de vez, instale a CA em cada estação — <code>node selfhost/scripts/export-ca.js</code> grava <code>selfhost/server/root-ca.crt</code>, o arquivo a importar. No Windows, como administrador:
+    <br><code>Import-Certificate -FilePath .\root-ca.crt -CertStoreLocation Cert:\LocalMachine\Root</code>
+    <br>O Firefox tem armazenamento próprio: Configurações → Certificados → Ver certificados → Autoridades → Importar.</li>
 </ol>
+
+<div class="note">
+  <b>Continua dizendo “não seguro” quando você acessa pelo IP?</b>
+  Confiar na CA resolve “autoridade desconhecida”. Não resolve “nome errado”: um certificado emitido para o <em>nome</em> da máquina não casa com o <em>endereço IP</em> que você digitou, e o navegador compara o que foi digitado. A partir da v1.31 o instalador põe os endereços de rede da máquina <b>dentro</b> do certificado, então nome e IP passam os dois — em servidor instalado antes disso, <b>rode o instalador de novo</b> para reemitir.
+</div>
 
 <h2>Uso diário</h2>
 <table>
@@ -269,6 +292,15 @@
   <b>A senha mora no ambiente, nunca no banco.</b>
   Um despejo do banco não pode carregar a senha do e-mail do escritório junto com as notas.
 </div>
+
+<h2>A licença</h2>
+<p>A chave de licença chega por e-mail e é ativada pelo próprio administrador do escritório — <b>ninguém precisa entrar nesta instalação para emitir ou renovar</b>.</p>
+<ol class="steps">
+  <li>Abra <b>Configurações → Licença</b>. Ela mostra o que você tem: para quem foi emitida, até quando vale, e quantos dias faltam.</li>
+  <li>Cole a chave que você recebeu (começa com <code>VATERP1.</code>) e clique em <b>Ativar</b>.</li>
+  <li>O sistema confere a assinatura na hora. Não precisa de internet.</li>
+</ol>
+<p>Chave emitida para outra empresa, chave vencida, ou chave que encurtaria a licença atual é recusada, e nada muda. Colar a mesma chave duas vezes é inofensivo.</p>
 
 <h2>Quando não funciona</h2>
 <table>

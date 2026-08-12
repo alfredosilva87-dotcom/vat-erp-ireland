@@ -1,23 +1,39 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { useT, LANGS, type Lang } from "@/lib/i18n";
 
 type Me = { id: string; email: string; name: string | null; role: string; company_id: string | null } | null;
 
 export default function Settings() {
   const { t, lang, setLang } = useT();
-  const [theme, setTheme] = useState<"dark" | "light">("dark");
+  const [theme, setTheme] = useState<"dark" | "light">("light");
   const [me, setMe] = useState<Me>(null);
   const [licenseKey, setLicenseKey] = useState("");
   const [licenseBusy, setLicenseBusy] = useState(false);
   const [licenseMsg, setLicenseMsg] = useState<{ text: string; ok: boolean } | null>(null);
+  // A licença ATUAL. Antes a tela só oferecia colar uma chave nova, sem dizer o
+  // que já existia — e o dono do escritório é `admin`, então não vê o painel
+  // master onde essa informação morava.
+  const [license, setLicense] = useState<{
+    name: string; slug: string; active: boolean; expiresAt: string | null;
+    state: string; signed: boolean; pendingExpiresAt: string | null;
+  } | null>(null);
 
   useEffect(() => {
-    setTheme((document.documentElement.dataset.theme as "dark" | "light") || "dark");
+    setTheme((document.documentElement.dataset.theme as "dark" | "light") || "light");
     fetch("/api/auth/me").then((r) => r.json()).then((d) => setMe(d.user ?? null)).catch(() => {});
   }, []);
+
+  const loadLicense = useCallback(async (companyId: string) => {
+    const r = await fetch(`/api/companies/${companyId}/activate`, { cache: "no-store" });
+    if (r.ok) setLicense(await r.json());
+  }, []);
+
+  useEffect(() => {
+    if (me?.company_id && (me.role === "admin" || me.role === "master")) loadLicense(me.company_id);
+  }, [me, loadLicense]);
 
   async function activateLicense() {
     if (!me?.company_id || !licenseKey.trim()) return;
@@ -30,8 +46,9 @@ export default function Settings() {
       });
       const d = await res.json();
       if (!res.ok) throw new Error(d.error || "Activation failed.");
-      setLicenseMsg({ text: `License activated — valid until ${d.expiresAt}.`, ok: true });
+      setLicenseMsg({ text: `Licence activated — valid until ${d.expiresAt}.`, ok: true });
       setLicenseKey("");
+      if (me?.company_id) await loadLicense(me.company_id);
     } catch (e: any) {
       setLicenseMsg({ text: e.message, ok: false });
     } finally {
@@ -137,25 +154,60 @@ export default function Settings() {
       {/* Licence */}
       {isAdmin && me?.company_id && (
         <section id="license" className="card p-5">
-          <h2 className="font-display text-lg font-semibold">Activate licence</h2>
-          <p className="text-sm text-muted">
-            Got a renewal key from your account manager? Enter it here to extend your company's
-            licence — no need to wait on anyone else.
+          <h2 className="font-display text-lg font-semibold">Licence</h2>
+
+          {license && (
+            <div className="mt-3 flex flex-wrap items-center gap-x-4 gap-y-2 rounded-xl border border-line bg-surface-2/50 p-3 text-sm">
+              <span className={
+                license.state === "ok" ? "chip-ok"
+                : license.state === "expiring" ? "chip-warn"
+                : license.state === "expired" || license.state === "inactive" ? "chip-danger"
+                : "chip bg-surface-2 border border-line text-muted"
+              }>
+                {license.state === "ok" ? "valid"
+                  : license.state === "expiring" ? "expiring soon"
+                  : license.state === "expired" ? "expired"
+                  : license.state === "inactive" ? "company inactive"
+                  : "no licence"}
+              </span>
+              <span><b>{license.name}</b> <span className="font-mono text-xs text-muted">{license.slug}</span></span>
+              {license.expiresAt && (
+                <span>valid until <b className="tnum">{license.expiresAt}</b>
+                  {" "}({Math.max(0, Math.round((new Date(license.expiresAt).getTime() - Date.now()) / 86400000))} days)
+                </span>
+              )}
+              {license.signed && <span className="text-xs text-muted">signed key</span>}
+              {license.pendingExpiresAt && (
+                <span className="chip-warn">renewal pending → {license.pendingExpiresAt}</span>
+              )}
+            </div>
+          )}
+
+          <p className="mt-4 text-sm text-muted">
+            Got a renewal key by e-mail? Paste it here. The system checks its signature on the
+            spot — it needs no internet connection and nobody has to sign in to this installation.
           </p>
-          <div className="mt-4 flex flex-wrap items-center gap-3">
-            <input
-              className="input max-w-xs font-mono" placeholder="VAT-XXXXX-XXXXX-XXXXX"
-              value={licenseKey} onChange={(e) => setLicenseKey(e.target.value)}
-            />
-            <button className="btn-primary h-9 px-4 text-xs" disabled={licenseBusy || !licenseKey.trim()} onClick={activateLicense}>
+          <textarea
+            className="input mt-2 h-24 w-full font-mono text-xs"
+            placeholder="VATERP1.…"
+            value={licenseKey} onChange={(e) => setLicenseKey(e.target.value)}
+          />
+          <div className="mt-2 flex flex-wrap items-center gap-3">
+            <button className="btn-primary h-9 px-4 text-sm" disabled={licenseBusy || !licenseKey.trim()} onClick={activateLicense}>
               {licenseBusy ? "…" : "Activate"}
             </button>
+            {licenseMsg && (
+              <span className={`text-sm ${licenseMsg.ok ? "text-success" : "text-danger"}`}>{licenseMsg.text}</span>
+            )}
           </div>
-          {licenseMsg && (
-            <p className={`mt-2 text-sm ${licenseMsg.ok ? "text-success" : "text-danger"}`}>{licenseMsg.text}</p>
-          )}
+          <p className="mt-3 text-xs text-muted">
+            The key names the company it was issued for and the date it runs to, and it is signed.
+            A key for another company, one that has expired, or one that would shorten the current
+            licence is refused, and nothing changes.
+          </p>
         </section>
       )}
+
     </div>
   );
 }

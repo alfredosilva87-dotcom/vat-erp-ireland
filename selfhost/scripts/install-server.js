@@ -68,6 +68,29 @@ function checkPrereqs() {
 }
 
 /**
+ * Every LAN address of this machine, for the certificate to cover them too.
+ *
+ * A station that browses by IP compares what it typed against the names in the
+ * certificate. With the name alone in there, it says "not secure" even after the
+ * internal CA is trusted — the authority is fine, the name is not. Putting the
+ * IPs in the certificate is what actually removes the warning.
+ *
+ * Loopback and link-local are left out: nobody reaches the office server on
+ * 127.0.0.1 or 169.254.x, and a certificate name that cannot be used is noise.
+ */
+function lanAddresses() {
+  const out = [];
+  for (const list of Object.values(os.networkInterfaces())) {
+    for (const net of list || []) {
+      if (net.family !== "IPv4" || net.internal) continue;
+      if (net.address.startsWith("169.254.")) continue;
+      if (!out.includes(net.address)) out.push(net.address);
+    }
+  }
+  return out;
+}
+
+/**
  * The name people will type in the browser. It has to match the certificate,
  * so it is fixed at install time and changing it later means reissuing.
  */
@@ -153,6 +176,9 @@ function ensureDockerEnv({ serverHost, geminiKey, httpPort, httpsPort, kongPorts
     COMPOSE_PROJECT_NAME: "vat-erp",
     COMPOSE_PATH_SEPARATOR: ":",
     SERVER_HOST: serverHost,
+    // Vazio quando a máquina não tem endereço de rede: o Caddyfile tolera, e um
+    // endereço de site vazio impediria o Caddy de subir.
+    SERVER_IPS: lanAddresses().filter((ip) => ip !== serverHost).join(" "),
     PUBLIC_ORIGIN: publicUrl,
     CADDY_HTTP_PORT: String(httpPort),
     CADDY_HTTPS_PORT: String(httpsPort),

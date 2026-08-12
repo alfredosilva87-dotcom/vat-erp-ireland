@@ -2,6 +2,7 @@ import { randomUUID } from "crypto";
 import { getServerSupabase } from "@/lib/supabase";
 import { computeLines } from "@/lib/vat";
 import { diffFields, recordAudit, type Actor, type AuditAction } from "@/lib/reviewStore";
+import { checkFit, verifyLicenseKey } from "@/lib/licenseKey";
 import type {
   StoredInvoice, StoredItem, MasterItem, Client, ClientWithStats,
   CreditRule, ClientObligation, SalesEntry, AppUser, ChartAccount, Branch, Company,
@@ -1118,6 +1119,12 @@ export async function stats(clientId?: string, allowedClientIds?: string[] | nul
 }
 
 // ---------------- Companies (tenants) ----------------
+/** Uma empresa pelo id. Usada pelo admin para ver a própria licença. */
+export async function getCompany(id: string): Promise<Company | null> {
+  const { data } = await sb().from("companies").select("*").eq("id", id).maybeSingle();
+  return (data as Company) ?? null;
+}
+
 export async function listCompanies(): Promise<Company[]> {
   const { data } = await sb().from("companies").select("*").order("name");
   return (data ?? []) as Company[];
@@ -1235,14 +1242,61 @@ export async function generatePendingRenewal(
  * live licence when the key they were given matches. Never lets the admin
  * set an arbitrary expiry themselves — only what master already generated.
  */
+/**
+ * Ativa a licença a partir da chave que o admin colou.
+ *
+ * Dois caminhos, e a ordem importa:
+ *
+ *   1. **Chave ASSINADA** (`VATERP1.…`). Ela carrega para quem é e até quando
+ *      vale, e a assinatura é conferida com a chave pública embutida. **Não exige
+ *      nada gravado antes no banco** — que é o ponto: quem vende a licença não
+ *      precisa, e não deve, ter acesso à instalação do cliente.
+ *   2. **Chave pendente** (o formato antigo, `VAT-XXXXX-…`). Continua funcionando
+ *      para renovação lançada pelo painel `master` numa instalação a que ele tem
+ *      acesso. Fica como segundo caminho, não como único.
+ */
 export async function activateLicense(
   companyId: string, key: string, actorEmail?: string | null
 ): Promise<{ ok: true; expiresAt: string } | { ok: false; error: string }> {
   const { data: company } = await sb()
-    .from("companies").select("license_expires_at,pending_license_key,pending_license_expires_at").eq("id", companyId).maybeSingle();
-  if (!company?.pending_license_key) return { ok: false, error: "No renewal is pending for this company." };
-  if (key.trim().toUpperCase() !== company.pending_license_key.toUpperCase()) {
-    return { ok: false, error: "That key doesn't match." };
+    .from("companies")
+    .select("slug,license_key,license_expires_at,pending_license_key,pending_license_expires_at")
+    .eq("id", companyId).maybeSingle();
+  if (!company) return { ok: false, error: "Empresa não encontrada." };
+
+  const typed = key.trim();
+
+  // ---- caminho 1: chave assinada ----
+  if (typed.startsWith("VATERP1.")) {
+    const verified = verifyLicenseKey(typed);
+    if (!verified.ok) return { ok: false, error: verified.error };
+
+    const fits = checkFit(verified.payload, (company as any).slug, (company as any).license_expires_at);
+    if (!fits.ok) return { ok: false, error: fits.error };
+
+    const newExpiry = verified.payload.e;
+    await sb().from("companies").update({
+      license_key: typed,
+      license_expires_at: newExpiry,
+      // Uma renovação assinada torna sem efeito qualquer pendência do caminho
+      // antigo: deixá-la ali faria a próxima ativação aplicar a data velha.
+      pending_license_key: null,
+      pending_license_expires_at: null,
+    }).eq("id", companyId);
+
+    await logLicenseEvent(
+      companyId, "activated_by_key",
+      (company as any).license_expires_at, newExpiry, actorEmail
+    );
+    return { ok: true, expiresAt: newExpiry };
+  }
+
+  // ---- caminho 2: chave pendente, lançada pelo painel master ----
+  if (!company.pending_license_key) {
+    return { ok: false, error: "Nenhuma renovação pendente. Se você recebeu uma chave por e-mail, ela começa com VATERP1." };
+  }
+  if (typed.toUpperCase() !== company.pending_license_key.toUpperCase()) {
+    return { ok: false, error: "Essa chave não confere." };
   }
   const newExpiry = company.pending_license_expires_at;
   await sb().from("companies").update({
