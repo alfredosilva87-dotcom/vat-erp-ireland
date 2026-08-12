@@ -8,13 +8,15 @@
  * A saída é uma linha de texto para mandar por e-mail. O cliente cola em
  * Configurações → Licença e o próprio programa confere a assinatura — sem
  * ninguém precisar entrar na instalação dele.
+ *
+ * Cada emissão fica gravada em ~/.vat-erp-license/issued.jsonl; para reler ou
+ * copiar de novo: node selfhost/scripts/license-list.js
  */
 const { randomBytes } = require("crypto");
 const fs = require("fs");
-const os = require("os");
-const path = require("path");
+const registry = require("./license-registry");
 
-const PRIV = path.join(os.homedir(), ".vat-erp-license", "private.pem");
+const PRIV = registry.PRIV;
 
 function arg(name, fallback) {
   const i = process.argv.indexOf(`--${name}`);
@@ -39,19 +41,19 @@ if (!fs.existsSync(PRIV)) {
   process.exit(1);
 }
 
-// O módulo é TypeScript; compilado a quente para não exigir build só para emitir.
-const { execFileSync } = require("child_process");
-const OUT = path.join(os.tmpdir(), "vat-license-build");
-execFileSync("npx", ["tsc", "lib/licenseKey.ts", "--outDir", OUT, "--module", "commonjs",
-  "--target", "es2020", "--esModuleInterop", "--skipLibCheck"],
-  { cwd: path.join(__dirname, "..", ".."), stdio: "inherit" });
-
-const { buildPayload, issueLicenseKey } = require(path.join(OUT, "licenseKey.js"));
+const { buildPayload, issueLicenseKey } = registry.loadLicenseLib();
 
 const payload = buildPayload({
   slug, name: name || undefined, months, id: randomBytes(4).toString("hex"),
 });
 const key = issueLicenseKey(payload, fs.readFileSync(PRIV, "utf8"));
+
+// Gravado antes de imprimir: se o terminal fechar ou o e-mail se perder, a
+// chave continua recuperável pelo license-list.js.
+registry.append({
+  id: payload.id, slug: payload.c, name: name || "", months,
+  issued: payload.i, expires: payload.e, key,
+});
 
 console.log("");
 console.log("=== Licença emitida ===");
@@ -65,3 +67,4 @@ console.log("");
 console.log(key);
 console.log("");
 console.log(`Ele cola em Configurações → Licença. ${key.length} caracteres.`);
+console.log(`Gravada em ${registry.LEDGER} — para copiar de novo: node selfhost/scripts/license-list.js --id ${payload.id}`);
