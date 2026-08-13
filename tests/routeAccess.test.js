@@ -58,6 +58,9 @@ const EXEMPT = {
   "app/api/users/route.ts": "ja filtra por company_id",
   "app/api/users/[id]/route.ts": "exige perfil admin e filtra por empresa",
   "app/api/mail/fetch/route.ts": "busca a caixa do proprio escritorio; o roteamento e por token de cliente",
+  "app/api/phone/manifest/[token]/route.ts":
+    "PUBLICA por desenho: o manifesto do PWA de um link de telefone (camada B4). So devolve " +
+    "nome e start_url para o icone da tela inicial abrir a captura certa, nunca dado de empresa.",
   "app/api/phone/fetch/route.ts":
     "busca a passagem na nuvem do proprio escritorio; o roteamento e por token de cliente, " +
     "igual a busca de e-mail",

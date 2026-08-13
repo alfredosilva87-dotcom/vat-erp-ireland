@@ -7,14 +7,23 @@ function secret() {
 }
 
 /**
- * Caminhos que a implantação da PASSAGEM serve. Nada além disto.
+ * Caminhos que a implantação da PASSAGEM serve — E que qualquer implantação
+ * libera sem sessão, porque são a mesma coisa: tudo que a captura por telefone
+ * precisa (camada B4) tem que funcionar tanto na passagem quanto no servidor do
+ * escritório, sem login.
  *
- * Ver `RELAY_ONLY` abaixo.
+ * Uma lista só, usada nos dois lugares abaixo. Antes eram duas listas quase
+ * iguais e diferentes por um esquecimento: a rota do manifesto por link entrou
+ * na trava `RELAY_ONLY` mas não na liberação de sessão, e a implantação real na
+ * Vercel teria devolvido o LOGIN em vez do manifesto — silencioso, porque o
+ * navegador só ignora um manifesto que falhou ao carregar. Uma lista não deixa
+ * a próxima rota nova esquecer a segunda cópia.
  */
-function isRelayPath(pathname: string): boolean {
+function isPublicCapturePath(pathname: string): boolean {
   return (
     pathname.startsWith("/enviar/") ||
     pathname === "/api/phone/upload" ||
+    pathname.startsWith("/api/phone/manifest/") ||
     pathname.startsWith("/_next") ||
     pathname === "/favicon.ico" ||
     pathname === "/manifest.webmanifest" ||
@@ -43,7 +52,7 @@ export async function middleware(req: NextRequest) {
    * **não tem** as outras rotas. 404 e não redirecionar para o login, porque na
    * passagem não existe login para onde ir.
    */
-  if (process.env.RELAY_ONLY && !isRelayPath(pathname)) {
+  if (process.env.RELAY_ONLY && !isPublicCapturePath(pathname)) {
     return new NextResponse("Not found", { status: 404 });
   }
 
@@ -51,22 +60,11 @@ export async function middleware(req: NextRequest) {
     pathname === "/login" ||
     pathname === "/reset-password" ||
     pathname.startsWith("/api/auth") ||
-    pathname.startsWith("/_next") ||
-    // Captura por telefone (camada B4). Pública por desenho: quem abre é cliente
-    // do escritório e não tem sessão — o token do link é a credencial, e ele só
-    // escreve. Ver lib/phoneIntake.ts para por que não há senha aqui.
-    pathname.startsWith("/enviar/") ||
-    pathname === "/api/phone/upload" ||
-    pathname === "/favicon.ico" ||
-    // Icons/manifest have to be reachable while logged out — the login page
-    // itself shows the logo, and browsers fetch the manifest to decide
-    // whether the app is installable before there's any session at all.
-    pathname === "/manifest.webmanifest" ||
-    pathname === "/icon.png" ||
-    pathname === "/apple-icon.png" ||
-    pathname === "/logo.png" ||
-    pathname === "/icon-192.png" ||
-    pathname === "/icon-512.png"
+    // Captura por telefone (camada B4) e os ícones/manifesto, que precisam ser
+    // alcançáveis sem sessão — a página de login mostra o logo, e o navegador
+    // busca o manifesto para decidir se o app é instalável antes de qualquer
+    // login existir. Ver lib/phoneIntake.ts para por que a captura não tem senha.
+    isPublicCapturePath(pathname)
   ) {
     return NextResponse.next();
   }

@@ -16,8 +16,28 @@ export const dynamic = "force-dynamic";
  * token escreve e não lê, e esta página respeita isso.
  */
 
-// Sem indexação: o link é enviado por WhatsApp e não deve aparecer em busca.
-export const metadata = { robots: { index: false, follow: false } };
+/**
+ * O manifesto é POR LINK (`/api/phone/manifest/<token>`), não o do site.
+ *
+ * Sem isto, "Adicionar à Tela de Início" nesta página herdava o manifesto
+ * global do ERP — `start_url: "/"` — e o ícone que o cliente salva abria a
+ * tela principal do sistema em vez da câmera. Cada link aponta para si mesmo.
+ *
+ * Sem indexação: o link é enviado por WhatsApp e não deve aparecer em busca.
+ */
+export async function generateMetadata({ params }: { params: { token: string } }) {
+  let label: string | null = null;
+  if (relayConfigured() && isTokenShape(params.token)) {
+    const { data } = await getRelaySupabase()
+      .from("phone_links").select("label").eq("token", params.token).maybeSingle();
+    label = ((data as any)?.label as string) ?? null;
+  }
+  return {
+    robots: { index: false, follow: false },
+    manifest: `/api/phone/manifest/${params.token}`,
+    appleWebApp: { capable: true, statusBarStyle: "default" as const, title: label || "Enviar" },
+  };
+}
 
 function Aviso({ titulo, ajuda }: { titulo: string; ajuda?: string }) {
   return (
