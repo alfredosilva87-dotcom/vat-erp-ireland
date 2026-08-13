@@ -29,6 +29,24 @@ services:
       AUTH_SECRET: ${AUTH_SECRET}
       GEMINI_API_KEY: ${GEMINI_API_KEY}
       GEMINI_MODEL: ${GEMINI_MODEL:-gemini-flash-latest}
+
+      # Entrada por e-mail (camada B2). Sem repassar aqui, preencher estas
+      # variáveis no .env não tem efeito nenhum: o contêiner não as vê e a tela
+      # continua dizendo "não está ligado", sem nada indicando o porquê.
+      # Todas com padrão vazio para o escritório que não usa e-mail não quebrar.
+      MAIL_IMAP_HOST: ${MAIL_IMAP_HOST:-}
+      MAIL_IMAP_PORT: ${MAIL_IMAP_PORT:-}
+      MAIL_IMAP_SECURE: ${MAIL_IMAP_SECURE:-}
+      MAIL_IMAP_USER: ${MAIL_IMAP_USER:-}
+      MAIL_IMAP_PASSWORD: ${MAIL_IMAP_PASSWORD:-}
+      MAIL_IMAP_MAILBOX: ${MAIL_IMAP_MAILBOX:-}
+      MAIL_INBOX_ADDRESS: ${MAIL_INBOX_ADDRESS:-}
+
+      # Entrada por telefone (camada B4): a passagem na nuvem. É o ÚNICO lugar
+      # deste arquivo que aponta para fora da máquina, e só para fora — o
+      # servidor busca e apaga, nada entra por aqui.
+      RELAY_SUPABASE_URL: ${RELAY_SUPABASE_URL:-}
+      RELAY_SUPABASE_SERVICE_ROLE_KEY: ${RELAY_SUPABASE_SERVICE_ROLE_KEY:-}
     depends_on:
       db:
         condition: service_healthy
