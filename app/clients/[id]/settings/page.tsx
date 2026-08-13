@@ -13,6 +13,7 @@
 import { useCallback, useEffect, useState } from "react";
 import ClientBranches from "@/components/ClientBranches";
 import ClientMailSetup from "@/components/ClientMailSetup";
+import ClientPhoneLinks from "@/components/ClientPhoneLinks";
 import type { Client } from "@/lib/types";
 
 const ACTIVITIES = [
@@ -178,6 +179,10 @@ export default function ClientSettings({ params }: { params: { id: string } }) {
 
       <section className="card rise p-5">
         <ClientMailSetup clientId={params.id} />
+      </section>
+
+      <section className="card rise p-5">
+        <ClientPhoneLinks clientId={params.id} />
       </section>
     </div>
   );

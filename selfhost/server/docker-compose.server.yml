@@ -47,6 +47,10 @@ services:
       # servidor busca e apaga, nada entra por aqui.
       RELAY_SUPABASE_URL: ${RELAY_SUPABASE_URL:-}
       RELAY_SUPABASE_SERVICE_ROLE_KEY: ${RELAY_SUPABASE_SERVICE_ROLE_KEY:-}
+      # Onde a tela de captura esta publicada, para o Cadastro poder mostrar o
+      # link inteiro. Este servidor nao serve essa tela, entao nao tem como
+      # descobrir o endereco sozinho.
+      PHONE_CAPTURE_URL: ${PHONE_CAPTURE_URL:-}
     depends_on:
       db:
         condition: service_healthy

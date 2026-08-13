@@ -637,6 +637,36 @@ const en = {
   "hist.fCredit": "credit",
   "hist.fDocument": "document",
 
+  // ---- links de envio por telefone (camada B4), na tela do Cadastro ----
+  "phone.title": "Send from a phone",
+  "phone.subtitle": "One link per person at the client. They photograph the receipt where it is handed to them and it lands in your Inbox. No password — the link is the credential, and it can only send.",
+  "phone.person": "Who is it for",
+  "phone.personPlaceholder": "e.g. John (van driver)",
+  "phone.allowSale": "may also send sales",
+  "phone.allowSaleHint": "Leave off unless this person issues invoices. Off, everything they send is a cost — the client should not have to classify documents.",
+  "phone.create": "Create link",
+  "phone.created": "Link created.",
+  "phone.copy": "Copy link",
+  "phone.copied": "Link copied. Send it to them once — they add it to the home screen.",
+  "phone.revoke": "Revoke",
+  "phone.revokedOk": "Link revoked. It stops accepting photos now.",
+  "phone.revoked": "revoked",
+  "phone.reactivate": "Turn back on",
+  "phone.reactivated": "Link is working again.",
+  "phone.rotate": "New link",
+  "phone.rotated": "New link issued. The old one no longer works — send the new one.",
+  "phone.resync": "Try to sync again",
+  "phone.synced": "Synced. The link is working.",
+  "phone.notSynced": "not reaching the cloud",
+  "phone.salesToo": "sales too",
+  "phone.lastUsed": "last used {d}",
+  "phone.neverUsed": "never used",
+  "phone.empty": "No links yet. Create one for whoever brings you the receipts.",
+  "phone.failed": "Could not do that.",
+  "phone.notConfigured": "Phone intake is not switched on. This server needs RELAY_SUPABASE_URL and RELAY_SUPABASE_SERVICE_ROLE_KEY — the cloud hand-off that holds the photo until this server fetches it.",
+  "phone.noCaptureUrl": "Set PHONE_CAPTURE_URL to the address where the capture screen is published, otherwise there is no link to copy — only a token, which is no use on its own.",
+  "phone.security": "Whoever has the link can send documents for this client, so treat it like a key: send it to one person, and issue a new link if a phone is lost. It cannot read anything — not an invoice, not a figure, not the ledger.",
+
   // ---- phone capture (layer B4) — seen by the office's CLIENT, not by staff ----
   // Plain words on purpose: the reader is a shop owner at a fuel pump, not an
   // accountant, and they will read this on a phone in daylight.

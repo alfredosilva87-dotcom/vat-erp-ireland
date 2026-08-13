@@ -21,6 +21,23 @@ export function relayConfigured(): boolean {
 }
 
 /**
+ * Onde a tela de captura está publicada, para o escritório poder copiar o link
+ * inteiro e mandar por WhatsApp.
+ *
+ * Vem do ambiente porque este servidor **não é** quem serve a captura — ela está
+ * na nuvem, e o servidor não tem como descobrir esse endereço sozinho. Mostrar
+ * só o token seria dar ao contador metade do que ele precisa copiar, que foi
+ * exatamente a lição do `MAIL_INBOX_ADDRESS` na camada B2.
+ *
+ * A barra final é removida para o link não sair com `//enviar`.
+ */
+export function captureBaseUrl(): string | null {
+  const raw = (process.env.PHONE_CAPTURE_URL || "").trim();
+  if (!raw) return null;
+  return raw.replace(/\/+$/, "");
+}
+
+/**
  * Cliente da passagem, com chave de serviço.
  *
  * Serviço e não anônima porque a passagem tem RLS ligada sem nenhuma política —
