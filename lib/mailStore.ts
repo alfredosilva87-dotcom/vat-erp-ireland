@@ -226,6 +226,15 @@ export interface NewInboxItem {
   bytes: Buffer;
   status?: InboxStatus;
   refused_reason?: string | null;
+  /**
+   * Por qual porta o documento entrou. `email` por omissão, para a camada B2
+   * continuar chamando isto sem mudança; a camada B4 passa `phone`.
+   *
+   * A fila e a trava de duplicata são as MESMAS para as duas portas de propósito:
+   * a mesma nota fotografada e também mandada por e-mail é uma nota, não duas, e
+   * o analista revisa num lugar só.
+   */
+  source?: "email" | "phone";
 }
 
 /**
@@ -287,7 +296,7 @@ export async function addInboxItem(input: NewInboxItem): Promise<AddResult> {
     client_id: input.client_id,
     direction: input.direction,
     fetch_id: input.fetch_id,
-    source: "email",
+    source: input.source ?? "email",
     sender: input.sender,
     subject: input.subject,
     body: input.body,

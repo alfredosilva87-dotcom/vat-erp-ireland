@@ -6,11 +6,17 @@ import LicenseAlertBanner from "@/components/LicenseAlertBanner";
 import { useT } from "@/lib/i18n";
 
 const PUBLIC_PATHS = ["/login", "/reset-password"];
+// Prefixos sem sessão. `/enviar/<token>` é a captura por telefone (camada B4):
+// quem abre é cliente do escritório, não usuário — barra lateral, alerta de
+// licença e menu não fazem sentido ali, e o token é dinâmico, então a
+// comparação exata de PUBLIC_PATHS não serve.
+const PUBLIC_PREFIXES = ["/enviar/"];
 
 export default function AppFrame({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
   const { t } = useT();
   if (PUBLIC_PATHS.includes(pathname)) return <>{children}</>;
+  if (PUBLIC_PREFIXES.some((p) => pathname.startsWith(p))) return <>{children}</>;
 
   return (
     <div className="flex min-h-dvh">

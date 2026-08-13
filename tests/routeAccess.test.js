@@ -58,6 +58,14 @@ const EXEMPT = {
   "app/api/users/route.ts": "ja filtra por company_id",
   "app/api/users/[id]/route.ts": "exige perfil admin e filtra por empresa",
   "app/api/mail/fetch/route.ts": "busca a caixa do proprio escritorio; o roteamento e por token de cliente",
+  "app/api/phone/fetch/route.ts":
+    "busca a passagem na nuvem do proprio escritorio; o roteamento e por token de cliente, " +
+    "igual a busca de e-mail",
+  "app/api/phone/upload/route.ts":
+    "PUBLICA por desenho (camada B4): quem envia e cliente do escritorio e nao tem sessao. " +
+    "O token do link e a credencial, e o guarda de empresa nao se aplica porque a rota roda na " +
+    "passagem na nuvem, que nao tem a tabela de empresas. Ela SO ESCREVE: valida o link, recusa " +
+    "por forma, prazo, tipo, tamanho e teto de envios, e nao devolve nada do que ja esta la.",
   "app/api/mail/inbox/route.ts": "rota de lista: usa visibleClientIds",
   "app/api/invoices/route.ts": "lista usa visibleClientIds; POST confere o cliente do payload",
   "app/api/invoices/approve/route.ts": "recebe lista de ids: usa filterInvoicesByCompany",

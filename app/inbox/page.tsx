@@ -69,6 +69,10 @@ export default function Inbox() {
   const [work, setWork] = useState<Record<string, Work>>({});
   const [fetches, setFetches] = useState<FetchLog[]>([]);
   const [config, setConfig] = useState<{ configured: boolean; missing: string[]; inbox_address: string | null; mailbox: string | null } | null>(null);
+  // A entrada por telefone (camada B4) é independente da de e-mail: o escritório
+  // pode ter uma, a outra, ou as duas. O aviso amarelo de e-mail desligado não
+  // pode fazer parecer que a fila inteira está parada quando o telefone entrega.
+  const [phoneConfigured, setPhoneConfigured] = useState(false);
   const [loading, setLoading] = useState(true);
   const [fetching, setFetching] = useState(false);
   const [msg, setMsg] = useState<{ text: string; error?: boolean } | null>(null);
@@ -79,14 +83,17 @@ export default function Inbox() {
     const qs = new URLSearchParams();
     if (clientId) qs.set("client", clientId);
     if (status) qs.set("status", status);
-    const [i, f] = await Promise.all([
+    const [i, f, p] = await Promise.all([
       fetch(`/api/mail/inbox?${qs}`, { cache: "no-store" }),
       fetch("/api/mail/fetch", { cache: "no-store" }),
+      fetch("/api/phone/fetch", { cache: "no-store" }).catch(() => null),
     ]);
     setItems((await i.json()).items || []);
     const fd = await f.json();
     setConfig({ configured: fd.configured, missing: fd.missing || [], inbox_address: fd.inbox_address, mailbox: fd.mailbox });
     setFetches(fd.fetches || []);
+    const pd = p ? await p.json().catch(() => null) : null;
+    setPhoneConfigured(Boolean(pd?.configured));
     setLoading(false);
   }, [clientId, showDone]);
 
@@ -111,6 +118,26 @@ export default function Inbox() {
   async function runFetch() {
     setFetching(true); setMsg(null);
     try {
+      // As DUAS portas na mesma volta. Duas buscas separadas fariam o escritório
+      // ter que lembrar qual botão traz a foto do telefone e qual traz o e-mail —
+      // e a fila é uma só, então o gesto também deve ser um.
+      const phone = phoneConfigured
+        ? await fetch("/api/phone/fetch", { method: "POST" }).then((r) => r.json()).catch(() => null)
+        : null;
+
+      if (!config?.configured) {
+        // Só telefone configurado: sem isto, a volta terminaria sem dizer nada e
+        // pareceria que o botão não funciona.
+        const parts = phone
+          ? [t("inbox.msgPhone", { n: String(phone.ingested ?? 0) })]
+          : [t("inbox.empty")];
+        if (phone?.duplicates) parts.push(t("inbox.msgAlready", { n: phone.duplicates }));
+        if (phone?.failed) parts.push(t("inbox.msgPhoneFailed", { n: phone.failed }));
+        setMsg({ text: parts.join(" · "), error: Boolean(phone?.error) });
+        await load();
+        return;
+      }
+
       const res = await fetch("/api/mail/fetch", { method: "POST" });
       const d = await res.json();
       if (d.error) {
@@ -122,6 +149,10 @@ export default function Inbox() {
         // O que ficou para a próxima é DITO. Silêncio aqui leria como
         // "chegou tudo", e o escritório fecharia o mês sem as notas que sobraram.
         if (d.remaining) parts.push(t("inbox.msgRemaining", { n: d.remaining }));
+        if (phone && (phone.ingested || phone.failed)) {
+          parts.push(t("inbox.msgPhone", { n: String(phone.ingested ?? 0) }));
+          if (phone.failed) parts.push(t("inbox.msgPhoneFailed", { n: phone.failed }));
+        }
         setMsg({ text: parts.join(" · ") });
       }
       await load();
@@ -236,7 +267,7 @@ export default function Inbox() {
         <p className="mt-1 text-muted">{t("inbox.subtitle")}</p>
       </div>
 
-      {config && !config.configured && (
+      {config && !config.configured && !phoneConfigured && (
         <div className="card rise border border-warning/30 bg-warning-50 p-5 text-sm text-warning">
           <p className="font-medium">{t("inbox.notConfigured")}</p>
           <p className="mt-1">
@@ -277,7 +308,7 @@ export default function Inbox() {
 
           <div>
             <div className="flex flex-wrap items-center gap-3">
-              <button className="btn-primary" onClick={runFetch} disabled={fetching || !config?.configured}>
+              <button className="btn-primary" onClick={runFetch} disabled={fetching || (!config?.configured && !phoneConfigured)}>
                 {fetching ? t("inbox.fetching") : t("inbox.fetchNow")}
               </button>
               <label className="flex items-center gap-1.5 text-sm text-muted">
@@ -307,7 +338,7 @@ export default function Inbox() {
         <p className="card p-6 text-muted">{t("common.loading")}</p>
       ) : !items.length ? (
         <p className="card p-6 text-muted">
-          {t("inbox.empty")} {config?.configured ? t("inbox.emptyHint") : ""}
+          {t("inbox.empty")} {config?.configured || phoneConfigured ? t("inbox.emptyHint") : ""}
         </p>
       ) : (
         <div className="space-y-3">

@@ -485,7 +485,9 @@ const pt: Dict = {
 
   // ---- inbox (B2) ----
   "inbox.title": "Caixa de entrada",
-  "inbox.subtitle": "O que chegou por e-mail. O endereço pode ser dado direto ao fornecedor — aí o cliente não faz nada e a fatura aparece aqui sozinha.",
+  "inbox.subtitle": "O que chegou sozinho — por e-mail, e por foto do telefone do cliente. O endereço pode ser dado direto ao fornecedor; o link do telefone vai para o cliente.",
+  "inbox.msgPhone": "{n} de telefone",
+  "inbox.msgPhoneFailed": "{n} envios de telefone falharam",
   "inbox.notConfigured": "A entrada por e-mail ainda não está ligada.",
   "inbox.missingEnv": "Falta no ambiente do servidor:",
   "inbox.passwordFromEnv": "A senha da caixa vem do ambiente de propósito — um despejo do banco não pode carregar a senha do e-mail do escritório junto com as notas.",
@@ -637,6 +639,37 @@ const pt: Dict = {
   "hist.fAccount": "conta contábil",
   "hist.fCredit": "crédito",
   "hist.fDocument": "documento",
+
+  // ---- captura por telefone (camada B4) — quem lê é o CLIENTE do escritório ----
+  "snap.title": "Enviar um documento",
+  "snap.sendingTo": "Enviando para",
+  "snap.takePhoto": "Tirar foto",
+  "snap.chooseFile": "Escolher do telefone",
+  "snap.note": "Observação (opcional)",
+  "snap.notePlaceholder": "ex.: diesel na M50",
+  "snap.kind": "Este documento é",
+  "snap.kindCost": "uma despesa",
+  "snap.kindSale": "uma venda",
+  "snap.send": "Enviar",
+  "snap.sending": "Enviando…",
+  "snap.queued": "Esperando sinal",
+  "snap.sent": "Enviado",
+  "snap.failed": "Não enviou",
+  "snap.retry": "Tentar de novo",
+  "snap.remove": "Remover",
+  "snap.arrives": "Chega ao seu contador em até 30 minutos.",
+  "snap.keepOpen": "Sem sinal. Deixe esta página aberta: envia sozinho quando o sinal voltar.",
+  "snap.pending": "{n} esperando para enviar",
+  "snap.allSent": "Tudo enviado.",
+  "snap.linkUnknown": "Este link não funciona.",
+  "snap.linkInactive": "Este link foi desligado.",
+  "snap.linkExpired": "Este link venceu.",
+  "snap.askOffice": "Peça um link novo ao seu contador.",
+  "snap.tooBig": "Foto grande demais, mesmo depois de reduzir.",
+  "snap.badType": "Este tipo de arquivo não é aceito.",
+  "snap.rate": "Muitos envios de uma vez. Espere alguns minutos.",
+  "snap.serverError": "Não deu para enviar. Vai tentar de novo sozinho.",
+  "snap.installHint": "Adicione esta página à tela inicial para abrir como um aplicativo.",
 };
 
 export default pt;

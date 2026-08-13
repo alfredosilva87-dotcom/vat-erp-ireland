@@ -482,7 +482,9 @@ const en = {
 
   // ---- inbox (B2) ----
   "inbox.title": "Inbox",
-  "inbox.subtitle": "What arrived by email. The address can be given straight to the supplier — then the client does nothing and the invoice shows up here on its own.",
+  "inbox.subtitle": "What came in on its own — by email, and by photo from the client's phone. The email address can be given straight to the supplier; the phone link goes to the client.",
+  "inbox.msgPhone": "{n} from phones",
+  "inbox.msgPhoneFailed": "{n} phone sends failed",
   "inbox.notConfigured": "Email intake is not switched on yet.",
   "inbox.missingEnv": "Missing from the server environment:",
   "inbox.passwordFromEnv": "The mailbox password comes from the environment on purpose — a database dump must not carry the practice's email password along with the invoices.",
@@ -634,6 +636,39 @@ const en = {
   "hist.fAccount": "ledger account",
   "hist.fCredit": "credit",
   "hist.fDocument": "document",
+
+  // ---- phone capture (layer B4) — seen by the office's CLIENT, not by staff ----
+  // Plain words on purpose: the reader is a shop owner at a fuel pump, not an
+  // accountant, and they will read this on a phone in daylight.
+  "snap.title": "Send a document",
+  "snap.sendingTo": "Sending to",
+  "snap.takePhoto": "Take a photo",
+  "snap.chooseFile": "Choose from phone",
+  "snap.note": "Note (optional)",
+  "snap.notePlaceholder": "e.g. diesel on the M50",
+  "snap.kind": "This document is",
+  "snap.kindCost": "a cost",
+  "snap.kindSale": "a sale",
+  "snap.send": "Send",
+  "snap.sending": "Sending…",
+  "snap.queued": "Waiting for signal",
+  "snap.sent": "Sent",
+  "snap.failed": "Did not send",
+  "snap.retry": "Try again",
+  "snap.remove": "Remove",
+  "snap.arrives": "It reaches your accountant within 30 minutes.",
+  "snap.keepOpen": "No signal. Keep this page and it sends on its own when signal returns.",
+  "snap.pending": "{n} waiting to send",
+  "snap.allSent": "Everything sent.",
+  "snap.linkUnknown": "This link does not work.",
+  "snap.linkInactive": "This link has been turned off.",
+  "snap.linkExpired": "This link has expired.",
+  "snap.askOffice": "Ask your accountant for a new link.",
+  "snap.tooBig": "Photo too large, even after shrinking.",
+  "snap.badType": "This kind of file is not accepted.",
+  "snap.rate": "Too many sends at once. Wait a couple of minutes.",
+  "snap.serverError": "Could not send. It will try again on its own.",
+  "snap.installHint": "Add this page to your home screen to open it like an app.",
 } as const;
 
 export type Dict = Record<keyof typeof en, string>;

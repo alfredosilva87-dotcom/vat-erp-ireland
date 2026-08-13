@@ -13,6 +13,11 @@ export async function middleware(req: NextRequest) {
     pathname === "/reset-password" ||
     pathname.startsWith("/api/auth") ||
     pathname.startsWith("/_next") ||
+    // Captura por telefone (camada B4). Pública por desenho: quem abre é cliente
+    // do escritório e não tem sessão — o token do link é a credencial, e ele só
+    // escreve. Ver lib/phoneIntake.ts para por que não há senha aqui.
+    pathname.startsWith("/enviar/") ||
+    pathname === "/api/phone/upload" ||
     pathname === "/favicon.ico" ||
     // Icons/manifest have to be reachable while logged out — the login page
     // itself shows the logo, and browsers fetch the manifest to decide
