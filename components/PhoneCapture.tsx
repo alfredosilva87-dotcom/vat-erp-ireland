@@ -230,68 +230,113 @@ export default function PhoneCapture({
   const pending = items.filter((i) => i.status === "queued" || i.status === "sending").length;
 
   return (
-    <div className="mx-auto w-full max-w-md px-4 py-6">
-      <h1 className="font-display text-2xl">{t("snap.title")}</h1>
-      {label && (
-        <p className="mt-1 text-sm text-muted">
-          {t("snap.sendingTo")}: <span className="font-medium text-ink">{label}</span>
-        </p>
-      )}
-
-      {/* Botões grandes: quem usa está de pé, na chuva, com uma mão. */}
-      <div className="mt-6 grid gap-3">
-        <button className="btn-primary h-14 text-base" onClick={() => cameraRef.current?.click()}>
-          {t("snap.takePhoto")}
-        </button>
-        <button className="btn-ghost h-12" onClick={() => fileRef.current?.click()}>
-          {t("snap.chooseFile")}
-        </button>
-      </div>
-
-      {/* `capture="environment"` abre a câmera de trás direto, sem passar pela
-          galeria. É o que separa 3 toques de 6. */}
-      <input ref={cameraRef} type="file" accept="image/*" capture="environment" className="hidden"
-        onChange={(e) => { void add(e.target.files); e.currentTarget.value = ""; }} />
-      <input ref={fileRef} type="file" multiple accept="image/*,application/pdf" className="hidden"
-        onChange={(e) => { void add(e.target.files); e.currentTarget.value = ""; }} />
-
-      <div className="mt-5 grid gap-3">
-        <label className="grid gap-1 text-sm">
-          <span className="text-muted">{t("snap.note")}</span>
-          <input className="input h-11" value={note} placeholder={t("snap.notePlaceholder")}
-            onChange={(e) => setNote(e.target.value)} maxLength={300} />
-        </label>
-
-        {/* Só aparece quando o link permite venda. Sem isso, o cliente teria que
-            classificar o documento, que é o trabalho do analista. */}
-        {allowSale && (
-          <div className="grid gap-1 text-sm">
-            <span className="text-muted">{t("snap.kind")}</span>
-            <div className="flex gap-2">
-              {(["purchase", "sale"] as const).map((d) => (
-                <button key={d}
-                  className={`h-11 flex-1 rounded-lg border text-sm ${direction === d ? "border-brand bg-brand/10 font-medium" : "border-line"}`}
-                  onClick={() => setDirection(d)}>
-                  {d === "purchase" ? t("snap.kindCost") : t("snap.kindSale")}
-                </button>
-              ))}
+    <div className="relative min-h-dvh overflow-hidden">
+      <div className="relative mx-auto w-full max-w-md px-5 pb-40 pt-7">
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-3">
+            <img src="/logo.png" alt="VAT Reader" className="h-11 w-11 shrink-0 rounded-xl shadow-brand" />
+            <div>
+              <div className="font-display text-lg font-semibold leading-tight text-ink">
+                VAT <span className="text-brand">READER</span>
+              </div>
+              <div className="text-xs font-medium tracking-wide text-muted">Ireland · ERP</div>
             </div>
           </div>
+        </div>
+
+        <h1 className="mt-8 font-display text-3xl font-semibold leading-tight text-ink">
+          {t("snap.title")}
+        </h1>
+        {label && (
+          <p className="mt-1 text-sm text-muted">
+            {t("snap.sendingTo")}: <span className="font-medium text-brand">{label}</span>
+          </p>
         )}
-      </div>
 
-      <p className="mt-5 text-xs text-muted">{t("snap.arrives")}</p>
-      {offline && <p className="mt-2 text-xs text-amber-700">{t("snap.keepOpen")}</p>}
-      {pending > 0 && (
-        <p className="mt-2 text-xs text-muted">{t("snap.pending", { n: String(pending) })}</p>
-      )}
+        {/* Botões grandes: quem usa está de pé, na chuva, com uma mão. */}
+        <div className="mt-6 grid gap-3">
+          <button
+            className="btn-primary flex h-[4.5rem] items-center justify-between gap-3 rounded-2xl px-5 text-left text-base"
+            onClick={() => cameraRef.current?.click()}
+          >
+            <span className="flex items-center gap-3">
+              <CameraIcon className="h-9 w-9 shrink-0 rounded-full bg-white/20 p-2" />
+              <span>
+                <span className="block font-semibold">{t("snap.takePhoto")}</span>
+                <span className="block text-xs font-normal text-white/80">{t("snap.takePhotoHint")}</span>
+              </span>
+            </span>
+            <ChevronIcon className="h-5 w-5 shrink-0 text-white/70" />
+          </button>
 
-      <ul className="mt-5 grid gap-2">
-        {items.map((i) => (
-          <li key={i.id} className="flex items-center gap-3 rounded-lg border border-line p-2">
+          <button
+            className="card flex h-[4.5rem] items-center justify-between gap-3 rounded-2xl px-5 text-left"
+            onClick={() => fileRef.current?.click()}
+          >
+            <span className="flex items-center gap-3">
+              <GalleryIcon className="h-9 w-9 shrink-0 rounded-full bg-brand/10 p-2 text-brand" />
+              <span>
+                <span className="block font-semibold text-ink">{t("snap.chooseFile")}</span>
+                <span className="block text-xs font-normal text-muted">{t("snap.chooseFileHint")}</span>
+              </span>
+            </span>
+            <ChevronIcon className="h-5 w-5 shrink-0 text-muted" />
+          </button>
+        </div>
+
+        {/* `capture="environment"` abre a câmera de trás direto, sem passar pela
+            galeria. É o que separa 3 toques de 6. */}
+        <input ref={cameraRef} type="file" accept="image/*" capture="environment" className="hidden"
+          onChange={(e) => { void add(e.target.files); e.currentTarget.value = ""; }} />
+        <input ref={fileRef} type="file" multiple accept="image/*,application/pdf" className="hidden"
+          onChange={(e) => { void add(e.target.files); e.currentTarget.value = ""; }} />
+
+        <div className="mt-5 grid gap-3">
+          <label className="card grid gap-1 rounded-2xl p-4 text-sm">
+            <span className="text-muted">{t("snap.note")}</span>
+            <input className="input h-11 border-none bg-transparent px-0 focus:ring-0" value={note}
+              placeholder={t("snap.notePlaceholder")}
+              onChange={(e) => setNote(e.target.value)} maxLength={300} />
+          </label>
+
+          {/* Só aparece quando o link permite venda. Sem isso, o cliente teria que
+              classificar o documento, que é o trabalho do analista. */}
+          {allowSale && (
+            <div className="grid gap-1 text-sm">
+              <span className="text-muted">{t("snap.kind")}</span>
+              <div className="flex gap-2">
+                {(["purchase", "sale"] as const).map((d) => (
+                  <button key={d}
+                    className={`h-11 flex-1 rounded-lg border text-sm ${direction === d ? "border-brand bg-brand/10 font-medium" : "border-line"}`}
+                    onClick={() => setDirection(d)}>
+                    {d === "purchase" ? t("snap.kindCost") : t("snap.kindSale")}
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
+        </div>
+
+        <div className="card mt-5 flex items-center gap-3 rounded-2xl p-4">
+          <ClockIcon className="h-9 w-9 shrink-0 rounded-full bg-brand/10 p-2 text-brand" />
+          <p className="text-sm text-ink">
+            <span className="font-semibold">{t("snap.arrivesTitle")}</span>
+            <br />
+            <span className="text-muted">{t("snap.arrives")}</span>
+          </p>
+        </div>
+
+        {offline && <p className="mt-3 text-xs text-amber-700">{t("snap.keepOpen")}</p>}
+        {pending > 0 && (
+          <p className="mt-2 text-xs text-muted">{t("snap.pending", { n: String(pending) })}</p>
+        )}
+
+        <ul className="mt-5 grid gap-2">
+          {items.map((i) => (
+            <li key={i.id} className="card flex items-center gap-3 rounded-xl p-2">
             {i.preview
-              ? <img src={i.preview} alt="" className="h-14 w-14 rounded object-cover" />
-              : <div className="grid h-14 w-14 place-items-center rounded bg-surface text-xs">PDF</div>}
+              ? <img src={i.preview} alt="" className="h-14 w-14 rounded-lg object-cover" />
+              : <div className="grid h-14 w-14 place-items-center rounded-lg bg-surface text-xs">PDF</div>}
             <div className="min-w-0 flex-1">
               <p className="text-sm">
                 {i.status === "sent" ? t("snap.sent")
@@ -307,11 +352,80 @@ export default function PhoneCapture({
                 {t("snap.retry")}
               </button>
             )}
-          </li>
-        ))}
-      </ul>
+            </li>
+          ))}
+        </ul>
 
-      <p className="mt-8 text-center text-xs text-muted">{t("snap.installHint")}</p>
+        {/* O que a curva embaixo esconde: o rodapé de confiança abaixo dela.
+            Fica por cima da onda, não atrás — por isso o padding do container
+            principal (pb-40) abre espaço para os dois não se sobreporem. */}
+        <p className="mt-8 text-center text-xs text-muted">{t("snap.installHint")}</p>
+      </div>
+
+      <div className="pointer-events-none absolute inset-x-0 bottom-0">
+        <svg viewBox="0 0 500 90" className="block w-full text-brand/[0.09]" preserveAspectRatio="none">
+          <path fill="currentColor" d="M0,40 C120,90 380,0 500,45 L500,90 L0,90 Z" />
+        </svg>
+        <div className="bg-brand/[0.09] pb-8 pt-2">
+          <div className="mx-auto flex max-w-md items-center justify-center gap-2.5 px-5 text-center">
+            <ShieldIcon className="h-5 w-5 shrink-0 text-brand" />
+            <p className="text-xs text-muted">
+              <span className="font-medium text-ink">{t("snap.trustTitle")}</span>{" "}
+              {t("snap.trustBody")}
+            </p>
+          </div>
+        </div>
+      </div>
     </div>
+  );
+}
+
+function CameraIcon(props: React.SVGProps<SVGSVGElement>) {
+  return (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8"
+      strokeLinecap="round" strokeLinejoin="round" {...props}>
+      <path d="M4 8h3l1.5-2h7L17 8h3a1 1 0 0 1 1 1v9a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1V9a1 1 0 0 1 1-1Z" />
+      <circle cx="12" cy="13" r="3.2" />
+    </svg>
+  );
+}
+
+function GalleryIcon(props: React.SVGProps<SVGSVGElement>) {
+  return (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8"
+      strokeLinecap="round" strokeLinejoin="round" {...props}>
+      <rect x="3.5" y="4.5" width="17" height="15" rx="2" />
+      <circle cx="8.5" cy="9.5" r="1.5" />
+      <path d="m5 17 4.5-5 3 3.2L16 11l3.5 6" />
+    </svg>
+  );
+}
+
+function ClockIcon(props: React.SVGProps<SVGSVGElement>) {
+  return (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8"
+      strokeLinecap="round" strokeLinejoin="round" {...props}>
+      <circle cx="12" cy="12" r="8.5" />
+      <path d="M12 7.5V12l3 2" />
+    </svg>
+  );
+}
+
+function ShieldIcon(props: React.SVGProps<SVGSVGElement>) {
+  return (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8"
+      strokeLinecap="round" strokeLinejoin="round" {...props}>
+      <path d="M12 3.5 5 6v5.5c0 4.5 3 7.7 7 9 4-1.3 7-4.5 7-9V6l-7-2.5Z" />
+      <path d="m9 12 2 2 4-4.2" />
+    </svg>
+  );
+}
+
+function ChevronIcon(props: React.SVGProps<SVGSVGElement>) {
+  return (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2"
+      strokeLinecap="round" strokeLinejoin="round" {...props}>
+      <path d="m9 6 6 6-6 6" />
+    </svg>
   );
 }

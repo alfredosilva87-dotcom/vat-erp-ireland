@@ -699,6 +699,11 @@ const en = {
   "snap.rate": "Too many sends at once. Wait a couple of minutes.",
   "snap.serverError": "Could not send. It will try again on its own.",
   "snap.installHint": "Add this page to your home screen to open it like an app.",
+  "snap.takePhotoHint": "Open camera to capture your document",
+  "snap.chooseFileHint": "Pick an existing photo",
+  "snap.arrivesTitle": "Fast & secure",
+  "snap.trustTitle": "Nothing to worry about.",
+  "snap.trustBody": "This link can only send — it cannot read your invoices, your figures, or your accounts.",
 } as const;
 
 export type Dict = Record<keyof typeof en, string>;

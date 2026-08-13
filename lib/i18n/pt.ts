@@ -700,6 +700,11 @@ const pt: Dict = {
   "snap.rate": "Muitos envios de uma vez. Espere alguns minutos.",
   "snap.serverError": "Não deu para enviar. Vai tentar de novo sozinho.",
   "snap.installHint": "Adicione esta página à tela inicial para abrir como um aplicativo.",
+  "snap.takePhotoHint": "Abre a câmera para fotografar o documento",
+  "snap.chooseFileHint": "Escolher uma foto já tirada",
+  "snap.arrivesTitle": "Rápido e seguro",
+  "snap.trustTitle": "Pode ficar tranquilo.",
+  "snap.trustBody": "Este link só envia — ele não lê suas notas, seus valores nem sua contabilidade.",
 };
 
 export default pt;
