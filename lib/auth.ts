@@ -20,7 +20,11 @@ function secret() {
   return new TextEncoder().encode(process.env.AUTH_SECRET || "dev-insecure-secret-change-me");
 }
 
-// Look up a user in Supabase (when configured) else the local store.
+// Look up a user. Both branches read `app_users` from the same Supabase project;
+// the second is not a local/offline store — it just goes through lib/store's
+// client. So a deployment whose Supabase has no `app_users` (the phone-intake
+// relay, layer B4) can never authenticate anyone: there is no seeded fallback
+// admin behind this.
 async function lookup(email: string): Promise<AppUser | null> {
   const e = email.toLowerCase().trim();
   if (hasSupabaseConfig()) {
