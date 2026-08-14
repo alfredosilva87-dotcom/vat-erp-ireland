@@ -18,7 +18,7 @@
     <h1 data-lang="pt">Instalação no servidor</h1>
     <p data-lang="en" class="on">One central machine in the practice. The application, the database and the invoice files all stay inside it — nothing goes to the cloud.</p>
     <p data-lang="pt">Uma máquina central no escritório. A aplicação, o banco de dados e os arquivos das notas ficam todos dentro dela — nada vai para a nuvem.</p>
-    <div class="meta">v1.31 · 2026</div>
+    <div class="meta">v1.34 · 2026</div>
   </div>
 </div>
 
@@ -61,6 +61,11 @@
   <tr><td>Network</td><td>Fixed IP or reserved DHCP</td><td>A name on the local DNS</td></tr>
 </table>
 <p>It should be a machine that stays on. If it sleeps, the system is unreachable while it sleeps.</p>
+<p>This machine's own address on the office network is what every station types to reach it — and, if sending from a phone is turned on later, it is also what the link sent by WhatsApp ultimately leads back to. If the router hands out addresses freely, which is the default, the machine can be given a different one after the next reboot, and every bookmark and every phone link silently stops working. Ask whoever manages the office network for a <b>DHCP reservation</b> for this machine, or set a static address by hand — either way, <b>write the address down</b>: it is what you type as the server's address during install.</p>
+
+<div class="note">
+  <b>Ports 80 and 443 must be free on this machine.</b> They are what lets HTTPS work without anyone typing a port number. Something else already using them — IIS, Skype for Business, another web server — makes the installer stop with <i>“port already in use.”</i> Free them for this app, or reserve different ones by setting <code>VATERP_HTTPS_PORT</code> (and <code>VATERP_HTTP_PORT</code>) before running the installer — PowerShell example: <code>$env:VATERP_HTTPS_PORT="3010"</code>.
+</div>
 
 <h3>Two programs, in this order</h3>
 <ol class="steps">
@@ -89,7 +94,7 @@
     <br>Windows: double-click <code>install-server.bat</code>
     <br>Mac/Linux: <code>node selfhost/scripts/install-server.js</code></li>
   <li><b>Answer three questions:</b> the administrator e-mail, the administrator password, and the Gemini API key (free, from <a href="https://aistudio.google.com">aistudio.google.com</a> → Get API key).</li>
-  <li><b>Wait.</b> It picks free ports, generates the keys, brings up the database, applies the nine schema files, creates the administrator and builds the application. First run takes several minutes because Docker is downloading images.</li>
+  <li><b>Wait.</b> It picks free ports, generates the keys, brings up the database, applies the schema files, creates the administrator and builds the application. First run takes several minutes because Docker is downloading images.</li>
   <li><b>Write down the address it prints at the end</b> — something like <code>https://192.168.0.20:3010</code>. That is what the stations open.</li>
 </ol>
 
@@ -150,6 +155,59 @@
   A database dump must not carry the practice's e-mail password along with the invoices.
 </div>
 
+<h2>Sending from a phone (optional)</h2>
+<p class="lead">A client photographs a receipt where it is handed to them — at the pump, at the counter — adjusts the four corners if the photo came out crooked, and it arrives in the Inbox on its own, the same way an e-mailed invoice does.</p>
+<p>The phone is on the mobile network; this server sits on the office's own local network and is not reachable from outside it — that is the whole point of a self-hosted install. So the photo cannot go straight to this machine. It goes first to a small, separate piece in the cloud — a <b>relay</b> — which holds it only until this server fetches it, then deletes it. The relay never holds anything else: no invoice, no figure, no client list.</p>
+
+<div class="warn">
+  <b>The relay must be a project of its own</b> — not the one used to demonstrate the system to a client, and not this office's own database. It carries real photographs of real receipts in transit, even if only for a few minutes.
+</div>
+
+<h3>1. Create the relay</h3>
+<ol class="steps">
+  <li>Go to <a href="https://supabase.com">supabase.com</a> and sign in, or create a free account.</li>
+  <li><b>New project.</b> A recognisable name, such as <code>vat-erp-passagem</code>. A region close to the practice — <b>Ireland (eu-west-1)</b>, if offered. Wait a minute or two for it to finish setting up.</li>
+  <li>Open <b>SQL Editor</b> in the left sidebar, then <b>New query</b>. In the downloaded files, open <code>selfhost/schema/relay/001_relay.sql</code>, copy all of it, paste it in, and press <b>Run</b>. This creates the two tables the relay needs and locks them so nobody but this server can read what is inside.</li>
+  <li>Open <b>Settings → API Keys</b>. Two values on this page are needed shortly: the <b>Project URL</b>, and the <b>secret</b> key (press <b>Reveal</b> to see it — it starts with <code>sb_secret_</code>). Leave this tab open.</li>
+</ol>
+
+<h3>2. Publish the phone screen</h3>
+<ol class="steps">
+  <li>Go to <a href="https://vercel.com">vercel.com</a> and sign in with the GitHub account that has access to the repository.</li>
+  <li><b>Add New → Project</b>, and import the <b>same</b> repository again — Vercel warns it is already used elsewhere; that is expected, continue. Name this project something like <code>vat-erp-captura</code>.</li>
+  <li>Before deploying, open <b>Environment Variables</b> and add these six, for Production, Preview and Development:
+    <table>
+      <tr><th>Variable</th><th>Value</th></tr>
+      <tr><td><code>RELAY_SUPABASE_URL</code></td><td>The Project URL, from step 1</td></tr>
+      <tr><td><code>RELAY_SUPABASE_SERVICE_ROLE_KEY</code></td><td>The secret key, from step 1</td></tr>
+      <tr><td><code>NEXT_PUBLIC_SUPABASE_URL</code></td><td>The same Project URL, again</td></tr>
+      <tr><td><code>NEXT_PUBLIC_SUPABASE_ANON_KEY</code></td><td>The <b>publishable</b> key — same API Keys page, not the secret one</td></tr>
+      <tr><td><code>SUPABASE_SERVICE_ROLE_KEY</code></td><td>The same secret key, once more</td></tr>
+      <tr><td><code>AUTH_SECRET</code></td><td>A new random value — see below</td></tr>
+      <tr><td><code>RELAY_ONLY</code></td><td><code>1</code></td></tr>
+    </table>
+  </li>
+  <li>To generate <code>AUTH_SECRET</code>: Mac/Linux, <code>openssl rand -base64 32</code>. Windows PowerShell:
+    <br><code>[Convert]::ToBase64String((1..32|%{Get-Random -Max 256}))</code></li>
+  <li><b>Deploy.</b> When it finishes, note the address Vercel gives it — something like <code>https://vat-erp-captura.vercel.app</code>.</li>
+</ol>
+
+<div class="note">
+  <b><code>RELAY_ONLY</code> is what keeps this publication safe.</b> With it set, this deployment serves nothing except the phone-capture screen — sign-in and every other part of the system answer “not found”. Skipping it does not let anyone in on its own (the relay's database has no user accounts to sign in as), but it needlessly leaves the shape of the system visible on the internet.
+</div>
+
+<h3>3. Tell this server about the relay</h3>
+<ol class="steps">
+  <li>Open <code>selfhost/docker/.env</code> in a plain text editor and add three lines at the end:
+    <br><code>RELAY_SUPABASE_URL=</code>the same Project URL
+    <br><code>RELAY_SUPABASE_SERVICE_ROLE_KEY=</code>the same secret key
+    <br><code>PHONE_CAPTURE_URL=</code>the address Vercel gave the capture site</li>
+  <li>Restart the app: <code>docker compose up -d app</code>, from the <code>selfhost/docker</code> folder.</li>
+</ol>
+
+<h3>4. Use it</h3>
+<p>Open a client, tab <b>Details</b>, section <b>Send from a phone</b>. Type who the link is for, create it, copy it, and send it once — WhatsApp is the obvious way. That person adds it to their phone's home screen; from then on it opens straight to the camera. Revoke a link and issue a new one if a phone is lost — nothing else is needed.</p>
+
 <h2>The licence</h2>
 <p>The licence key arrives by e-mail and is activated by the practice's own administrator — <b>nobody has to sign in to this installation to issue or renew it</b>.</p>
 <ol class="steps">
@@ -204,6 +262,11 @@
   <tr><td>Rede</td><td>IP fixo ou DHCP reservado</td><td>Um nome no DNS local</td></tr>
 </table>
 <p>Precisa ser uma máquina que fica ligada. Se ela dorme, o sistema fica inacessível enquanto dorme.</p>
+<p>O endereço desta máquina na rede do escritório é o que cada estação digita para alcançá-la — e, se o envio pelo telefone for ligado depois, é também para onde o link mandado por WhatsApp leva de volta. Se o roteador distribui endereços livremente, que é o padrão, a máquina pode receber outro depois de religar, e todo favorito e todo link de telefone param de funcionar em silêncio. Peça a quem cuida da rede do escritório uma <b>reserva de DHCP</b> para esta máquina, ou fixe o endereço na mão — de qualquer forma, <b>anote o endereço</b>: é o que você digita como endereço do servidor durante a instalação.</p>
+
+<div class="note">
+  <b>As portas 80 e 443 precisam estar livres nesta máquina.</b> São elas que fazem o HTTPS funcionar sem ninguém digitar número de porta. Outra coisa já usando essas portas — IIS, Skype for Business, outro servidor web — faz o instalador parar com <i>"port already in use"</i>. Libere-as para este aplicativo, ou reserve portas diferentes definindo <code>VATERP_HTTPS_PORT</code> (e <code>VATERP_HTTP_PORT</code>) antes de rodar o instalador — exemplo no PowerShell: <code>$env:VATERP_HTTPS_PORT="3010"</code>.
+</div>
 
 <h3>Dois programas, nesta ordem</h3>
 <ol class="steps">
@@ -232,7 +295,7 @@
     <br>Windows: dois cliques em <code>install-server.bat</code>
     <br>Mac/Linux: <code>node selfhost/scripts/install-server.js</code></li>
   <li><b>Responda três perguntas:</b> e-mail do administrador, senha do administrador, e a chave da API do Gemini (grátis, em <a href="https://aistudio.google.com">aistudio.google.com</a> → Get API key).</li>
-  <li><b>Espere.</b> Ele escolhe portas livres, gera as chaves, sobe o banco, aplica os nove arquivos de schema, cria o administrador e compila a aplicação. A primeira vez leva vários minutos porque o Docker está baixando imagens.</li>
+  <li><b>Espere.</b> Ele escolhe portas livres, gera as chaves, sobe o banco, aplica os arquivos de schema, cria o administrador e compila a aplicação. A primeira vez leva vários minutos porque o Docker está baixando imagens.</li>
   <li><b>Anote o endereço que ele imprime no fim</b> — algo como <code>https://192.168.0.20:3010</code>. É o que as estações abrem.</li>
 </ol>
 
@@ -292,6 +355,59 @@
   <b>A senha mora no ambiente, nunca no banco.</b>
   Um despejo do banco não pode carregar a senha do e-mail do escritório junto com as notas.
 </div>
+
+<h2>Enviar pelo telefone (opcional)</h2>
+<p class="lead">O cliente fotografa a nota onde ela é entregue a ele — no posto, no balcão — ajusta os 4 cantos se a foto saiu torta, e ela chega sozinha na Caixa de entrada, do mesmo jeito que uma nota por e-mail.</p>
+<p>O telefone está na rede móvel; este servidor fica na rede local do escritório e não é alcançável de fora dela — é esse o ponto inteiro de uma instalação self-hosted. Então a foto não pode ir direto para esta máquina. Ela vai primeiro para uma peça pequena e separada na nuvem — uma <b>passagem</b> — que guarda a foto só até este servidor buscar, e então apaga. A passagem nunca guarda mais nada: nem nota, nem valor, nem lista de clientes.</p>
+
+<div class="warn">
+  <b>A passagem precisa ser um projeto próprio</b> — não o mesmo usado para apresentar o sistema a um cliente, e não o banco deste próprio escritório. Ela carrega fotos de notas de verdade em trânsito, mesmo que só por alguns minutos.
+</div>
+
+<h3>1. Criar a passagem</h3>
+<ol class="steps">
+  <li>Vá em <a href="https://supabase.com">supabase.com</a> e entre, ou crie uma conta grátis.</li>
+  <li><b>New project.</b> Um nome reconhecível, como <code>vat-erp-passagem</code>. Uma região perto do escritório — <b>Ireland (eu-west-1)</b>, se for oferecida. Espere um ou dois minutos até terminar de configurar.</li>
+  <li>Abra <b>SQL Editor</b> na barra lateral, depois <b>New query</b>. Nos arquivos baixados, abra <code>selfhost/schema/relay/001_relay.sql</code>, copie tudo, cole ali, e clique em <b>Run</b>. Isso cria as duas tabelas que a passagem precisa e as tranca, para que ninguém além deste servidor consiga ler o que está dentro.</li>
+  <li>Abra <b>Settings → API Keys</b>. Dois valores desta página vão ser precisos logo — a <b>Project URL</b>, e a chave <b>secret</b> (clique em <b>Reveal</b> para ver — começa com <code>sb_secret_</code>). Deixe esta aba aberta.</li>
+</ol>
+
+<h3>2. Publicar a tela de captura</h3>
+<ol class="steps">
+  <li>Vá em <a href="https://vercel.com">vercel.com</a> e entre com a conta do GitHub que tem acesso ao repositório.</li>
+  <li><b>Add New → Project</b>, e importe o <b>mesmo</b> repositório de novo — a Vercel avisa que ele já está em uso em outro lugar; é esperado, continue. Dê um nome a este projeto como <code>vat-erp-captura</code>.</li>
+  <li>Antes de publicar, abra <b>Environment Variables</b> e acrescente estas seis, marcando Production, Preview e Development:
+    <table>
+      <tr><th>Variável</th><th>Valor</th></tr>
+      <tr><td><code>RELAY_SUPABASE_URL</code></td><td>A Project URL, do passo 1</td></tr>
+      <tr><td><code>RELAY_SUPABASE_SERVICE_ROLE_KEY</code></td><td>A chave secret, do passo 1</td></tr>
+      <tr><td><code>NEXT_PUBLIC_SUPABASE_URL</code></td><td>A mesma Project URL, de novo</td></tr>
+      <tr><td><code>NEXT_PUBLIC_SUPABASE_ANON_KEY</code></td><td>A chave <b>publishable</b> — mesma página de API Keys, não a secret</td></tr>
+      <tr><td><code>SUPABASE_SERVICE_ROLE_KEY</code></td><td>A mesma chave secret, mais uma vez</td></tr>
+      <tr><td><code>AUTH_SECRET</code></td><td>Um valor aleatório novo — veja abaixo</td></tr>
+      <tr><td><code>RELAY_ONLY</code></td><td><code>1</code></td></tr>
+    </table>
+  </li>
+  <li>Para gerar o <code>AUTH_SECRET</code>: Mac/Linux, <code>openssl rand -base64 32</code>. PowerShell no Windows:
+    <br><code>[Convert]::ToBase64String((1..32|%{Get-Random -Max 256}))</code></li>
+  <li><b>Publique.</b> Quando terminar, anote o endereço que a Vercel deu — algo como <code>https://vat-erp-captura.vercel.app</code>.</li>
+</ol>
+
+<div class="note">
+  <b><code>RELAY_ONLY</code> é o que mantém essa publicação segura.</b> Com ela ligada, essa implantação não serve nada além da tela de captura — o login e todo o resto do sistema respondem "não encontrado". Sem ela, ninguém entra mesmo assim (o banco da passagem não tem conta de usuário nenhuma), mas o formato do sistema fica visível na internet à toa.
+</div>
+
+<h3>3. Avisar este servidor sobre a passagem</h3>
+<ol class="steps">
+  <li>Abra <code>selfhost/docker/.env</code> num editor de texto simples e acrescente três linhas no fim:
+    <br><code>RELAY_SUPABASE_URL=</code>a mesma Project URL
+    <br><code>RELAY_SUPABASE_SERVICE_ROLE_KEY=</code>a mesma chave secret
+    <br><code>PHONE_CAPTURE_URL=</code>o endereço que a Vercel deu à tela de captura</li>
+  <li>Reinicie o aplicativo: <code>docker compose up -d app</code>, de dentro da pasta <code>selfhost/docker</code>.</li>
+</ol>
+
+<h3>4. Usar</h3>
+<p>Abra um cliente, aba <b>Cadastro</b>, seção <b>Enviar pelo telefone</b>. Diga de quem é o link, crie, copie, e mande uma vez — WhatsApp é o jeito óbvio. Essa pessoa adiciona à tela inicial do telefone dela; a partir daí abre direto na câmera. Revogue um link e emita um novo se um telefone se perder — não precisa de mais nada.</p>
 
 <h2>A licença</h2>
 <p>A chave de licença chega por e-mail e é ativada pelo próprio administrador do escritório — <b>ninguém precisa entrar nesta instalação para emitir ou renovar</b>.</p>
