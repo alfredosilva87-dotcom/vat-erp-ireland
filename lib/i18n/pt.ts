@@ -705,6 +705,14 @@ const pt: Dict = {
   "snap.arrivesTitle": "Rápido e seguro",
   "snap.trustTitle": "Pode ficar tranquilo.",
   "snap.trustBody": "Este link só envia — ele não lê suas notas, seus valores nem sua contabilidade.",
+
+  // ---- ajuste de bordas depois da foto (camada B4) ----
+  "crop.title": "Ajustar documento",
+  "crop.hint": "Arraste os cantos para o papel.",
+  "crop.skip": "Pular",
+  "crop.cancel": "Cancelar",
+  "crop.confirm": "Usar assim",
+  "crop.working": "Ajustando…",
 };
 
 export default pt;

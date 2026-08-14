@@ -7,7 +7,7 @@
     "build": "next build",
     "start": "next start",
     "lint": "next lint",
-    "test": "tsc lib/bankStatement.ts lib/sheet.ts lib/bankMatch.ts lib/bankRules.ts lib/pdfStatement.ts lib/bankSplit.ts lib/closingReport.ts lib/supplierRules.ts lib/mailIngest.ts lib/licenseKey.ts lib/phoneIntake.ts --outDir .test-build --module commonjs --target es2020 --lib es2020,dom --moduleResolution node --esModuleInterop --skipLibCheck --strict && node tests/bankStatement.test.js && node tests/sheet.test.js && node tests/bankMatch.test.js && node tests/bankRules.test.js && node tests/pdfStatement.test.js && node tests/bankSplit.test.js && node tests/closingReport.test.js && node tests/supplierRules.test.js && node tests/mailIngest.test.js && node tests/routeAccess.test.js && node tests/licenseKey.test.js && node tests/phoneIntake.test.js"
+    "test": "tsc lib/bankStatement.ts lib/sheet.ts lib/bankMatch.ts lib/bankRules.ts lib/pdfStatement.ts lib/bankSplit.ts lib/closingReport.ts lib/supplierRules.ts lib/mailIngest.ts lib/licenseKey.ts lib/phoneIntake.ts lib/perspective.ts --outDir .test-build --module commonjs --target es2020 --lib es2020,dom --moduleResolution node --esModuleInterop --skipLibCheck --strict && node tests/bankStatement.test.js && node tests/sheet.test.js && node tests/bankMatch.test.js && node tests/bankRules.test.js && node tests/pdfStatement.test.js && node tests/bankSplit.test.js && node tests/closingReport.test.js && node tests/supplierRules.test.js && node tests/mailIngest.test.js && node tests/routeAccess.test.js && node tests/licenseKey.test.js && node tests/phoneIntake.test.js && node tests/perspective.test.js"
   },
   "dependencies": {
     "@google/generative-ai": "^0.21.0",

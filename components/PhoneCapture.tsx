@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useT } from "@/lib/i18n";
+import DocumentCropper from "@/components/DocumentCropper";
 
 /**
  * A tela que o cliente do escritório usa no posto de combustível.
@@ -22,6 +23,12 @@ import { useT } from "@/lib/i18n";
  * 3. **O envio é confirmado na hora.** Se ele fotografa e nada responde, ele
  *    fotografa de novo. Os 30 minutos até o escritório buscar são invisíveis
  *    desde que o "Enviado" apareça imediatamente.
+ *
+ * 4. **Cada foto passa pelo `DocumentCropper` antes de entrar na fila de
+ *    envio.** É o meio-termo combinado com o Alfredo em vez do scanner ao
+ *    vivo: a pessoa ajusta os 4 cantos na foto já tirada, sem depender de
+ *    detecção de borda em tempo real (o risco real estava aí, não no
+ *    recorte). "Pular" sempre existe e manda a foto inteira sem recorte.
  */
 
 type ItemStatus = "queued" | "sending" | "sent" | "failed";
@@ -92,7 +99,7 @@ async function dbAll(): Promise<QueueItem[]> {
  * jogaria fora o texto que o leitor do escritório usa — é justamente o caminho
  * bom que a camada A6 recuperou.
  */
-async function shrink(file: File): Promise<{ blob: Blob; mime: string }> {
+async function shrink(file: File | Blob): Promise<{ blob: Blob; mime: string }> {
   if (file.type === "application/pdf") return { blob: file, mime: file.type };
 
   const bitmap = await createImageBitmap(file).catch(() => null);
@@ -163,25 +170,51 @@ export default function PhoneCapture({
     }
   }, [token]);
 
-  const add = useCallback(async (files: FileList | null) => {
-    if (!files?.length) return;
-    for (const file of Array.from(files)) {
-      const { blob, mime } = await shrink(file);
-      const item: QueueItem = {
-        id: crypto.randomUUID(), blob, mime, note: note.trim(), direction,
-        status: "queued", preview: mime === "application/pdf" ? undefined : URL.createObjectURL(blob),
-      };
-      setItems((prev) => [item, ...prev]);
-      await dbPut(item);
-      if (blob.size > MAX_BYTES) {
-        patch(item.id, { status: "failed", reason: "too_big" });
-        await dbDelete(item.id);
-        continue;
-      }
-      void send(item);
+  /**
+   * Recebe os bytes JÁ PRONTOS — do recorte, ou da foto original quando a
+   * pessoa toca em "Pular". Não chama `shrink()` de novo sobre um resultado
+   * que o recorte já comprimiu: duas passadas de JPEG uma em cima da outra
+   * perdem qualidade à toa, e o recorte já sai dentro do teto de tamanho.
+   */
+  const finalizeOne = useCallback(async (blob: Blob, mime: string) => {
+    const item: QueueItem = {
+      id: crypto.randomUUID(), blob, mime, note: note.trim(), direction,
+      status: "queued", preview: mime === "application/pdf" ? undefined : URL.createObjectURL(blob),
+    };
+    setItems((prev) => [item, ...prev]);
+    await dbPut(item);
+    if (blob.size > MAX_BYTES) {
+      patch(item.id, { status: "failed", reason: "too_big" });
+      await dbDelete(item.id);
+      return;
     }
-    setNote("");
+    void send(item);
   }, [note, direction, send]);
+
+  // A foto original, ainda sem passar por shrink(): é o que o "Pular" do
+  // recorte manda, e por isso ainda precisa da redução de tamanho aqui.
+  const finalizeSkipped = useCallback(async (file: File | Blob) => {
+    const { blob, mime } = await shrink(file);
+    await finalizeOne(blob, mime);
+  }, [finalizeOne]);
+
+  // Cada arquivo escolhido espera a vez de passar pelo recorte — um de cada
+  // vez, porque a tela de ajuste é cheia e mostrar duas ao mesmo tempo não
+  // caberia. `pickFiles` só enfileira; quem tira da fila é o próprio recorte,
+  // ao confirmar, pular ou cancelar.
+  const [cropQueue, setCropQueue] = useState<File[]>([]);
+  const pickFiles = useCallback((files: FileList | null) => {
+    if (!files?.length) return;
+    setCropQueue((prev) => [...prev, ...Array.from(files)]);
+  }, []);
+
+  const advanceCropQueue = useCallback(() => {
+    setCropQueue((prev) => {
+      const rest = prev.slice(1);
+      if (!rest.length) setNote("");
+      return rest;
+    });
+  }, []);
 
   // Retoma o que ficou de uma sessão anterior: é isto que faz a foto tirada sem
   // sinal chegar quando ele abre a página em casa.
@@ -228,6 +261,18 @@ export default function PhoneCapture({
     : t("snap.serverError");
 
   const pending = items.filter((i) => i.status === "queued" || i.status === "sending").length;
+
+  if (cropQueue.length > 0) {
+    return (
+      <DocumentCropper
+        key={0}
+        file={cropQueue[0]}
+        onConfirm={(blob, mime) => { void finalizeOne(blob, mime); advanceCropQueue(); }}
+        onSkip={(file) => { void finalizeSkipped(file); advanceCropQueue(); }}
+        onCancel={advanceCropQueue}
+      />
+    );
+  }
 
   return (
     <div className="relative min-h-dvh overflow-hidden">
@@ -287,9 +332,9 @@ export default function PhoneCapture({
         {/* `capture="environment"` abre a câmera de trás direto, sem passar pela
             galeria. É o que separa 3 toques de 6. */}
         <input ref={cameraRef} type="file" accept="image/*" capture="environment" className="hidden"
-          onChange={(e) => { void add(e.target.files); e.currentTarget.value = ""; }} />
+          onChange={(e) => { pickFiles(e.target.files); e.currentTarget.value = ""; }} />
         <input ref={fileRef} type="file" multiple accept="image/*,application/pdf" className="hidden"
-          onChange={(e) => { void add(e.target.files); e.currentTarget.value = ""; }} />
+          onChange={(e) => { pickFiles(e.target.files); e.currentTarget.value = ""; }} />
 
         <div className="mt-5 grid gap-3">
           <label className="card grid gap-1 rounded-2xl p-4 text-sm">

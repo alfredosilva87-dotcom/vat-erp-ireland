@@ -704,6 +704,14 @@ const en = {
   "snap.arrivesTitle": "Fast & secure",
   "snap.trustTitle": "Nothing to worry about.",
   "snap.trustBody": "This link can only send — it cannot read your invoices, your figures, or your accounts.",
+
+  // ---- ajuste de bordas depois da foto (camada B4) ----
+  "crop.title": "Adjust document",
+  "crop.hint": "Drag the corners onto the paper.",
+  "crop.skip": "Skip",
+  "crop.cancel": "Cancel",
+  "crop.confirm": "Use this",
+  "crop.working": "Adjusting…",
 } as const;
 
 export type Dict = Record<keyof typeof en, string>;
