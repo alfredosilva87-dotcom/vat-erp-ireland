@@ -27,3 +27,4 @@ selfhost/backups/
 .test-build
 .next-prod/
 .next-console/
+.next-trace/
