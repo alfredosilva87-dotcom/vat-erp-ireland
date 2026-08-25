@@ -43,18 +43,24 @@ export type Partida = {
  * na esmagadora maioria das vezes, que é onde ele seria impossível de somar
  * no fim do ano.
  */
+/*
+ * Os tipos de encargo. `r` deixou de ser o rótulo e passou a ser a CHAVE do
+ * dicionário: o rótulo em português vivia aqui, então o painel do título
+ * mostrava "Juros" mesmo com o sistema em inglês.
+ */
 export const ENCARGOS: { v: string; r: string; conta: string }[] = [
-  { v: "interest", r: "Juros", conta: "7100" },
-  { v: "fee", r: "Taxa", conta: "6990" },
-  { v: "penalty", r: "Multa", conta: "6990" },
-  { v: "other", r: "Despesa", conta: "6990" },
-  { v: "discount", r: "Desconto", conta: "4900" },
+  { v: "interest", r: "chg.interest", conta: "7100" },
+  { v: "fee", r: "chg.fee", conta: "6990" },
+  { v: "penalty", r: "chg.penalty", conta: "6990" },
+  { v: "other", r: "chg.other", conta: "6990" },
+  { v: "discount", r: "chg.discount", conta: "4900" },
 ];
 
-/** De onde veio a partida, em português de quem lê. */
+/** De onde veio a partida — chave do dicionário, ver ENCARGOS. */
 export const ORIGEM: Record<string, string> = {
-  purchase: "Nota de compra", sale: "Venda", bank: "Baixa pelo banco",
-  charge: "Encargo", payroll: "Folha", manual: "Manual", opening: "Abertura",
+  purchase: "src.purchase", sale: "src.sale", bank: "src.bank",
+  charge: "src.charge", payroll: "src.payroll", manual: "src.manual",
+  opening: "src.opening",
 };
 
 export const eur = (v: number) =>

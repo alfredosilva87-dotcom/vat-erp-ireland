@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
+import { useT, type TKey } from "@/lib/i18n";
 
 /**
  * Que módulos se integram, neste cliente.
@@ -24,35 +25,21 @@ type Integracoes = {
   bank_settles_titles: boolean;
 };
 
-const LINHAS: { k: keyof Integracoes; titulo: string; ajuda: string }[] = [
-  {
-    k: "purchases_to_payable",
-    titulo: "Nota de compra vira conta a pagar",
-    ajuda: "Cada nota lançada abre um título com vencimento estimado em 30 dias.",
-  },
-  {
-    k: "sales_to_receivable",
-    titulo: "Venda vira conta a receber",
-    ajuda: "Cada venda lançada abre um título a receber.",
-  },
-  {
-    k: "documents_to_accounting",
-    titulo: "Documentos geram lançamento contábil",
-    ajuda: "Alimenta o razão, o balancete, o DRE e o balanço. Desligado, os títulos continuam a nascer — só não há partidas dobradas.",
-  },
-  {
-    k: "hr_to_payable",
-    titulo: "Folha de pagamento vira conta a pagar",
-    ajuda: "O valor da folha entra como título, para casar com o pagamento no banco.",
-  },
-  {
-    k: "bank_settles_titles",
-    titulo: "Movimento do banco dá baixa nos títulos",
-    ajuda: "Um pagamento identificado fecha o título correspondente sozinho.",
-  },
+/*
+ * Cada linha diz o que a chave FAZ, e não o nome interno dela. O texto vive no
+ * dicionário: `integ.<chave>` é o rótulo e `integ.<chave>_help` a explicação,
+ * então acrescentar uma integração é acrescentar uma linha aqui e duas chaves.
+ */
+const LINHAS: { k: keyof Integracoes; tk: string }[] = [
+  { k: "purchases_to_payable", tk: "purchasesToPayable" },
+  { k: "sales_to_receivable", tk: "salesToReceivable" },
+  { k: "documents_to_accounting", tk: "documentsToAccounting" },
+  { k: "hr_to_payable", tk: "hrToPayable" },
+  { k: "bank_settles_titles", tk: "bankSettles" },
 ];
 
 export default function ClientIntegrations({ clientId }: { clientId: string }) {
+  const { t } = useT();
   const [v, setV] = useState<Integracoes | null>(null);
   const [gravando, setGravando] = useState<string | null>(null);
   const [erro, setErro] = useState<string | null>(null);
@@ -77,7 +64,7 @@ export default function ClientIntegrations({ clientId }: { clientId: string }) {
         method: "PUT", headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ [k]: proximo }),
       });
-      if (!r.ok) throw new Error((await r.json()).error || "Não gravou.");
+      if (!r.ok) throw new Error((await r.json()).error || t("integ.saveFailed"));
       setV(await r.json());
     } catch (e: any) {
       setV({ ...v, [k]: !proximo });
@@ -89,11 +76,8 @@ export default function ClientIntegrations({ clientId }: { clientId: string }) {
 
   return (
     <section className="card p-5">
-      <h2 className="font-display text-lg font-semibold">Integrações</h2>
-      <p className="text-sm text-muted">
-        O que este cliente alimenta automaticamente. Desligue o que ele não usa — assim a tela
-        dele não enche de pendências que ninguém vai tratar.
-      </p>
+      <h2 className="font-display text-lg font-semibold">{t("integ.title")}</h2>
+      <p className="text-sm text-muted">{t("integ.subtitle")}</p>
 
       {erro && <p className="mt-3 text-sm text-danger">{erro}</p>}
 
@@ -107,16 +91,14 @@ export default function ClientIntegrations({ clientId }: { clientId: string }) {
               onChange={() => alternar(l.k)}
             />
             <span className="min-w-0">
-              <span className="block text-sm font-medium">{l.titulo}</span>
-              <span className="block text-xs text-muted">{l.ajuda}</span>
+              <span className="block text-sm font-medium">{t(`integ.${l.tk}` as TKey)}</span>
+              <span className="block text-xs text-muted">{t(`integ.${l.tk}_help` as TKey)}</span>
             </span>
           </label>
         ))}
       </div>
 
-      <p className="mt-3 text-xs text-muted">
-        Desligar não apaga o que já existe — só deixa de criar daqui para a frente.
-      </p>
+      <p className="mt-3 text-xs text-muted">{t("integ.footer")}</p>
     </section>
   );
 }
