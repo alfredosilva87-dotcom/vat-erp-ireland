@@ -20,11 +20,27 @@
   --c-line: 52 46 92; /* #342E5C — menos contraste, borda que não corta */
 
   /* sidebar — deepest shade, stays dark in both themes */
-  --c-night: 14 10 32; /* #0E0A20 */
-  --c-night-2: 30 23 66; /* #1E1742 */
-  --c-night-muted: 152 145 194; /* #9891C2 */
-  --c-night-ink: 255 255 255; /* texto da barra lateral */
+  --c-night: 25 21 39; /* #191527 — ardósia violeta; o quase-preto de antes
+     cansava numa tela que se olha o dia inteiro */
+  --c-night-2: 36 31 59; /* #241F3B */
+  --c-night-muted: 161 155 192; /* #A19BC0 */
+  --c-night-ink: 232 229 245; /* texto da barra lateral */
   --c-night-hover: 255 255 255; /* base do hover, usada com opacidade */
+  /* Degradê do rail: o pé da barra escurece de leve, e é onde a onda mora. */
+  --c-night-mid: 20 17 34; /* #141122 */
+  --c-night-low: 24 20 50; /* #181432 */
+  --c-night-icon: 163 146 232; /* #A392E8 — ícone violeta, não cinza */
+  /* Onda do rail (ver components/RailWave.tsx). */
+  --c-wave-bg: 29 24 52;
+  --c-wave-light: 36 29 66;
+  --c-wave-purple: 47 38 87;
+  --c-wave-bottom: 39 32 73;
+  --c-wave-l1: 180 160 255 / 0.20;
+  --c-wave-l2: 150 125 235 / 0.16;
+  --c-wave-l3: 140 120 220 / 0.12;
+  --c-wave-glow: 124 92 255 / 0.16;
+  /* Realce de linha em tabela — o gesto central do padrão data-dense. */
+  --c-row-hover: 39 34 66; /* #272242 */
 
   /* accent — vibrant purple */
   --c-brand: 124 92 255; /* #7C5CFF */
@@ -70,9 +86,21 @@
      tela é o que está selecionado — que é justamente o que deve chamar atenção. */
   --c-night: 255 255 255;
   --c-night-2: 245 243 253;
-  --c-night-muted: 110 106 143;
+  --c-night-muted: 97 92 125; /* #615C7D — subiu de #6E6A8F: 4.5:1 sobre branco */
   --c-night-ink: 30 27 57; /* barra clara pede texto escuro */
   --c-night-hover: 124 92 252;
+  --c-night-mid: 252 251 255; /* #FCFBFF */
+  --c-night-low: 242 238 255; /* #F2EEFF */
+  --c-night-icon: 102 86 206; /* #6656CE */
+  --c-wave-bg: 238 233 255;
+  --c-wave-light: 220 210 255;
+  --c-wave-purple: 187 164 255;
+  --c-wave-bottom: 211 200 255;
+  --c-wave-l1: 255 255 255 / 0.9;
+  --c-wave-l2: 164 137 255 / 0.58;
+  --c-wave-l3: 194 176 255 / 0.42;
+  --c-wave-glow: 155 124 255 / 0.22;
+  --c-row-hover: 244 242 253; /* #F4F2FD */
 
   --c-brand: 124 92 252; /* #7C5CFC */
   --c-brand-50: 243 240 254; /* #F3F0FE */
@@ -191,13 +219,49 @@ body {
     color: rgb(var(--c-muted) / 0.7);
   }
 
+  /* O rail: degradê vertical em vez de cor chapada — o pé escurece de leve e
+     é onde a onda entra. Ver components/RailWave.tsx. */
+  .rail-surface {
+    background-image: linear-gradient(
+      180deg,
+      rgb(var(--c-night)) 0%,
+      rgb(var(--c-night-mid)) 46%,
+      rgb(var(--c-night-low)) 100%
+    );
+    box-shadow: inset -1px 0 0 rgb(var(--c-line) / 0.6), 3px 0 12px -10px rgb(60 40 140 / 0.35);
+  }
+  /* Rotinas dentro de um módulo aberto. */
+  .rail-sub {
+    @apply block rounded-lg py-1.5 pl-8 pr-2 text-[13px] text-night-muted transition-colors;
+  }
+  .rail-sub:hover {
+    background-color: rgb(var(--c-night-hover) / 0.08);
+    color: rgb(var(--c-night-ink));
+  }
+  .rail-sub-active {
+    @apply font-medium text-night-ink;
+    background-color: rgb(var(--c-night-hover) / 0.1);
+  }
+
   /* sidebar nav */
   .nav-item {
-    @apply flex items-center gap-3 rounded-xl px-3 h-11 text-sm font-medium text-night-muted transition-colors;
+    @apply flex items-center gap-3 rounded-xl px-3 h-11 text-sm font-medium text-night-ink transition-colors;
+  }
+  /* Ícone em violeta, não cinza: é o que dá vida à barra clara. No item
+     selecionado ele vira branco junto com o texto. */
+  .nav-item svg {
+    color: rgb(var(--c-night-icon));
   }
   .nav-item:hover {
     background-color: rgb(var(--c-night-hover) / 0.08);
     color: rgb(var(--c-night-ink));
+  }
+  .nav-item:focus-visible {
+    outline: 2px solid rgb(var(--c-brand));
+    outline-offset: 1px;
+  }
+  .nav-item-active svg {
+    color: #fff;
   }
   .nav-item-active {
     @apply text-white;
@@ -224,6 +288,24 @@ body {
   .badge-soft {
     @apply flex h-10 w-10 items-center justify-center rounded-xl;
   }
+
+  /* ---------------------------------------------------------------
+     Densidade de ERP (padrão "data-dense dashboard").
+
+     Num sistema contábil a tela é bancada de trabalho, não vitrine: o que
+     importa é quantas linhas cabem sem rolar e com que facilidade o olho
+     percorre uma delas até a coluna da direita.
+     --------------------------------------------------------------- */
+
+  /* Realce da linha sob o cursor. É o gesto central do padrão: numa tabela
+     larga, é o que impede o olho de pular de linha no meio do caminho. */
+  .row-hover > tbody > tr {
+    transition: background-color 0.15s ease;
+  }
+  .row-hover > tbody > tr:hover {
+    background-color: rgb(var(--c-row-hover));
+  }
+  /* `.tnum` (dígito de largura fixa nas colunas de valor) já existe acima. */
 }
 
 @keyframes rise {

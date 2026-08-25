@@ -1,0 +1,12 @@
+-- Vazio de propósito. Este arquivo criava `app_users.module_access` — permissão
+-- por MÓDULO inteiro — e foi substituído pela 017, que troca isso por permissão
+-- por TELA (`screen_access`).
+--
+-- Fica aqui em vez de sumir porque todo .sql desta pasta roda de novo a cada
+-- instalação e a cada atualização, em ordem de nome. Com o conteúdo antigo, a
+-- 012 recriaria a coluna e a 017 a derrubaria logo em seguida, em toda
+-- atualização — trabalho à toa que um dia alguém lê como bug. Apagar o arquivo
+-- também serviria, mas o número sumido faria a próxima pessoa procurar o que
+-- não existe.
+--
+-- Ver selfhost/schema/017_screen_access.sql e lib/permissions.ts.

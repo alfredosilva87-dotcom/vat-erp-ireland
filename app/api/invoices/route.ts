@@ -32,12 +32,19 @@ export async function GET(req: NextRequest) {
     if (denied(access)) return access.error;
   }
 
+  // `year` é o exercício fiscal da barra do topo; só o painel manda. As telas
+  // de trabalho (Compras, Vendas, banco) não filtram por ele de propósito —
+  // quem procura UMA nota procura pela nota, não pelo ano.
+  const yearParam = Number(searchParams.get("year"));
+  const year = Number.isInteger(yearParam) && yearParam >= 2000 && yearParam <= 2100
+    ? yearParam : undefined;
+
   if (view === "items") {
-    return NextResponse.json({ items: await listMasterItems(q), stats: await stats(clientId, allowed) });
+    return NextResponse.json({ items: await listMasterItems(q), stats: await stats(clientId, allowed, year) });
   }
   return NextResponse.json({
     invoices: await listInvoices({ q, clientId, branchId, start, end, needsReview, ids, allowedClientIds: allowed }),
-    stats: await stats(clientId, allowed),
+    stats: await stats(clientId, allowed, year),
   });
 }
 

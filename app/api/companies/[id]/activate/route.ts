@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { requireRole } from "@/lib/auth";
+import { createSession, requireRole } from "@/lib/auth";
 import { activateLicense, getCompany } from "@/lib/store";
 import { licenseStatus } from "@/lib/license";
 
@@ -51,5 +51,15 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
 
   const result = await activateLicense(params.id, key, guard.user.email);
   if (!result.ok) return NextResponse.json({ error: result.error }, { status: 400 });
+
+  /*
+   * A sessão é reemitida com a validade nova, aqui e agora.
+   *
+   * A trava de escrita lê a data que está no token. Sem reemitir, o admin
+   * colava a chave, via "ativada", e continuava impedido de lançar até o
+   * próximo login — o pior momento possível para o sistema parecer quebrado é
+   * o minuto seguinte ao pagamento.
+   */
+  await createSession({ ...guard.user, licenseExpiresAt: result.expiresAt ?? null });
   return NextResponse.json({ ok: true, expiresAt: result.expiresAt });
 }

@@ -5,6 +5,8 @@ import { useEffect, useState } from "react";
 import LineChart from "@/components/LineChart";
 import DonutChart from "@/components/DonutChart";
 import { useT } from "@/lib/i18n";
+import { getExercise, defaultExercise, EXERCISE_EVENT } from "@/lib/exercise";
+import { ORIGINS } from "@/lib/origin";
 import type { StoredInvoice } from "@/lib/types";
 
 type Kpis = {
@@ -19,6 +21,8 @@ type Data = {
   vatByMonth: { month: string; payable: number }[];
   rates: { purchases: RateGroup[]; sales: RateGroup[] };
   upcoming: Upcoming[];
+  /** Quantas notas do ano entraram por cada porta. Ver lib/origin.ts. */
+  bySource?: Record<string, number>;
 };
 
 const money = (n: number) =>
@@ -28,7 +32,18 @@ export default function ClientDashboard({ params }: { params: { id: string } }) 
   const { t } = useT();
   const [d, setD] = useState<Data | null>(null);
   const [recent, setRecent] = useState<StoredInvoice[]>([]);
-  const [year, setYear] = useState(new Date().getFullYear());
+  /*
+   * O ano vem do EXERCÍCIO da barra do topo, não de um seletor só desta tela.
+   * Dois seletores de ano na mesma janela é a receita para conferir um
+   * período olhando o número de outro.
+   */
+  const [year, setYear] = useState(defaultExercise());
+  useEffect(() => {
+    setYear(getExercise());
+    const onYear = () => setYear(getExercise());
+    window.addEventListener(EXERCISE_EVENT, onYear);
+    return () => window.removeEventListener(EXERCISE_EVENT, onYear);
+  }, []);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -45,12 +60,11 @@ export default function ClientDashboard({ params }: { params: { id: string } }) 
       .then((data) => setRecent(data.invoices || []));
   }, [params.id]);
 
-  const yearOptions = Array.from(new Set([year + 1, year, year - 1, year - 2])).sort((a, b) => b - a);
 
   if (loading && !d) return <p className="text-muted">{t("common.loading")}</p>;
   if (!d) return <p className="text-muted">Could not load the dashboard.</p>;
 
-  const { kpis, series, vatByMonth, rates, upcoming } = d;
+  const { kpis, series, vatByMonth, rates, upcoming, bySource } = d;
 
   // One row per VAT rate present on either side, so the table reads like a
   // VAT3 working paper: what we charged (T1) vs what we paid (T2).
@@ -81,9 +95,7 @@ export default function ClientDashboard({ params }: { params: { id: string } }) 
             {t("client.financialSubtitle")}
           </p>
         </div>
-        <select className="input w-28" value={year} onChange={(e) => setYear(Number(e.target.value))}>
-          {yearOptions.map((y) => <option key={y} value={y}>{y}</option>)}
-        </select>
+        <span className="text-sm text-muted">{t("client.exerciseHint")} <b className="text-ink tnum">{year}</b></span>
       </div>
 
       {/* KPI cards */}
@@ -108,6 +120,28 @@ export default function ClientDashboard({ params }: { params: { id: string } }) 
           sub={t("client.creditApproved")} tone="success" icon={<IconCredit />}
         />
       </div>
+
+      {/*
+        Por onde as notas entraram.
+        Responde "a entrada automática está valendo a pena?" — a pergunta que
+        vem depois de dar o link de telefone ao cliente e o endereço de e-mail
+        ao fornecedor. Só aparece quando há nota no ano: uma fileira de zeros
+        num cliente novo não informa nada e ainda ocupa o topo do painel.
+      */}
+      {bySource && Object.values(bySource).some((n) => n > 0) && (
+        <section className="card p-5">
+          <h3 className="font-display text-lg font-semibold">{t("dash.originTitle")}</h3>
+          <p className="text-sm text-muted">{t("dash.originSub")}</p>
+          <div className="mt-4 flex flex-wrap gap-3">
+            {ORIGINS.map((o) => (
+              <OriginStat key={o.key} label={t(o.labelKey)} count={bySource[o.key] || 0} highlight={o.key === "phone"} />
+            ))}
+            {bySource.unknown > 0 && (
+              <OriginStat label={t("origin.unknown")} count={bySource.unknown} highlight={false} />
+            )}
+          </div>
+        </section>
+      )}
 
       <div className="grid gap-4 xl:grid-cols-3">
         {/* Sales vs purchases */}
@@ -293,6 +327,25 @@ export default function ClientDashboard({ params }: { params: { id: string } }) 
           </table>
         </div>
       </section>
+    </div>
+  );
+}
+
+/**
+ * Uma porta de entrada e quantas notas vieram por ela.
+ *
+ * Zero é mostrado, não escondido: "nenhuma nota chegou pelo telefone" é
+ * exatamente o que o escritório precisa ver depois de mandar o link — some a
+ * linha e a tela vira "está tudo certo" quando talvez o link nem esteja
+ * funcionando.
+ */
+function OriginStat({ label, count, highlight }: { label: string; count: number; highlight: boolean }) {
+  return (
+    <div className={`min-w-[128px] flex-1 rounded-xl border px-4 py-3 ${
+      highlight && count > 0 ? "border-brand/40 bg-brand-50" : "border-line bg-surface-2/40"
+    }`}>
+      <div className="text-xs font-medium uppercase tracking-wide text-muted">{label}</div>
+      <div className={`mt-1 font-display text-2xl font-semibold tnum ${count > 0 ? "" : "text-muted"}`}>{count}</div>
     </div>
   );
 }

@@ -8,24 +8,9 @@ import ExcelJS from "exceljs";
 // palette instead of the default blue. SheetJS was replaced here because its
 // community build cannot write cell styling.
 
-const C = {
-  primary: "FF1D1740",      // deep purple — headers
-  primaryMed: "FF2F2860",
-  accent: "FF7C5CFF",       // brand purple — KPI values, highlights
-  accentSoft: "FFEFEBFF",
-  success: "FF159A6B",
-  successSoft: "FFE6F5EF",
-  danger: "FFDC2626",
-  dangerSoft: "FFFDEBEB",
-  warning: "FFD97706",
-  warningSoft: "FFFCF1E2",
-  surface: "FFFFFFFF",
-  bg: "FFF6F5FC",
-  border: "FFE7E4F3",
-  text: "FF1A1533",
-  muted: "FF6B6590",
-  rowAlt: "FFF5F3FD",
-};
+// A paleta mora em `lib/reportBrand.ts`: o PDF do balanço usa exatamente as
+// mesmas cores, e duas listas de hex acabam sempre por divergir.
+import { C } from "@/lib/reportBrand";
 
 const MONEY = '#,##0.00';
 const FONT = "Calibri";

@@ -30,10 +30,26 @@ export function I18nProvider({
   const [lang, setLangState] = useState<Lang>(initialLang);
 
   useEffect(() => {
-    // Reconcile with localStorage for sessions that predate the cookie.
+    /*
+     * Reconcilia com o localStorage, para sessões anteriores ao cookie.
+     *
+     * E ESCREVE O COOKIE DE VOLTA. Sem isso os dois ficavam a discordar para
+     * sempre: o servidor pintava a tela no idioma do cookie, este efeito
+     * trocava para o do localStorage, e o resultado era um piscar de idioma em
+     * TODA carga de página — a tela abria em português e virava inglês meio
+     * segundo depois. Enganava até quem estava a testar: um screenshot tirado
+     * depressa mostrava um idioma, um tirado devagar mostrava o outro.
+     *
+     * Quem manda é o localStorage, que é onde a escolha da pessoa vive; o
+     * cookie é só como o servidor fica a saber dela.
+     */
     try {
       const stored = localStorage.getItem(LANG_KEY);
-      if (isLang(stored) && stored !== lang) setLangState(stored);
+      if (isLang(stored) && stored !== lang) {
+        setLangState(stored);
+        document.documentElement.lang = stored;
+        document.cookie = `${LANG_KEY}=${stored};path=/;max-age=${60 * 60 * 24 * 365};samesite=lax`;
+      }
     } catch {
       /* private mode — keep what the server sent */
     }

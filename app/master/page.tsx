@@ -117,9 +117,15 @@ export default function Master() {
           <h1 className="font-display text-3xl font-semibold tracking-tight">{t("master.title")}</h1>
           <p className="mt-1 text-muted">{t("master.subtitle")}</p>
         </div>
-        <button className="btn-primary" onClick={() => { setShowForm((v) => !v); setMsg(null); }}>
-          {showForm ? t("common.close") : t("master.newCompany")}
-        </button>
+        <div className="flex flex-wrap items-center gap-2">
+          {/* O painel de licenças só se alcançava digitando a URL. */}
+          <Link href="/master/licenses" className="btn-ghost h-10 px-4 text-sm">
+            Licenças
+          </Link>
+          <button className="btn-primary" onClick={() => { setShowForm((v) => !v); setMsg(null); }}>
+            {showForm ? t("common.close") : t("master.newCompany")}
+          </button>
+        </div>
       </div>
 
       {showForm && (

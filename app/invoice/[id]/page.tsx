@@ -7,6 +7,7 @@ import type { StoredInvoice, StoredItem, ChartAccount, Branch } from "@/lib/type
 import { computeLines } from "@/lib/vat";
 import { isCategoryUnrelated } from "@/lib/matching";
 import InvoiceHistory from "@/components/InvoiceHistory";
+import { usePublishClientScope } from "@/components/ClientScope";
 import type { AuditEntry, InvoiceDocument } from "@/lib/reviewStore";
 
 type Cat = { code: string | null; description: string; vat_rate: number };
@@ -53,7 +54,36 @@ export default function InvoiceEdit({ params }: { params: { id: string } }) {
   // invoice was opened from (client's Purchases/Sales tab, Database, ...),
   // instead of always landing back on the global Database list.
   const backTo = searchParams.get("from") || "/records";
+  // Quando "from" é uma lista filtrada por lote (?ids=a,b,c — ver "Revisar
+  // este lote" na Caixa de entrada / Analisar), dá pra andar pelos documentos
+  // do lote sem sair pra lista a cada um. Sem isso, abrir um documento do
+  // lote e voltar largava a pessoa na lista inteira, sem o filtro.
+  const batchIds = useMemo(() => {
+    try {
+      const idsParam = new URL(backTo, "http://x").searchParams.get("ids");
+      const ids = idsParam ? idsParam.split(",").filter(Boolean) : [];
+      return ids.length > 1 ? ids : null;
+    } catch {
+      return null;
+    }
+  }, [backTo]);
+  const batchIdx = batchIds ? batchIds.indexOf(params.id) : -1;
+  const prevId = batchIds && batchIdx > 0 ? batchIds[batchIdx - 1] : null;
+  const nextId = batchIds && batchIdx >= 0 && batchIdx < batchIds.length - 1 ? batchIds[batchIdx + 1] : null;
+  const navHref = (id: string) => `/invoice/${id}?from=${encodeURIComponent(backTo)}`;
   const [inv, setInv] = useState<StoredInvoice | null>(null);
+  /*
+   * Diz ao menu lateral de que cliente esta nota é, para ele mostrar o menu do
+   * MÓDULO em vez do menu geral — a nota é dado de um cliente, mas a rota
+   * (`/invoice/<id>`) não conta isso a ninguém.
+   *
+   * O `from` vem junto com o clique, então o menu certo já sai no primeiro
+   * quadro; o `client_id` da nota entra depois e cobre quem colou a URL ou
+   * abriu por favorito, onde não há `from`.
+   */
+  const clientFromBackTo = backTo.match(/^\/clients\/([^/?#]+)/)?.[1] ?? null;
+  const scopedClientId = clientFromBackTo ?? inv?.client_id ?? null;
+  usePublishClientScope(scopedClientId);
   const [items, setItems] = useState<StoredItem[]>([]);
   const [cats, setCats] = useState<Cat[]>([]);
   const [accounts, setAccounts] = useState<ChartAccount[]>([]);
@@ -232,7 +262,9 @@ export default function InvoiceEdit({ params }: { params: { id: string } }) {
     <div className="space-y-6">
       <div className="rise flex flex-wrap items-start justify-between gap-4">
         <div>
-          <Link href={backTo} className="text-sm text-brand">← Database</Link>
+          <Link href={backTo} className="text-sm text-brand">
+            {batchIds ? `← Back to batch (${batchIds.length})` : "← Back"}
+          </Link>
           <h1 className="mt-1 font-display text-3xl font-semibold tracking-tight">Edit invoice</h1>
           {inv.client_name && (
             <p className="mt-1 text-sm text-brand-700 font-medium">{inv.client_code} · {inv.client_name}</p>
@@ -249,6 +281,48 @@ export default function InvoiceEdit({ params }: { params: { id: string } }) {
           </button>
         </div>
       </div>
+
+      {/*
+        Barra de "andar pelo lote": só aparece vindo de uma lista filtrada por
+        ?ids= com mais de um documento — o caso de "Revisar este lote". Sem
+        isso, ver os documentos um a um era: voltar pra lista, achar o
+        próximo, abrir de novo — a cada nota.
+      */}
+      {batchIds && (
+        <div className="card flex items-center justify-between gap-3 p-3">
+          {/*
+            No PRIMEIRO documento o "anterior" não some: volta para a lista.
+            Um botão que desaparece na primeira posição faz a pessoa procurar
+            onde clicar para sair, e o gesto de "voltar" já está ali.
+          */}
+          {prevId ? (
+            <Link href={navHref(prevId)} className="btn-ghost h-9 px-3 text-sm">← Anterior</Link>
+          ) : (
+            <Link href={backTo} className="btn-ghost h-9 px-3 text-sm">← Voltar à lista</Link>
+          )}
+          <span className="text-xs text-muted">
+            Documento {batchIdx + 1} de {batchIds.length} neste lote
+          </span>
+          {nextId ? (
+            <Link href={navHref(nextId)} className="btn-ghost h-9 px-3 text-sm">Próximo →</Link>
+          ) : (
+            <div className="flex items-center gap-2">
+              <Link href={backTo} className="btn-ghost h-9 px-3 text-sm">Pronto — voltar ao lote</Link>
+              {/*
+                Conferidas as entradas, o passo seguinte do fechamento é olhar
+                as saídas — e até aqui isso exigia sair pelo menu e procurar.
+                Só aparece dentro de um cliente: fora dele não há "as vendas
+                deste cliente" para abrir.
+              */}
+              {scopedClientId && (
+                <Link href={`/clients/${scopedClientId}/sales`} className="btn-primary h-9 px-3 text-sm">
+                  Conferir vendas →
+                </Link>
+              )}
+            </div>
+          )}
+        </div>
+      )}
 
       {inv.needs_review && (
         <div className="rounded-xl2 border border-warning bg-warning-50 p-4">

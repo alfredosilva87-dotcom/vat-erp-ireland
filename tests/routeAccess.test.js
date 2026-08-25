@@ -41,6 +41,10 @@ const EXEMPT = {
   "app/api/auth/login/route.ts": "publica por definicao",
   "app/api/auth/logout/route.ts": "encerra a propria sessao",
   "app/api/auth/me/route.ts": "devolve a propria sessao",
+  "app/api/profile/route.ts":
+    "a propria conta: a rota nunca le um id do pedido, escreve sempre em " +
+    "getSessionUser().id. Nao toca em role, active nem screen_access — quem muda " +
+    "isso e um administrador, na tela de utilizadores.",
   "app/api/auth/forgot-password/route.ts": "publica, fluxo de recuperacao",
   "app/api/auth/reset-password/route.ts": "publica, fluxo de recuperacao",
   "app/api/base/route.ts": "tabela de aliquotas: referencia global, igual para todos",
@@ -48,12 +52,42 @@ const EXEMPT = {
   "app/api/credit-rules/route.ts": "regras de credito por tipo de negocio: referencia global",
   "app/api/credit-rules/[id]/route.ts": "referencia global",
   "app/api/items/route.ts": "items_master e catalogo global de itens, sem dado de cliente",
+  "app/api/search/route.ts":
+    "rota de LISTA: usa visibleClientIds para escolher os clientes e filtra notas e " +
+    "vendas pelos mesmos ids. Alem disso confere a arvore de permissoes por categoria — " +
+    "quem nao pode abrir a tela de clientes nao recebe clientes no resultado, porque a " +
+    "linha ja contaria que a empresa existe.",
   "app/api/items/[id]/route.ts": "catalogo global",
   "app/api/clients/route.ts": "ja filtra por company_id na propria rota",
   "app/api/companies/route.ts": "painel do dono do sistema, exige perfil master (conferido: requireRole)",
   "app/api/companies/[id]/history/route.ts": "painel do dono, exige master (conferido: requireRole)",
   "app/api/companies/[id]/route.ts": "painel do dono do sistema, exige perfil master",
   "app/api/companies/[id]/activate/route.ts": "painel do dono, exige master",
+  "app/api/phone/keepalive/route.ts":
+    "cron que impede a passagem de adormecer. Nao ha id de cliente no caminho e " +
+    "nao le dado de cliente nenhum: devolve so contagens do banco da PASSAGEM " +
+    "(links ativos, uploads pendentes). Protegida por CRON_SECRET quando definido; " +
+    "sem segredo continua a funcionar, porque uma variavel esquecida nao pode " +
+    "derrubar o link de telefone dos clientes.",
+  "app/api/charge-types/route.ts":
+    "tipos de encargo do ESCRITORIO (juros, taxa, multa, desconto) e a conta de " +
+    "cada um em cada lado. Referencia global, como o plano de contas: nao ha id " +
+    "de cliente no caminho. Leitura exige sessao; mexer exige admin, porque mudar " +
+    "a conta de 'juros' muda para onde vai o resultado de todos os clientes.",
+  "app/api/chart/route.ts":
+    "plano de contas do ESCRITORIO: referencia global, igual para os 35 clientes, " +
+    "como a base de aliquotas e o catalogo de itens. Nao ha id de cliente no " +
+    "caminho porque nao ha cliente a guardar. Leitura exige sessao (requireRole " +
+    "user); criar e alterar exigem admin.",
+  "app/api/master/licenses/route.ts":
+    "cofre de quem VENDE, nao recurso de empresa nenhuma: exige perfil master " +
+    "(conferido: requireRole) e, sem a chave privada no disco, responde 404. " +
+    "Nao ha id de cliente no caminho para conferir.",
+  "app/api/companies/[id]/letterhead/route.ts":
+    "dados do escritorio no timbre das demonstracoes: exige perfil admin E confere " +
+    "guard.user.company_id === params.id nos DOIS handlers, entao um admin nunca le " +
+    "nem escreve o timbre de outro escritorio. Nao usa requireClient porque o recurso " +
+    "e a empresa, e nao um cliente dela.",
   "app/api/companies/contacts.sage.csv/route.ts": "ja filtra por company_id",
   "app/api/users/route.ts": "ja filtra por company_id",
   "app/api/users/[id]/route.ts": "exige perfil admin e filtra por empresa",
@@ -70,6 +104,14 @@ const EXEMPT = {
     "passagem na nuvem, que nao tem a tabela de empresas. Ela SO ESCREVE: valida o link, recusa " +
     "por forma, prazo, tipo, tamanho e teto de envios, e nao devolve nada do que ja esta la.",
   "app/api/mail/inbox/route.ts": "rota de lista: usa visibleClientIds",
+  "app/api/hr/companies/route.ts":
+    "rota de LISTA do modulo RH: nao recebe id no caminho, entao o escopo vem de " +
+    "visibleClientIds — o mesmo contrato das outras listas. Devolve so as empresas " +
+    "cujo cliente a sessao pode ver; sem isso a folha de um escritorio apareceria noutro.",
+  "app/api/hr/submissions/route.ts":
+    "rota de LISTA: mesma regra. A fila e filtrada por visibleClientIds, e lista vazia " +
+    "vira um id impossivel no `in` — quem nao pode ver cliente nenhum recebe fila vazia, " +
+    "nao a fila inteira.",
   "app/api/invoices/route.ts": "lista usa visibleClientIds; POST confere o cliente do payload",
   "app/api/invoices/approve/route.ts": "recebe lista de ids: usa filterInvoicesByCompany",
   "app/api/invoices/bulk-delete/route.ts": "recebe lista de ids: usa filterInvoicesByCompany",
@@ -78,6 +120,7 @@ const EXEMPT = {
 
 const GUARDS = [
   "requireClient", "requireInvoice", "requireSale", "requireObligation",
+  "requireRecurringObligation",
   "requireInboxItem", "requireBankAccount", "requireInvoiceDocument",
   "filterInvoicesByCompany", "visibleClientIds",
 ];

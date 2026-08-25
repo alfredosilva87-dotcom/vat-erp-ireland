@@ -7,6 +7,8 @@ Extract the data EXACTLY as printed. Do not invent values. Use null when a field
 
 Return STRICT JSON with this shape:
 {
+  "doc_kind": "invoice"|"receipt"|"sales_sheet"|"illegible"|"not_a_document",
+  "doc_kind_reason": string|null,
   "supplier_name": string|null,
   "store_name": string|null,             // branch/store name printed under the main name (e.g. "Shrewsbury")
   "supplier_vat": string|null,          // Irish VAT number if present (e.g. IE1234567X)
@@ -30,6 +32,15 @@ Return STRICT JSON with this shape:
   ]
 }
 
+Classify FIRST, in "doc_kind":
+- "invoice"        — a supplier invoice or bill.
+- "receipt"        — a till/POS receipt.
+- "sales_sheet"    — a spreadsheet, ledger page or table listing SEVERAL sales/transactions (rows with their own dates), not a single document.
+- "illegible"      — it IS a fiscal document but you cannot read the amounts (blurred, cut off, too dark).
+- "not_a_document" — it is NOT a fiscal document at all (a selfie, a random photo, a blank page, a screenshot of something else).
+Put a SHORT reason in "doc_kind_reason" for "illegible" and "not_a_document"; null otherwise.
+For "illegible" and "not_a_document", still return the JSON shape with nulls and an empty items array — do NOT invent values to fill it.
+
 Rules:
 - Many supermarket receipts (e.g. Tesco, Lidl, Dunnes) DO NOT show a VAT rate per line. In that case set vat_rate_on_invoice and vat_amount_on_invoice to null — do NOT guess.
 - Numbers must be plain (no currency symbols, dot as decimal separator).
@@ -51,7 +62,17 @@ If the whole PDF is a single invoice/receipt (the normal case), return exactly o
 
 // Defensive parse: accept a JSON string (or object) and coerce into RawExtraction.
 export function coerceExtraction(input: unknown): RawExtraction {
-  const obj = typeof input === "string" ? JSON.parse(input) : (input as any);
+  let obj: any = input;
+  if (typeof input === "string") {
+    try {
+      obj = JSON.parse(input);
+    } catch {
+      // A IA devolveu algo que não é JSON válido — resposta cortada, documento
+      // ilegível/vazio, ou uma recusa em texto livre. O erro cru do JSON.parse
+      // não diz nada disso a quem está revisando; esta mensagem diz.
+      throw new Error("Não foi possível ler este documento (resposta da IA não veio em formato válido). Tente ler de novo.");
+    }
+  }
   const num = (v: unknown): number | null => {
     if (v === null || v === undefined || v === "") return null;
     const n = typeof v === "number" ? v : parseFloat(String(v).replace(",", "."));
@@ -75,7 +96,24 @@ export function coerceExtraction(input: unknown): RawExtraction {
     ? obj.doc_type
     : "invoice";
 
+  /*
+   * O que o documento É, decidido pela mesma chamada que lê os valores — sem
+   * custo de IA a mais, o que importa num plano com 15 chamadas por minuto.
+   *
+   * Serve para duas coisas que antes não tinham resposta: separar "leitura
+   * fraca" de "isto não é documento" (a foto do dedo, a selfie, a página em
+   * branco), e reconhecer a PLANILHA de vendas, que não é uma nota e precisa
+   * do outro leitor.
+   *
+   * Sem valor conhecido cai em "invoice": o padrão tem de ser o caso normal,
+   * senão um modelo que devolve a chave errada faria toda nota virar suspeita.
+   */
+  const KINDS = ["invoice", "receipt", "sales_sheet", "illegible", "not_a_document"];
+  const docKind = KINDS.includes(obj?.doc_kind) ? obj.doc_kind : "invoice";
+
   return {
+    doc_kind: docKind,
+    doc_kind_reason: str(obj?.doc_kind_reason),
     supplier_name: str(obj?.supplier_name),
     store_name: str(obj?.store_name),
     supplier_vat: str(obj?.supplier_vat),

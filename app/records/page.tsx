@@ -22,6 +22,10 @@ export default function Records() {
   // A just-imported batch (see Analyze's "Review this batch") locks the list
   // to exactly those invoices, ignoring the usual filters, until cleared.
   const batchIds = searchParams.get("ids");
+  // Mesma razão do cliente: "← Database" e o pós-exclusão precisam voltar pro
+  // MESMO lote, não pra lista inteira, senão abrir um documento e sair perde
+  // o filtro que trouxe a pessoa até ali.
+  const backHref = `/records${batchIds ? `?ids=${batchIds}` : ""}`;
   const [tab, setTab] = useState<"invoices" | "items">("invoices");
   const [q, setQ] = useState("");
   const [query, setQuery] = useState("");
@@ -343,7 +347,7 @@ export default function Records() {
                     </td>
                     <td className="px-4 py-3">
                       <div className="flex items-center justify-center gap-1">
-                        <Link className="btn-ghost h-7 px-2 text-xs" href={`/invoice/${inv.id}?from=/records`} onClick={() => rememberOpenedRow(inv.id)}>
+                        <Link className="btn-ghost h-7 px-2 text-xs" href={`/invoice/${inv.id}?from=${encodeURIComponent(backHref)}`} onClick={() => rememberOpenedRow(inv.id)}>
                           Open
                         </Link>
                         {inv.document_file && (

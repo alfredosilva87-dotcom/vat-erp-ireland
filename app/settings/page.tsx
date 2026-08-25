@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useCallback, useEffect, useState } from "react";
 import { useT, LANGS, type Lang } from "@/lib/i18n";
+import FirmCard from "@/components/settings/FirmCard";
 
 type Me = { id: string; email: string; name: string | null; role: string; company_id: string | null } | null;
 
@@ -128,9 +129,14 @@ export default function Settings() {
             <p className="text-sm text-muted">{t("settings.usersSub")}</p>
           </div>
           {isAdmin ? (
-            <Link href="/settings/users" className="btn-primary h-9 px-3 text-xs">
-              {t("settings.manageUsers")}
-            </Link>
+            <div className="flex items-center gap-2">
+              <Link href="/settings/permissions" className="btn-ghost h-9 px-3 text-xs">
+                {t("perm.title")}
+              </Link>
+              <Link href="/settings/users" className="btn-primary h-9 px-3 text-xs">
+                {t("settings.manageUsers")}
+              </Link>
+            </div>
           ) : (
             <span className="chip bg-surface-2 text-muted">{t("settings.adminOnly")}</span>
           )}
@@ -150,6 +156,9 @@ export default function Settings() {
           </div>
         )}
       </section>
+
+      {/* Firm details — o timbre das demonstracoes */}
+      {isAdmin && me?.company_id && <FirmCard companyId={me.company_id} />}
 
       {/* Licence */}
       {isAdmin && me?.company_id && (

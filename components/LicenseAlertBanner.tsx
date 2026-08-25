@@ -4,12 +4,8 @@ import Link from "next/link";
 import { useEffect, useState } from "react";
 import { useT } from "@/lib/i18n";
 import { licenseStatus, daysUntil, needsAlert } from "@/lib/license";
+import { useSession } from "@/components/PermissionScope";
 import type { Company } from "@/lib/types";
-
-type Me = {
-  user: { role: string; company_id: string | null } | null;
-  company: { name: string; active: boolean; license_expires_at: string | null } | null;
-};
 
 const DISMISS_KEY = "vat-license-banner-dismissed";
 
@@ -24,11 +20,19 @@ export default function LicenseAlertBanner() {
   const [msg, setMsg] = useState<{ text: string; danger: boolean; href?: string } | null>(null);
   const [dismissed, setDismissed] = useState(false);
 
+  /*
+   * A sessão vem do contexto, e não de um `fetch` próprio.
+   *
+   * Este aviso monta em toda tela e só olha a licença: buscar `/api/auth/me`
+   * de novo para descobrir quem é o utilizador repetia, a cada navegação, um
+   * pedido já feito pelo `PermissionProvider`.
+   */
+  const me = useSession();
+
   useEffect(() => {
     setDismissed(sessionStorage.getItem(DISMISS_KEY) === "1");
+    if (!me.ready) return;
     (async () => {
-      const meRes = await fetch("/api/auth/me");
-      const me: Me = await meRes.json();
       if (!me.user) return;
 
       if (me.user.role === "master") {
@@ -67,7 +71,7 @@ export default function LicenseAlertBanner() {
       }
     })();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, [me.ready, me.user, me.company]);
 
   if (!msg || dismissed) return null;
 

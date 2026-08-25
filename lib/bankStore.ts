@@ -66,6 +66,14 @@ export async function createBankAccount(
     currency: (text(input.currency, 3) || "EUR").toUpperCase(),
     opening_balance: money(input.opening_balance) ?? 0,
     opening_date: isDate(input.opening_date) ? input.opening_date : null,
+    /*
+     * A conta do razão desta conta bancária — o "portador".
+     *
+     * Sem ela toda baixa cai em 1100, e um cliente com cinco contas vê os
+     * cinco bancos somados numa linha só do balancete. Nula continua a cair em
+     * 1100, que é o comportamento de quem tem uma conta só.
+     */
+    account_code: text(input.account_code, 20),
   };
   const { data, error } = await sb().from("bank_accounts").insert(row).select().single();
   if (error) throw error;
@@ -79,6 +87,7 @@ export async function updateBankAccount(
   if ("name" in patch) row.name = text(patch.name, 120);
   if ("bank_name" in patch) row.bank_name = text(patch.bank_name, 120);
   if ("account_ref" in patch) row.account_ref = text(patch.account_ref, 60);
+  if ("account_code" in patch) row.account_code = text(patch.account_code, 20);
   if ("currency" in patch) row.currency = (text(patch.currency, 3) || "EUR").toUpperCase();
   if ("opening_balance" in patch) row.opening_balance = money(patch.opening_balance) ?? 0;
   if ("opening_date" in patch) row.opening_date = isDate(patch.opening_date) ? patch.opening_date : null;

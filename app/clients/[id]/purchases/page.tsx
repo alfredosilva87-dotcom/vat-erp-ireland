@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { Fragment, useCallback, useEffect, useMemo, useState } from "react";
+import { useSearchParams } from "next/navigation";
 import type { StoredInvoice, StoredItem } from "@/lib/types";
 import ExportPanel from "@/components/ExportPanel";
 import { useT } from "@/lib/i18n";
@@ -21,6 +22,15 @@ const f = (d: Date) => `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getD
  */
 export default function Purchases({ params }: { params: { id: string } }) {
   const { t } = useT();
+  const searchParams = useSearchParams();
+  // Um lote recém-lido (ver "Revisar este lote" em Analisar/Caixa de entrada)
+  // trava a lista a esses lançamentos, ignorando os filtros de baixo, até
+  // limpar — mesma ideia do Database global.
+  const batchIds = searchParams.get("ids");
+  // Pra "← Database" (tela de edição) e o pós-exclusão voltarem pro MESMO
+  // lote, não pra lista inteira de T2 — senão abrir um documento do lote e
+  // sair perde o filtro que trouxe a pessoa até ali.
+  const backHref = `/clients/${params.id}/purchases${batchIds ? `?ids=${batchIds}` : ""}`;
   const [invoices, setInvoices] = useState<StoredInvoice[]>([]);
   const [branches, setBranches] = useState<{ id: string; name: string; code: string | null }[]>([]);
   const [branchId, setBranchId] = useState("");
@@ -42,16 +52,20 @@ export default function Purchases({ params }: { params: { id: string } }) {
     setLoading(true);
     try {
       const p = new URLSearchParams({ q: query, client: params.id });
-      if (branchId) p.set("branch", branchId);
-      if (start) p.set("start", start);
-      if (end) p.set("end", end);
-      if (onlyReview) p.set("review", "1");
+      if (batchIds) {
+        p.set("ids", batchIds);
+      } else {
+        if (branchId) p.set("branch", branchId);
+        if (start) p.set("start", start);
+        if (end) p.set("end", end);
+        if (onlyReview) p.set("review", "1");
+      }
       const d = await (await fetch(`/api/invoices?${p}`)).json();
       setInvoices(d.invoices || []);
     } finally {
       setLoading(false);
     }
-  }, [params.id, query, branchId, start, end, onlyReview]);
+  }, [params.id, query, branchId, start, end, onlyReview, batchIds]);
 
   useEffect(() => {
     fetch(`/api/clients/${params.id}/branches`).then((r) => r.json()).then((d) => setBranches(d.branches || []));
@@ -178,6 +192,13 @@ export default function Purchases({ params }: { params: { id: string } }) {
         </div>
         <ExportPanel clientId={params.id} defaultSets={["invoices", "items"]} />
       </div>
+
+      {batchIds && (
+        <div className="flex flex-wrap items-center gap-3 rounded-xl border border-brand/40 bg-brand-50 px-4 py-2.5 text-sm">
+          {t("purchases.batchShowing", { n: String(batchIds.split(",").filter(Boolean).length) })}
+          <Link className="btn-ghost ml-auto h-8 px-3 text-xs" href={`/clients/${params.id}/purchases`}>{t("purchases.batchShowAll")}</Link>
+        </div>
+      )}
 
       {/* Filters */}
       <div className="card flex flex-wrap items-end gap-3 p-4">
@@ -347,7 +368,7 @@ export default function Purchases({ params }: { params: { id: string } }) {
                       <td className="px-4 py-3 text-right tnum font-semibold text-brand-700">{money(inv.total_credit)}</td>
                       <td className="px-4 py-3">
                         <div className="flex items-center justify-center gap-1">
-                          <Link className="btn-ghost h-8 px-3 text-xs" href={`/invoice/${inv.id}?from=/clients/${params.id}/purchases`} onClick={() => rememberOpenedRow(inv.id)}>{t("common.open")}</Link>
+                          <Link className="btn-ghost h-8 px-3 text-xs" href={`/invoice/${inv.id}?from=${encodeURIComponent(backHref)}`} onClick={() => rememberOpenedRow(inv.id)}>{t("common.open")}</Link>
                           {inv.document_file && (
                             <a
                               className="btn-ghost h-8 px-3 text-xs"

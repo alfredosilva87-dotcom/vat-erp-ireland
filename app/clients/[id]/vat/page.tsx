@@ -78,18 +78,21 @@ export default function VatByRate({ params }: { params: { id: string } }) {
         <p className="text-muted">Loading…</p>
       ) : (
         <div className="grid gap-6 lg:grid-cols-2">
-          <RateTable title="Entradas (compras)" groups={purchases} open={open} setOpen={setOpen} keyPrefix="p" linkDocs sum={sum} />
-          <RateTable title="Saídas (vendas)" groups={sales} open={open} setOpen={setOpen} keyPrefix="s" linkDocs={false} sum={sum} />
+          <RateTable title="Entradas (compras)" groups={purchases} open={open} setOpen={setOpen} keyPrefix="p" linkDocs backTo={`/clients/${params.id}/vat`} sum={sum} />
+          <RateTable title="Saídas (vendas)" groups={sales} open={open} setOpen={setOpen} keyPrefix="s" linkDocs={false} backTo={`/clients/${params.id}/vat`} sum={sum} />
         </div>
       )}
     </div>
   );
 }
 
-function RateTable({ title, groups, open, setOpen, keyPrefix, linkDocs, sum }: {
+function RateTable({ title, groups, open, setOpen, keyPrefix, linkDocs, backTo, sum }: {
   title: string; groups: RateGroup[]; open: Record<string, boolean>;
   setOpen: (f: (p: Record<string, boolean>) => Record<string, boolean>) => void;
-  keyPrefix: string; linkDocs: boolean; sum: (g: RateGroup[], k: "net" | "vat") => number;
+  keyPrefix: string; linkDocs: boolean;
+  /** Para a revisão da nota saber de que cliente ela é (mantém o menu do módulo). */
+  backTo: string;
+  sum: (g: RateGroup[], k: "net" | "vat") => number;
 }) {
   const money2 = (n: number) => n.toLocaleString("en-IE", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
   return (
@@ -122,7 +125,7 @@ function RateTable({ title, groups, open, setOpen, keyPrefix, linkDocs, sum }: {
                 {isOpen && g.docs.map((d) => (
                   <tr key={k + d.id} className="border-b border-line/50 bg-surface-2/40 text-xs">
                     <td className="px-4 py-1.5 pl-8">
-                      {linkDocs ? <Link className="text-brand hover:underline" href={`/invoice/${d.id}`}>{d.label}</Link> : d.label}
+                      {linkDocs ? <Link className="text-brand hover:underline" href={`/invoice/${d.id}?from=${encodeURIComponent(backTo)}`}>{d.label}</Link> : d.label}
                       {d.date ? <span className="text-muted"> · {d.date}</span> : ""}
                     </td>
                     <td className="px-4 py-1.5 text-right tnum">{money2(d.net)}</td>

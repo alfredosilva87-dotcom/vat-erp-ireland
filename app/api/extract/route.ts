@@ -164,6 +164,10 @@ async function classifyDocument(
       invoice_date: extraction.data.invoice_date,
       invoice_time: extraction.data.invoice_time,
       doc_type: extraction.data.doc_type,
+      // O que o documento é (nota, recibo, planilha, ilegível, não-documento).
+      // Vai para a tela poder separar sujeira de leitura fraca.
+      doc_kind: extraction.data.doc_kind,
+      doc_kind_reason: extraction.data.doc_kind_reason,
       total_net: extraction.data.total_net,
       total_vat: extraction.data.total_vat,
       total_gross: extraction.data.total_gross,

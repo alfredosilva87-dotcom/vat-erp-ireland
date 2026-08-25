@@ -12,12 +12,14 @@
  * telas fazem, com os mesmos campos.
  */
 
-import type { AnalyzedItem } from "@/lib/types";
+import type { AnalyzedItem, DocKind } from "@/lib/types";
 
 export type IngestHeader = {
   supplier_name: string | null; store_name: string | null; supplier_vat: string | null;
   invoice_number: string | null; barcode: string | null; invoice_date: string | null;
   invoice_time: string | null; doc_type: string;
+  /** O que o documento é, para a tela separar sujeira de leitura fraca. */
+  doc_kind?: DocKind; doc_kind_reason?: string | null;
   total_net: number | null; total_vat: number | null; total_gross: number | null;
 };
 
@@ -75,11 +77,84 @@ export function base64ToFile(b64: string, filename: string): File {
   return new File([bytes], filename, { type: "application/pdf" });
 }
 
+/**
+ * Grava um documento de VENDA — na tabela `sales`, não em `invoices`.
+ *
+ * Existe porque a fila carrega `direction` desde a camada B2 (e o link de
+ * telefone da B4 deixa o cliente marcar "venda"), mas a gravação ignorava
+ * isso e mandava tudo para `invoices`. Uma venda virando nota de compra não é
+ * erro de tela: o IVA entra como CRÉDITO em vez de DÉBITO, então o VAT3 sai
+ * subestimado nos dois sentidos ao mesmo tempo — some do T1 e ainda abate
+ * indevidamente no T2.
+ *
+ * Uma entrada por documento, a partir dos TOTAIS do cabeçalho: `sales` é
+ * razão de resumo (data, documento, cliente, líquido, taxa, IVA) e não guarda
+ * linha de item. Quebrar as linhas do documento aqui inventaria vendas que o
+ * documento não declara.
+ */
+export async function saveSaleDocument(
+  file: File, doc: IngestDocument,
+  ctx: { clientId: string; postingDate: string; source?: string | null; capturedAt?: string | null }
+): Promise<{ kind: "saved"; id: string } | { kind: "error"; error: string }> {
+  const h = doc.header;
+  // A taxa do cabeçalho quando ela é única e explícita; senão fica nula e o
+  // contador preenche. Deduzir de IVA/líquido daria um número plausível e
+  // errado nos documentos com mais de uma alíquota, normal no varejo.
+  const rates = Array.from(new Set(doc.items.map((i) => i.vat_rate_on_invoice).filter((r): r is number => r != null)));
+
+  const meta = {
+    entry_date: h.invoice_date || ctx.postingDate,
+    doc_number: h.invoice_number ?? null,
+    // Numa venda quem emite é o cliente do escritório, então o nome lido no
+    // documento é o COMPRADOR — vai para `customer`, não para fornecedor.
+    customer: h.supplier_name ?? null,
+    net_amount: h.total_net,
+    vat_rate: rates.length === 1 ? rates[0] : null,
+    vat_amount: h.total_vat ?? 0,
+    source: ctx.source ?? null,
+    captured_at: ctx.capturedAt ?? null,
+    doc_kind: doc.header.doc_kind ?? null,
+    original_filename: doc.filename,
+    needs_review: doc.needs_review,
+    confidence: doc.confidence,
+    // As linhas lidas. Vazio aqui vira UMA linha genérica no servidor — ver
+    // saveSaleFromDocument em lib/store.ts.
+    items: doc.items.map((it) => ({
+      description: it.description,
+      quantity: it.quantity, unit_price: it.unit_price,
+      net_amount: it.net_amount,
+      vat_rate: it.vat_rate_on_invoice ?? it.expected_vat_rate ?? null,
+      vat_amount: it.vat_amount_on_invoice ?? null,
+    })),
+  };
+
+  const fd = new FormData();
+  fd.append("file", file);
+  fd.append("meta", JSON.stringify(meta));
+
+  const res = await fetch(`/api/clients/${ctx.clientId}/sales/document`, { method: "POST", body: fd });
+  const data = await res.json().catch(() => null);
+  if (!res.ok) return { kind: "error", error: data?.error || "Save failed" };
+  return { kind: "saved", id: data.sale.id };
+}
+
 export interface SaveContext {
   clientId: string;
   branchId: string;
   activityCode: string;
   postingDate: string;
+  /**
+   * Por onde o documento entrou. A tela de leitura manda "upload"; a caixa de
+   * entrada manda o `source` do próprio item da fila ("email" ou "phone"),
+   * para a origem sobreviver à gravação. Ver 013_invoice_source.sql.
+   */
+  source?: string | null;
+  /**
+   * Quando o documento CHEGOU. Vem da fila (`received_at`) porque o e-mail de
+   * sábado só é lançado na segunda — sem isto a nota registraria a segunda, e
+   * a pergunta "chegou antes do fechamento?" ficaria sem resposta.
+   */
+  capturedAt?: string | null;
   force?: boolean;
 }
 
@@ -117,6 +192,9 @@ export async function saveDocument(
   const meta = {
     client_id: ctx.clientId || null,
     branch_id: ctx.branchId || null,
+    source: ctx.source ?? null,
+    captured_at: ctx.capturedAt ?? null,
+    doc_kind: doc.header.doc_kind ?? null,
     activity_code: ctx.activityCode,
     engine: doc.engine,
     original_filename: doc.filename,

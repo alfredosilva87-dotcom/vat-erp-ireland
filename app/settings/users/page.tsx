@@ -7,8 +7,12 @@ import { useT } from "@/lib/i18n";
 type User = {
   id: string; email: string; name: string | null;
   role: "user" | "admin" | "master"; active: boolean; created_at: string;
+  screen_access: string[] | null;
 };
 
+// Usuário nasce com acesso total (`screen_access` nulo) e o recorte se faz
+// depois, em /settings/permissions. Pedir as permissões junto da senha fazia
+// quem cria a conta decidir no chute, antes de saber o que a pessoa vai fazer.
 const empty = { name: "", email: "", password: "", role: "user" as User["role"] };
 
 export default function Users() {
@@ -97,12 +101,15 @@ export default function Users() {
           <h1 className="mt-1 font-display text-3xl font-semibold tracking-tight">{t("users.title")}</h1>
           <p className="mt-1 text-muted">{t("users.subtitle")}</p>
         </div>
-        <button
-          className="btn-primary"
-          onClick={() => { setEditId(null); setForm({ ...empty }); setShowForm((v) => !v); setMsg(null); }}
-        >
-          {showForm ? t("common.close") : t("users.new")}
-        </button>
+        <div className="flex items-center gap-2">
+          <Link href="/settings/permissions" className="btn-ghost">{t("perm.title")}</Link>
+          <button
+            className="btn-primary"
+            onClick={() => { setEditId(null); setForm({ ...empty }); setShowForm((v) => !v); setMsg(null); }}
+          >
+            {showForm ? t("common.close") : t("users.new")}
+          </button>
+        </div>
       </div>
 
       {showForm && (
@@ -142,6 +149,21 @@ export default function Users() {
           <p className="mt-2 text-xs text-muted">
             {form.role === "user" ? t("users.roleUserHelp") : t("users.roleAdminHelp")}
           </p>
+
+          <div className="mt-4 flex flex-wrap items-center justify-between gap-2 border-t border-line pt-4">
+            <div>
+              <span className="label">{t("users.screenAccess")}</span>
+              <p className="mt-1 text-xs text-muted">{t("users.screenAccessHelp")}</p>
+            </div>
+            {/* Só ao EDITAR: quem ainda está sendo criado não tem id para onde
+                o link apontar, e sair da tela agora perderia a senha digitada. */}
+            {editId && (
+              <Link href={`/settings/permissions?user=${editId}`} className="btn-ghost h-9 px-3 text-xs">
+                {t("perm.title")} →
+              </Link>
+            )}
+          </div>
+
           <div className="mt-4 flex items-center gap-3">
             <button className="btn-primary" onClick={submit}>
               {editId ? t("common.saveChanges") : t("common.create")}
@@ -183,6 +205,9 @@ export default function Users() {
                   </td>
                   <td className="px-4 py-3">
                     <div className="flex items-center justify-center gap-1">
+                      <Link href={`/settings/permissions?user=${u.id}`} className="btn-ghost h-8 px-3 text-xs">
+                        {t("perm.short")}
+                      </Link>
                       <button className="btn-ghost h-8 px-3 text-xs" onClick={() => edit(u)}>{t("common.edit")}</button>
                       <button className="btn-ghost h-8 px-3 text-xs" onClick={() => toggleActive(u)} disabled={u.id === me?.id}>
                         {u.active ? t("users.deactivate") : t("users.activate")}
