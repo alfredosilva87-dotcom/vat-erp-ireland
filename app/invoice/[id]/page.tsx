@@ -9,6 +9,7 @@ import { isCategoryUnrelated } from "@/lib/matching";
 import InvoiceHistory from "@/components/InvoiceHistory";
 import { usePublishClientScope } from "@/components/ClientScope";
 import type { AuditEntry, InvoiceDocument } from "@/lib/reviewStore";
+import IntegrationTrace, { type Rastro } from "@/components/financial/IntegrationTrace";
 
 type Cat = { code: string | null; description: string; vat_rate: number };
 
@@ -91,6 +92,7 @@ export default function InvoiceEdit({ params }: { params: { id: string } }) {
   const [relatedCategories, setRelatedCategories] = useState<string[]>([]);
   // Trilha e documentos vêm no mesmo GET da nota (camada B3).
   const [audit, setAudit] = useState<AuditEntry[]>([]);
+  const [integration, setIntegration] = useState<Rastro | null>(null);
   const [documents, setDocuments] = useState<InvoiceDocument[]>([]);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -103,6 +105,7 @@ export default function InvoiceEdit({ params }: { params: { id: string } }) {
       setItems(d.items || []);
       setAudit(d.audit || []);
       setDocuments(d.documents || []);
+      setIntegration(d.integration ?? null);
     }).finally(() => setLoading(false));
     fetch("/api/base").then((r) => r.json()).then((d) => setCats(d.categories || []));
   }, [params.id]);
@@ -225,6 +228,7 @@ export default function InvoiceEdit({ params }: { params: { id: string } }) {
     const d = await (await fetch(`/api/invoices/${params.id}`, { cache: "no-store" })).json();
     setAudit(d.audit || []);
     setDocuments(d.documents || []);
+    setIntegration(d.integration ?? null);
     return d;
   }
 
@@ -508,6 +512,10 @@ export default function InvoiceEdit({ params }: { params: { id: string } }) {
           </table>
         </div>
       </div>
+
+      {inv.client_id && (
+        <IntegrationTrace rastro={integration} clientId={String(inv.client_id)} origem="purchase" />
+      )}
 
       <InvoiceHistory
         audit={audit} documents={documents}

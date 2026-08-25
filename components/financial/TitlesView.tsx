@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
+import { useSearchParams } from "next/navigation";
 import PainelDoTitulo from "@/components/financial/TitlePanel";
 import type { Titulo } from "@/components/financial/tipos";
 import { eur } from "@/components/financial/tipos";
@@ -47,10 +48,23 @@ const NOME: Record<string, string> = {
 };
 
 export default function TitlesView({ clientId, kind }: { clientId: string; kind: "payable" | "receivable" }) {
-  const [status, setStatus] = useState("pendentes");
+  /*
+   * O filtro pode vir na URL, e é isso que faz o RASTRO funcionar.
+   *
+   * O bloco "Integração" da nota liga para cá com `?q=<numero>&status=todos`.
+   * Sem ler estes dois parâmetros, o link caía na lista filtrada por
+   * "pendentes" e um título já quitado simplesmente não aparecia — o rastro
+   * apontaria para um ecrã vazio, que é pior do que não ter rastro: diz que
+   * não existe uma coisa que existe.
+   *
+   * Só no arranque (`useState` com inicial), e não num efeito que sincroniza:
+   * depois de a pessoa mexer no filtro, quem manda é o filtro e não a URL.
+   */
+  const sp = useSearchParams();
+  const [status, setStatus] = useState(() => sp?.get("status") || "pendentes");
   const [de, setDe] = useState("");
   const [ate, setAte] = useState("");
-  const [busca, setBusca] = useState("");
+  const [busca, setBusca] = useState(() => sp?.get("q") || "");
   const [pagina, setPagina] = useState(0);
   const [d, setD] = useState<{ items: Titulo[]; total: number; totals: any; size: number } | null>(null);
   const [carregando, setCarregando] = useState(true);

@@ -3,6 +3,7 @@ import { getServerSupabase } from "@/lib/supabase";
 import { listSaleItems, deleteSalesEntry } from "@/lib/store";
 import { denied, requireClient } from "@/lib/access";
 import { requireRole } from "@/lib/auth";
+import { rastroDoDocumento } from "@/lib/financial/trace";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -15,7 +16,13 @@ export async function GET(_req: NextRequest, { params }: { params: { id: string;
   const { data: sale } = await getServerSupabase()
     .from("sales").select("*").eq("id", params.saleId).eq("client_id", params.id).maybeSingle();
   if (!sale) return NextResponse.json({ error: "Not found." }, { status: 404 });
-  return NextResponse.json({ sale, items: await listSaleItems(params.saleId) });
+  // O rastro — ver lib/financial/trace.ts. Do lado da venda a pergunta e a
+  // mesma: esta venda virou conta a receber, e qual?
+  const [items, integration] = await Promise.all([
+    listSaleItems(params.saleId),
+    rastroDoDocumento(params.id, params.saleId, "sale"),
+  ]);
+  return NextResponse.json({ sale, items, integration });
 }
 
 /**

@@ -17,6 +17,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import type { SalesEntry, SalesItem } from "@/lib/types";
+import IntegrationTrace, { type Rastro } from "@/components/financial/IntegrationTrace";
 
 const money = (n: number | null | undefined) =>
   n === null || n === undefined ? "—" : n.toLocaleString("en-IE", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
@@ -33,6 +34,7 @@ export default function SaleReview({ params }: { params: { id: string; saleId: s
 
   const [sale, setSale] = useState<SalesEntry | null>(null);
   const [items, setItems] = useState<SalesItem[]>([]);
+  const [integration, setIntegration] = useState<Rastro | null>(null);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [dirty, setDirty] = useState(false);
@@ -55,6 +57,7 @@ export default function SaleReview({ params }: { params: { id: string; saleId: s
     const d = await (await fetch(`/api/clients/${params.id}/sales/${params.saleId}`)).json();
     setSale(d.sale || null);
     setItems(d.items || []);
+    setIntegration(d.integration ?? null);
     setLoading(false);
   }, [params.id, params.saleId]);
 
@@ -259,6 +262,8 @@ export default function SaleReview({ params }: { params: { id: string; saleId: s
           </tbody>
         </table>
       </div>
+
+      <IntegrationTrace rastro={integration} clientId={params.id} origem="sale" />
     </div>
   );
 }
