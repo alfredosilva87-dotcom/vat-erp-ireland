@@ -382,6 +382,74 @@ w(`  end loop;`);
 w(`end $$;`);
 w(``);
 
+// ------------------------------------------------------ abertura com detalhe
+
+/*
+ * A abertura abre TÍTULOS, e não só o saldo em bloco.
+ *
+ * Carregar 1200 e 2100 num lançamento só deixa a conta de controlo com um
+ * saldo que o aging não explica. Foi o Alfredo que reparou: o razão dizia
+ * 11.028,37 e Contas a Receber dizia 4.728,37, e a diferença eram os 6.300
+ * da abertura. As duas telas estavam certas à sua maneira, e o balanço
+ * continuava a fechar — o lançamento de abertura está balanceado —, então
+ * nada avisava.
+ *
+ * É a armadilha de qualquer migração real, e não do seed: uma conta de
+ * CONTROLO tem de receber a abertura em títulos individuais, senão o aging
+ * nunca concilia e ninguém descobre porquê.
+ *
+ * O lançamento de abertura não muda. O que se acrescenta são os títulos que
+ * o compõem, ligados ao mesmo `journal_id` para o drill-down voltar ao razão.
+ */
+w(`-- =====================================================================`);
+w(`-- A ABERTURA EM TITULOS — ver o comentario no gerador.`);
+w(`-- =====================================================================`);
+w(`do $$`);
+w(`declare`);
+w(`  v record; v_journal uuid;`);
+w(`  fr_receber numeric[] := array[0.40, 0.35, 0.25];`);
+w(`  fr_pagar   numeric[] := array[0.60, 0.40];`);
+w(`  total numeric; resto numeric; valor numeric; i int;`);
+w(`begin`);
+w(`  for v in select id, client_code from clients order by client_code loop`);
+w(`    select j.id into v_journal from journal j`);
+w(`     where j.client_id = v.id and j.source_module = 'opening' limit 1;`);
+w(`    for i in 1..2 loop`);
+w(`      -- i=1 e o lado a receber (1200), i=2 o lado a pagar (2100).`);
+w(`      select coalesce(sum(case when i = 1 then l.debit - l.credit`);
+w(`                               else l.credit - l.debit end), 0) into total`);
+w(`        from journal_lines l join journal j on j.id = l.journal_id`);
+w(`       where j.client_id = v.id and j.source_module = 'opening'`);
+w(`         and l.account_code = case when i = 1 then '1200' else '2100' end;`);
+w(`      resto := total;`);
+w(`      declare`);
+w(`        fr numeric[] := case when i = 1 then fr_receber else fr_pagar end;`);
+w(`        k int;`);
+w(`      begin`);
+w(`        for k in 1..array_length(fr, 1) loop`);
+w(`          exit when resto <= 0;`);
+w(`          -- A ultima leva o que sobra: somar fracoes arredondadas deixaria`);
+w(`          -- centimos de fora e o aging nunca fecharia com o razao.`);
+w(`          valor := case when k = array_length(fr, 1) then resto`);
+w(`                        else round(total * fr[k], 2) end;`);
+w(`          insert into ledger_items (client_id, kind, source_module, document_id,`);
+w(`                 document_ref, counterparty, issue_date, due_date, original_amount,`);
+w(`                 journal_id, notes)`);
+w(`          values (v.id, case when i = 1 then 'receivable' else 'payable' end, 'manual', null,`);
+w(`                 'AB-' || right(v.client_code, 3) || case when i = 1 then '-R' else '-P' end`);
+w(`                   || lpad(k::text, 2, '0'),`);
+w(`                 'Saldo de abertura', ${q(ABERTURA)},`);
+w(`                 (date '2026-01-15' + ((k - 1) * 30) + (i - 1) * 5)::date,`);
+w(`                 valor, v_journal,`);
+w(`                 'Titulo em aberto na carga de abertura de 31/12/2025');`);
+w(`          resto := resto - valor;`);
+w(`        end loop;`);
+w(`      end;`);
+w(`    end loop;`);
+w(`  end loop;`);
+w(`end $$;`);
+w(``);
+
 // ------------------------------------------------------- plano das parcelas
 
 /*
