@@ -28,3 +28,4 @@ selfhost/backups/
 .next-prod/
 .next-console/
 .next-trace/
+.next-nuvem/
