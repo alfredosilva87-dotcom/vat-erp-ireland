@@ -52,17 +52,41 @@ if [ ! -f .vercel/project.json ]; then
 fi
 
 echo
+GRAVADAS=0
 for AMBIENTE in production preview development; do
   # Remover primeiro: `env add` sobre uma variavel existente falha, e editar
   # por cima no painel e onde fica resto do valor velho.
   npx --yes vercel env rm "$VAR" "$AMBIENTE" --yes >/dev/null 2>&1 || true
-  printf '%s' "$CHAVE" | npx --yes vercel env add "$VAR" "$AMBIENTE" >/dev/null
-  echo "  $VAR gravada em $AMBIENTE"
+
+  # A saida NAO vai para o lixo, e o codigo de saida E conferido.
+  #
+  # Na primeira versao isto era `>/dev/null` sem verificacao, e o `env add`
+  # falhou em silencio: o script disse "gravada" nos tres ambientes, a
+  # variavel nao existia em nenhum, e o sintoma foi "Invalid API key" — que
+  # manda procurar a chave errada em vez do comando que nao correu. Uma hora
+  # perdida a conferir uma chave que sempre esteve certa.
+  if printf '%s' "$CHAVE" | npx --yes vercel env add "$VAR" "$AMBIENTE" 2>&1 | sed "s|$CHAVE|<CHAVE>|g" | grep -q "Added"; then
+    echo "  $VAR gravada em $AMBIENTE"
+    GRAVADAS=$((GRAVADAS + 1))
+  else
+    echo "  FALHOU em $AMBIENTE" >&2
+  fi
 done
 
+[ "$GRAVADAS" -gt 0 ] || { echo "Nao gravou em ambiente nenhum. Nada a reimplantar." >&2; exit 1; }
+
 echo
-echo "A reimplantar (variavel so entra em build novo)..."
-npx --yes vercel deploy --prod
+# Reimplantar a producao que JA existe, em vez de enviar os ficheiros locais.
+#
+# `vercel deploy --prod` daqui sobe a arvore de trabalho e estoura o limite de
+# 100 MB por causa das pastas de build (.next-*). Reimplantar nao envia nada:
+# reaproveita a fonte que ja esta la e so relê as variaveis, que e exactamente
+# o que se quer.
+echo "A descobrir a producao actual..."
+ULTIMA=$(npx --yes vercel ls --prod 2>/dev/null | grep -oE 'https://[a-z0-9.-]+\.vercel\.app' | head -1)
+[ -n "$ULTIMA" ] || { echo "Nao consegui descobrir a implantacao. Reimplante pelo painel." >&2; exit 1; }
+echo "A reimplantar $ULTIMA (variavel so entra em build novo)..."
+npx --yes vercel redeploy "$ULTIMA"
 
 echo
 echo "Feito. Confira com o Buscar agora, ou peca ao Claude para conferir."
