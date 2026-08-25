@@ -30,3 +30,5 @@ selfhost/backups/
 .next-trace/
 .next-nuvem/
 .next-prodmedir/
+.vercel
+.env*
