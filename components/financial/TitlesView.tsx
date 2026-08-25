@@ -66,7 +66,10 @@ export default function TitlesView({ clientId, kind }: { clientId: string; kind:
   const [ate, setAte] = useState("");
   const [busca, setBusca] = useState(() => sp?.get("q") || "");
   const [pagina, setPagina] = useState(0);
-  const [d, setD] = useState<{ items: Titulo[]; total: number; totals: any; size: number } | null>(null);
+  const [d, setD] = useState<{
+    items: Titulo[]; total: number; totals: any; size: number;
+    control?: { accounts: string[]; ledgerBalance: number; agingOutstanding: number; difference: number };
+  } | null>(null);
   const [carregando, setCarregando] = useState(true);
   const [aberto, setAberto] = useState<string | null>(null);
 
@@ -134,6 +137,49 @@ export default function TitlesView({ clientId, kind }: { clientId: string; kind:
             {d.totals.overdue > 0 && (
               <span className="text-danger">Vencido <b>{eur(d.totals.overdue)}</b></span>
             )}
+          </span>
+        </div>
+      )}
+
+      {/*
+        * A CONCILIAÇÃO da conta de controlo.
+        *
+        * 2100 e 1200 não são transitórias — são de controlo, e a única coisa
+        * que se lhes exige é que o saldo seja exactamente o que está em aberto
+        * aqui. Quando não é, uma das duas telas está errada e não há como
+        * saber qual olhando só para uma.
+        *
+        * Aconteceu a sério: a carga de abertura lançava 1200 em bloco, sem
+        * título por trás. O razão dizia 11.028,37, esta lista dizia 4.728,37,
+        * e as duas estavam certas à sua maneira. O balanço continuava a fechar
+        * — o lançamento de abertura está balanceado —, então nada avisava.
+        *
+        * Diferença NÃO é acusação: pode ser abertura por detalhar ou um
+        * lançamento manual legítimo. Por isso mostra-se o número, e a decisão
+        * é de quem concilia.
+        */}
+      {d?.control && (
+        <div className={`card flex flex-wrap items-center justify-between gap-4 border-l-4 p-4 ${
+          d.control.difference === 0 ? "border-l-ok" : "border-l-warning"
+        }`}>
+          <span className="text-sm">
+            {d.control.difference === 0 ? (
+              <><span className="chip-ok mr-2">concilia</span>
+              O razão explica todos os títulos em aberto</>
+            ) : (
+              <><span className="chip-warn mr-2">a conciliar</span>
+              O razão e os títulos não dizem o mesmo</>
+            )}
+            <span className="ml-2 text-muted">
+              conta{d.control.accounts.length > 1 ? "s" : ""} {d.control.accounts.join(", ")}
+            </span>
+          </span>
+          <span className="flex flex-wrap gap-5 font-mono text-sm tabular-nums">
+            <span className="text-muted">Razão <b className="text-ink">{eur(d.control.ledgerBalance)}</b></span>
+            <span className="text-muted">Títulos <b className="text-ink">{eur(d.control.agingOutstanding)}</b></span>
+            <span className={d.control.difference === 0 ? "text-muted" : "text-warning"}>
+              Diferença <b>{eur(d.control.difference)}</b>
+            </span>
           </span>
         </div>
       )}

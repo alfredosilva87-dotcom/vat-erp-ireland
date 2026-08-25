@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { requireClient, denied } from "@/lib/access";
 import { getServerSupabase } from "@/lib/supabase";
+import { conciliarControlo } from "@/lib/financial/control";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -71,8 +72,17 @@ export async function GET(req: NextRequest, { params }: { params: { id: string }
   const soma = (f: (l: any) => number) =>
     Math.round(linhas.reduce((s, l) => s + (Number(f(l)) || 0), 0) * 100) / 100;
 
+  /*
+   * A conciliação da conta de controlo vem SEMPRE, e não atrás de um filtro.
+   *
+   * Ela compara o razão INTEIRO com o aging INTEIRO — não com o que o filtro
+   * mostra. Fazê-la seguir o filtro daria uma diferença nova a cada clique,
+   * e uma diferença que muda sozinha ensina a ignorá-la.
+   */
+  const control = await conciliarControlo(params.id, kind);
+
   return NextResponse.json({
-    kind, status, page: pagina, size: tamanho,
+    kind, status, page: pagina, size: tamanho, control,
     total: count ?? linhas.length,
     items: data ?? [],
     totals: {
