@@ -52,7 +52,23 @@ export interface RawItem {
   vat_amount_on_invoice: number | null;
 }
 
+/**
+ * O que o documento é, decidido na mesma leitura que extrai os valores.
+ *
+ * "illegible" e "not_a_document" são a SUJEIRA: o primeiro é documento fiscal
+ * que não dá para ler, o segundo nem documento é. Separá-los importa porque a
+ * saída é diferente — um pede foto nova, o outro é descarte direto.
+ */
+export type DocKind = "invoice" | "receipt" | "sales_sheet" | "illegible" | "not_a_document";
+
+/** Sujeira: nada aqui deve virar lançamento. */
+export const isJunkKind = (k: DocKind | null | undefined) =>
+  k === "illegible" || k === "not_a_document";
+
 export interface RawExtraction {
+  doc_kind: DocKind;
+  /** Por que foi classificado como ilegível / não-documento. */
+  doc_kind_reason: string | null;
   supplier_name: string | null;
   store_name: string | null;
   supplier_vat: string | null;
@@ -124,6 +140,12 @@ export interface StoredInvoice {
   total_gross: number | null;
   total_credit: number;
   engine: string;
+  /**
+   * Por onde a nota entrou: "upload" (arquivo escolhido à mão), "email"
+   * (caixa do escritório, camada B2) ou "phone" (foto pelo app de passagem,
+   * camada B4). `null` = gravada antes de o sistema guardar isso.
+   */
+  source: string | null;
   extraction_confidence: number | null;
   needs_review: boolean;
   review_notes: string[];
@@ -181,6 +203,13 @@ export interface BankAccount {
   opening_balance: number;
   opening_date: string | null;
   active: boolean;
+  /**
+   * A conta do razão desta conta bancária. Nula = 1100.
+   *
+   * É o que faz a baixa creditar o banco certo quando o cliente tem mais de
+   * uma conta — ver a migração 029.
+   */
+  account_code: string | null;
   /** Formato do extrato deste banco, confirmado uma vez e reusado sempre. */
   column_mapping: ColumnMapping | null;
   created_at: string;
@@ -193,6 +222,17 @@ export interface BankAccountBalance {
   name: string;
   currency: string;
   opening_balance: number;
+  /**
+   * De onde parte a conta: o último fechamento TRAVADO, ou nulo se ainda não
+   * houve nenhum. É o "saldo anterior" de um extrato — e é o que impede o
+   * sistema de somar o histórico inteiro a cada leitura (ver a migração 028).
+   */
+  anchor_date: string | null;
+  anchor_balance: number;
+  anchor_statement_balance: number;
+  /** O que se moveu depois da âncora — o "do período". */
+  movement_since_anchor: number;
+  movement_count_since_anchor: number;
   statement_balance: number;
   system_balance: number;
   unreconciled_statement_total: number;
@@ -293,6 +333,20 @@ export interface ClientObligation {
   filed_at: string | null;
 }
 
+/** Obrigação recorrente manual (módulo Fiscal) — ver selfhost/schema/011_recurring_obligations.sql. */
+export interface RecurringObligation {
+  id: string;
+  client_id: string;
+  name: string;
+  category: string | null;
+  periodicity: string | null;
+  due_date: string | null;
+  status: string; // 'open' | 'done', texto livre de propósito
+  notes: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
 export interface SalesEntry {
   id: string;
   client_id: string;
@@ -303,6 +357,29 @@ export interface SalesEntry {
   vat_rate: number | null;
   vat_amount: number;      // VAT on sales (T1 contribution)
   notes: string | null;
+  /** O documento que sustenta a venda — ver 014_sales_document.sql. */
+  document_path: string | null;
+  original_filename: string | null;
+  /** "upload" | "email" | "phone" | null (digitada/planilha). Ver lib/origin.ts. */
+  source: string | null;
+  needs_review: boolean;
+  extraction_confidence: number | null;
+  /** Quem conferiu e quando — ver 016_sales_reviewed.sql. */
+  reviewed_at: string | null;
+  reviewed_by_email: string | null;
+  created_at: string;
+}
+
+/** Uma linha da venda. Documento sem itens legíveis grava uma linha genérica. */
+export interface SalesItem {
+  id: string;
+  sale_id: string;
+  description: string;
+  quantity: number | null;
+  unit_price: number | null;
+  net_amount: number | null;
+  vat_rate: number | null;
+  vat_amount: number;
   created_at: string;
 }
 
@@ -315,6 +392,8 @@ export interface AppUser {
   active: boolean;
   must_change: boolean;
   company_id: string | null;
+  /** null = acesso total. Lista de ids de tela — ver lib/permissions.ts. */
+  screen_access: string[] | null;
   created_at: string;
 }
 

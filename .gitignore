@@ -25,3 +25,5 @@ selfhost/docker/volumes/storage/
 selfhost/server/root-ca.crt
 selfhost/backups/
 .test-build
+.next-prod/
+.next-console/

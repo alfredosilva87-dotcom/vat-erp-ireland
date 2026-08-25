@@ -13,6 +13,8 @@ import { useCallback, useEffect, useState } from "react";
 import Link from "next/link";
 import type { BankAccount, BankAccountBalance } from "@/lib/types";
 
+type ContaDoPlano = { id: string; code: string; description: string; report_group: string | null };
+
 const money = (n: number | null | undefined) =>
   n === null || n === undefined
     ? "—"
@@ -25,12 +27,28 @@ export default function BankAccounts({ params }: { params: { id: string } }) {
   const [msg, setMsg] = useState("");
   const [form, setForm] = useState({
     name: "", bank_name: "", account_ref: "", opening_balance: "", opening_date: "",
+    account_code: "",
   });
+  /*
+   * As contas de CAIXA do plano, para escolher o portador.
+   *
+   * Só as de caixa: ligar um banco a uma conta de despesa passaria a creditar
+   * despesa a cada pagamento, e o balanço deixaria de fechar sem ninguém
+   * perceber de onde veio. Uma lista curta e certa é melhor que um campo livre
+   * onde cabe qualquer coisa.
+   */
+  const [contasDoPlano, setContasDoPlano] = useState<ContaDoPlano[]>([]);
 
   const load = useCallback(async () => {
     const d = await (await fetch(`/api/clients/${params.id}/bank-accounts`, { cache: "no-store" })).json();
     setAccounts(d.accounts || []);
     setBalances(d.balances || []);
+    try {
+      const p = await (await fetch(`/api/clients/${params.id}/accounts`, { cache: "no-store" })).json();
+      // `ledgerAccounts` e nao `accounts`: o plano do RAZAO, que e o que a
+      // baixa vai creditar. Ver o comentario na rota.
+      setContasDoPlano((p.ledgerAccounts || []).filter((c: ContaDoPlano) => c.report_group === "cash"));
+    } catch { /* sem plano: o campo fica escondido e a baixa cai em 1100 */ }
     setLoading(false);
   }, [params.id]);
   useEffect(() => { load(); }, [load]);
@@ -47,7 +65,7 @@ export default function BankAccounts({ params }: { params: { id: string } }) {
     });
     const d = await res.json();
     if (!res.ok) { setMsg(d.error || "Erro ao criar a conta."); return; }
-    setForm({ name: "", bank_name: "", account_ref: "", opening_balance: "", opening_date: "" });
+    setForm({ name: "", bank_name: "", account_ref: "", opening_balance: "", opening_date: "", account_code: "" });
     setMsg("Conta criada.");
     load();
   }
@@ -82,6 +100,21 @@ export default function BankAccounts({ params }: { params: { id: string } }) {
             onChange={(e) => setForm({ ...form, opening_date: e.target.value })} />
           <button className="btn-primary" onClick={add}>Criar</button>
         </div>
+        {contasDoPlano.length > 0 && (
+          <div className="mt-3 flex flex-wrap items-center gap-2">
+            <span className="label mb-0">Conta do razão</span>
+            <select className="input h-9 w-auto py-0 text-[13px]" value={form.account_code}
+              onChange={(e) => setForm({ ...form, account_code: e.target.value })}>
+              <option value="">1100 — padrão</option>
+              {contasDoPlano.map((c) => (
+                <option key={c.id} value={c.code}>{c.code} — {c.description}</option>
+              ))}
+            </select>
+            <span className="text-xs text-muted">
+              É a conta creditada quando se paga por aqui, e debitada quando se recebe.
+            </span>
+          </div>
+        )}
         <p className="mt-2 text-xs text-muted">
           O saldo inicial é o ponto de partida das duas séries. Sem ele os dois saldos não têm origem comum.
         </p>
@@ -111,6 +144,26 @@ export default function BankAccounts({ params }: { params: { id: string } }) {
                   {!a.active && <span className="chip">inativa</span>}
                   {a.column_mapping && <span className="chip">formato salvo</span>}
                 </div>
+
+                {/*
+                  Saldo anterior + movimento, quando há fechamento travado.
+                  É como se lê um extrato — e é o mesmo corte que evita
+                  recalcular o histórico inteiro (ver a migração 028).
+                */}
+                {b?.anchor_date && (
+                  <p className="mt-3 text-xs text-muted">
+                    Saldo anterior em {b.anchor_date}: <b className="tnum text-ink">{money(b.anchor_balance)}</b>
+                    {"  ·  "}
+                    {b.movement_count_since_anchor} movimento(s) desde então:{" "}
+                    <b className="tnum text-ink">{money(b.movement_since_anchor)}</b>
+                  </p>
+                )}
+
+                <p className="mt-2 text-xs text-muted">
+                  Conta do razão:{" "}
+                  <span className="font-mono text-ink">{a.account_code || "1100"}</span>
+                  {!a.account_code && " (padrão)"}
+                </p>
 
                 <div className="mt-4 grid grid-cols-2 gap-px overflow-hidden rounded-xl border border-line bg-line">
                   <Cell label="Saldo do extrato" value={money(b?.statement_balance ?? a.opening_balance)} />

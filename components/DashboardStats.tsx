@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useEffect, useState } from "react";
 import { useT } from "@/lib/i18n";
+import { EXERCISE_EVENT, getExercise, defaultExercise } from "@/lib/exercise";
 
 type Stats = {
   invoices: number; items: number; unique_items: number; clients: number;
@@ -14,9 +15,28 @@ const money = (n: number) => n.toLocaleString("en-IE", { minimumFractionDigits: 
 export default function DashboardStats() {
   const { t } = useT();
   const [s, setS] = useState<Stats | null>(null);
+  /*
+   * O painel primário passa a obedecer ao exercício fiscal da barra do topo.
+   *
+   * Até aqui somava o histórico inteiro e ignorava o seletor — que era metade
+   * do motivo de o controlo parecer quebrado: mudava-se o ano e nenhum número
+   * na tela se mexia. Agora os totais de VAT, vendas e compras são do ano
+   * escolhido; a contagem de clientes e do catálogo continua sem data, porque
+   * não faria sentido encolher com o ano.
+   */
+  const [year, setYear] = useState<number>(defaultExercise);
+
   useEffect(() => {
-    fetch("/api/invoices").then((r) => r.json()).then((d) => setS(d.stats));
+    const ler = () => setYear(getExercise());
+    ler();
+    window.addEventListener(EXERCISE_EVENT, ler);
+    return () => window.removeEventListener(EXERCISE_EVENT, ler);
   }, []);
+
+  useEffect(() => {
+    fetch(`/api/invoices?year=${year}`, { cache: "no-store" })
+      .then((r) => r.json()).then((d) => setS(d.stats)).catch(() => {});
+  }, [year]);
 
   const tiles = [
     {

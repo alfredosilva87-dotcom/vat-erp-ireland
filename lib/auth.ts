@@ -11,6 +11,8 @@ export const SESSION_COOKIE = "vat_session";
 export type SessionUser = {
   id: string; email: string; name: string | null; role: string;
   company_id: string | null; company_slug: string | null; company_name: string | null;
+  /** Validade da licença, `yyyy-mm-dd`. Vai no token e trava a escrita. */
+  licenseExpiresAt?: string | null;
 };
 
 /** Why a sign-in was refused, so the UI can say something useful. */
@@ -66,13 +68,18 @@ export async function verifyCredentials(
     return { failure: "invalid" };
   }
 
+  /*
+   * Empresa DESLIGADA não entra. Licença VENCIDA entra, em modo leitura.
+   *
+   * São coisas diferentes e passaram a ser tratadas como tais. "Desligada" é
+   * decisão de quem vende — fim de contrato, fraude — e fecha a porta.
+   * "Vencida" é uma fatura em atraso, e trancar o escritório fora dos próprios
+   * livros na semana do VAT é um estrago desproporcional: na Irlanda ele tem
+   * obrigação legal de guardar e apresentar registo. Então lê e exporta, mas
+   * não lança nada — a trava de escrita mora no `middleware.ts`.
+   */
   if (company) {
     if (!company.active) return { failure: "companyInactive" };
-    if (company.license_expires_at && company.license_expires_at < new Date().toISOString().slice(0, 10)) {
-      // A master must still get in — otherwise an expired licence locks the
-      // person who renews it out of the master panel.
-      if (u.role !== "master") return { failure: "licenseExpired" };
-    }
   }
 
   return {
@@ -81,14 +88,30 @@ export async function verifyCredentials(
       company_id: u.company_id ?? null,
       company_slug: company?.slug ?? null,
       company_name: company?.name ?? null,
+      licenseExpiresAt: company?.license_expires_at ?? null,
     },
   };
 }
 
 export async function createSession(user: SessionUser) {
+  /*
+   * A validade da licença viaja DENTRO da sessão (`lic`).
+   *
+   * O middleware é quem trava a escrita, e ele corre no runtime de borda, sem
+   * acesso ao Postgres — conferir no banco a cada pedido seria uma consulta
+   * por clique, e em middleware nem é possível. Com a data no próprio token, a
+   * trava custa zero.
+   *
+   * O risco do token guardar uma data velha é tratado nos dois sentidos: ao
+   * ATIVAR uma licença nova a sessão é reemitida na hora, e o `/api/auth/me`
+   * — que toda tela chama — compara o token com o banco e reemite se
+   * divergirem. Assim uma renovação vale no clique seguinte, e um vencimento
+   * que acontece a meio da sessão trava na hora certa.
+   */
   const token = await new SignJWT({
     email: user.email, name: user.name, role: user.role,
     company_id: user.company_id, company_slug: user.company_slug, company_name: user.company_name,
+    lic: user.licenseExpiresAt ?? null,
   })
     .setProtectedHeader({ alg: "HS256" })
     .setSubject(user.id)
@@ -153,6 +176,7 @@ export async function getSessionUser(): Promise<SessionUser | null> {
       company_id: (payload.company_id as string) ?? null,
       company_slug: (payload.company_slug as string) ?? null,
       company_name: (payload.company_name as string) ?? null,
+      licenseExpiresAt: (payload.lic as string) ?? null,
     };
   } catch {
     return null;

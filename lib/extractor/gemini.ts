@@ -1,5 +1,7 @@
 import { GoogleGenerativeAI, type Part } from "@google/generative-ai";
 import { EXTRACTION_INSTRUCTION, BOUNDARY_INSTRUCTION, coerceExtraction } from "./prompt";
+import { waitDecision } from "./quotaWait";
+import { SALES_SHEET_INSTRUCTION, coerceSalesSheet, type SheetSale } from "./salesSheet";
 import type { RawExtraction } from "@/lib/types";
 
 function client() {
@@ -38,20 +40,44 @@ function isRetriable(err: unknown): boolean {
   );
 }
 
+// Erro de cota (429) vem com o tempo exato que o Google pede pra esperar
+// (`"retryDelay":"38s"` no corpo do erro). É o limite de 15 requisições por
+// minuto do plano gratuito — não é limite mensal, reseta sozinho — então uma
+// segunda tentativa DEPOIS desse tempo costuma passar.
+// A decisão de esperar (e por quanto) mora em ./quotaWait.ts, sem rede e com
+// teste — ver o comentário de lá sobre a leitura de 3,5 minutos.
+
+async function callModel(name: string, parts: Part[]): Promise<string> {
+  const model = client().getGenerativeModel({
+    model: name,
+    generationConfig: { responseMimeType: "application/json", temperature: 0 },
+  });
+  const res = await model.generateContent(parts);
+  return res.response.text();
+}
+
 // Run the model cascade and return the raw JSON text.
 async function runModels(parts: Part[]): Promise<string> {
   const models = modelList();
   let lastErr: unknown;
+  let waitedMs = 0;
   for (const name of models) {
     try {
-      const model = client().getGenerativeModel({
-        model: name,
-        generationConfig: { responseMimeType: "application/json", temperature: 0 },
-      });
-      const res = await model.generateContent(parts);
-      return res.response.text();
+      return await callModel(name, parts);
     } catch (err) {
       lastErr = err;
+      const waitMs = waitDecision(err, waitedMs);
+      if (waitMs !== null) {
+        waitedMs += waitMs;
+        await new Promise((r) => setTimeout(r, waitMs));
+        try {
+          return await callModel(name, parts);
+        } catch (err2) {
+          lastErr = err2;
+          if (isRetriable(err2)) continue;
+          throw err2;
+        }
+      }
       if (isRetriable(err)) continue;
       throw err;
     }
@@ -67,6 +93,26 @@ export async function structureFromText(text: string): Promise<RawExtraction> {
     await runModels([
       { text: EXTRACTION_INSTRUCTION },
       { text: `\n\nDOCUMENT TEXT:\n${text}` },
+    ])
+  );
+}
+
+/**
+ * Lê uma PLANILHA de vendas fotografada: uma linha por venda.
+ *
+ * Caminho separado do leitor de nota porque a saída é outra — ver
+ * lib/extractor/salesSheet.ts. Sempre por visão: planilha fotografada não tem
+ * camada de texto, e mesmo em PDF as colunas saem embaralhadas na extração de
+ * texto, o que aqui trocaria valores de linha.
+ */
+export async function structureSalesSheet(
+  base64: string,
+  mimeType: string
+): Promise<SheetSale[]> {
+  return coerceSalesSheet(
+    await runModels([
+      { text: SALES_SHEET_INSTRUCTION },
+      { inlineData: { data: base64, mimeType } },
     ])
   );
 }

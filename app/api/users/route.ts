@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import bcrypt from "bcryptjs";
 import { requireRole } from "@/lib/auth";
 import { listAppUsers, createAppUser, findAppUserByEmail } from "@/lib/store";
+import { sanitizePermIds } from "@/lib/permissions";
 
 export const runtime = "nodejs";
 // Resposta sempre do banco, nunca de cache: o Next 14 guarda GET de rota por
@@ -12,8 +13,22 @@ export const dynamic = "force-dynamic";
 /** Never leak password hashes to the client. */
 const safe = (u: any) => ({
   id: u.id, email: u.email, name: u.name, role: u.role,
-  active: u.active, created_at: u.created_at,
+  active: u.active, created_at: u.created_at, screen_access: u.screen_access ?? null,
 });
+
+/**
+ * `null` (ou ausente) no corpo = acesso total; senão, só ids de tela que
+ * existem hoje na árvore. Lista que sobra vazia também vira `null`: gravar
+ * "nenhuma tela" criaria um usuário que entra e não pode abrir nada, e isso
+ * nunca é o que quem clicou quis dizer — ver grantsScreen em lib/permissions.
+ */
+function parseScreenAccess(body: any): string[] | null | undefined {
+  if (!("screen_access" in body)) return undefined;
+  if (body.screen_access === null) return null;
+  if (!Array.isArray(body.screen_access)) return undefined;
+  const ids = sanitizePermIds(body.screen_access);
+  return ids.length ? ids : null;
+}
 
 export async function GET() {
   const guard = await requireRole("admin");
@@ -50,6 +65,7 @@ export async function POST(req: NextRequest) {
     password_hash: await bcrypt.hash(password, 10),
     role,
     company_id: guard.user.company_id,
+    screen_access: parseScreenAccess(body) ?? null,
   });
   return NextResponse.json({ user: safe(user) });
 }

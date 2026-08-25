@@ -82,6 +82,7 @@ export const requireClient = async (clientId: string) => decide(await companyOfC
 export const requireInvoice = async (invoiceId: string) => decide(await companyVia("invoices", invoiceId));
 export const requireSale = async (saleId: string) => decide(await companyVia("sales", saleId));
 export const requireObligation = async (id: string) => decide(await companyVia("obligations", id));
+export const requireRecurringObligation = async (id: string) => decide(await companyVia("recurring_obligations", id));
 export const requireInboxItem = async (itemId: string) => decide(await companyVia("inbox_items", itemId));
 export const requireBankAccount = async (accountId: string) => decide(await companyVia("bank_accounts", accountId));
 

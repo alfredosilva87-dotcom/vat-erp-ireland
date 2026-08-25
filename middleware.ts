@@ -23,6 +23,9 @@ function isPublicCapturePath(pathname: string): boolean {
   return (
     pathname.startsWith("/enviar/") ||
     pathname === "/api/phone/upload" ||
+    // O cron que impede a passagem de adormecer. Sem isto o `RELAY_ONLY`
+    // devolveria 404 ao proprio cron, e o remedio nunca chegaria ao doente.
+    pathname === "/api/phone/keepalive" ||
     pathname.startsWith("/api/phone/manifest/") ||
     pathname.startsWith("/_next") ||
     pathname === "/favicon.ico" ||
@@ -34,6 +37,22 @@ function isPublicCapturePath(pathname: string): boolean {
     pathname === "/icon-512.png"
   );
 }
+
+/**
+ * Escrita permitida mesmo com a licença vencida.
+ *
+ * Entrar, sair, recuperar senha — e ATIVAR uma licença nova, que é a porta de
+ * saída. Trancar a própria ativação faria um vencimento ser irreversível sem
+ * mexer no banco à mão.
+ */
+function escritaSempreLiberada(pathname: string): boolean {
+  return (
+    pathname.startsWith("/api/auth/") ||
+    /^\/api\/companies\/[^/]+\/activate$/.test(pathname)
+  );
+}
+
+const HOJE = () => new Date().toISOString().slice(0, 10);
 
 export async function middleware(req: NextRequest) {
   const { pathname } = req.nextUrl;
@@ -56,6 +75,33 @@ export async function middleware(req: NextRequest) {
     return new NextResponse("Not found", { status: 404 });
   }
 
+  /**
+   * `LICENSE_CONSOLE=1` na implantação do CONSOLE DE LICENÇAS.
+   *
+   * Mesma ideia do `RELAY_ONLY`, e pela mesma razão: uma implantação que serve
+   * uma coisa só não pode servir o resto por acidente de configuração. Aqui a
+   * implantação publica o console e mais nada — nem login, nem API, nem ERP.
+   *
+   * O console não pede sessão porque não tem o que proteger: a chave privada
+   * vive no navegador de quem emite, cifrada com senha, e a assinatura
+   * acontece lá. Sem a chave, esta página é um formulário que não faz nada.
+   *
+   * E o inverso importa igualmente: numa instalação de CLIENTE a variável não
+   * está definida, então `/console` responde 404. A ferramenta de quem vende
+   * não fica pendurada, mesmo que inerte, dentro do produto do cliente.
+   */
+  const ehConsole = pathname === "/console" || pathname.startsWith("/console/");
+  if (process.env.LICENSE_CONSOLE) {
+    if (ehConsole || pathname.startsWith("/_next") || pathname === "/favicon.ico"
+        || pathname === "/logo.png" || pathname === "/icon.png") {
+      return NextResponse.next();
+    }
+    return new NextResponse("Not found", { status: 404 });
+  }
+  if (ehConsole) {
+    return new NextResponse("Not found", { status: 404 });
+  }
+
   if (
     pathname === "/login" ||
     pathname === "/reset-password" ||
@@ -71,7 +117,39 @@ export async function middleware(req: NextRequest) {
   const token = req.cookies.get(SESSION_COOKIE)?.value;
   if (token) {
     try {
-      await jwtVerify(token, secret());
+      const { payload } = await jwtVerify(token, secret());
+
+      /*
+       * A TRAVA DA LICENÇA.
+       *
+       * Fica aqui, e não em cada rota, por uma razão prática: o middleware vê
+       * TODOS os pedidos, inclusive os das rotas que alguém escrever no mês
+       * que vem e esquecer de proteger. Uma trava que depende de ninguém
+       * esquecer não é uma trava.
+       *
+       * Vencida, o sistema fica em modo LEITURA: `GET` e `HEAD` passam — as
+       * telas abrem, os relatórios saem em PDF e Excel —, e tudo que grava é
+       * recusado com 402. É a decisão do Alfredo em 2026-08-24: cobra sem
+       * prender o escritório fora dos próprios livros.
+       *
+       * O `master` não é travado: é ele quem renova, e travá-lo trancaria a
+       * pessoa que resolve o problema para fora da tela que o resolve.
+       */
+      const validade = payload.lic as string | null | undefined;
+      const escreve = !["GET", "HEAD", "OPTIONS"].includes(req.method);
+      const vencida = Boolean(validade && validade < HOJE());
+
+      if (vencida && escreve && payload.role !== "master" && !escritaSempreLiberada(pathname)) {
+        return NextResponse.json(
+          {
+            error: "licenseExpired",
+            messageKey: "license.blockedWrite",
+            expiresAt: validade,
+          },
+          { status: 402 }
+        );
+      }
+
       return NextResponse.next();
     } catch {
       /* invalid/expired -> redirect */

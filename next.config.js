@@ -1,6 +1,18 @@
 /** @type {import('next').NextConfig} */
 const nextConfig = {
   reactStrictMode: true,
+  // Pasta de saída, por variável de ambiente.
+  //
+  // `next dev` e `next start` NÃO podem partilhar a mesma `.next`: o servidor
+  // de desenvolvimento recompila e reescreve os chunks que o de produção já
+  // carregou, e o resultado é `Cannot read properties of undefined (reading
+  // 'call')` em rotas que estão perfeitas — um erro que não aponta para nada
+  // e faz perder uma tarde. Com isto dá para medir e conferir um build de
+  // produção sem derrubar o dev:
+  //
+  //   NEXT_DIST_DIR=.next-prod npm run build
+  //   NEXT_DIST_DIR=.next-prod npx next start -p 3001
+  distDir: process.env.NEXT_DIST_DIR || ".next",
   // The server deployment builds the app into a Docker image and needs the
   // self-contained output. Kept behind a flag so the per-PC installer, which
   // runs `next start` from the repo, keeps working exactly as before.

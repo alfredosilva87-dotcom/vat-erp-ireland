@@ -12,8 +12,10 @@
 
 import { useCallback, useEffect, useState } from "react";
 import ClientBranches from "@/components/ClientBranches";
+import ClientIntegrations from "@/components/ClientIntegrations";
 import ClientMailSetup from "@/components/ClientMailSetup";
 import ClientPhoneLinks from "@/components/ClientPhoneLinks";
+import { invalidateClient } from "@/lib/clientCache";
 import type { Client } from "@/lib/types";
 
 const ACTIVITIES = [
@@ -75,6 +77,9 @@ export default function ClientSettings({ params }: { params: { id: string } }) {
       });
       const d = await res.json();
       if (!res.ok) { setMsg({ text: d.error || "Erro ao salvar.", error: true }); return; }
+      // O cabeçalho e o menu leem o cadastro de um cache curto; sem isto,
+      // trocar a razão social continuaria a mostrar o nome antigo no topo.
+      invalidateClient(params.id);
       setDirty(false);
       setMsg({ text: "Cadastro salvo." });
       await load();
@@ -172,6 +177,9 @@ export default function ClientSettings({ params }: { params: { id: string } }) {
           </div>
         </div>
       </section>
+
+      {/* O que este cliente alimenta automaticamente — ver lib/integrations.ts. */}
+      <ClientIntegrations clientId={params.id} />
 
       <section className="card rise p-5">
         <ClientBranches clientId={params.id} />

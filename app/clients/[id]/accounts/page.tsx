@@ -1,159 +1,181 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
-import * as XLSX from "xlsx";
-import type { Client, ChartAccount } from "@/lib/types";
+import { useCallback, useEffect, useMemo, useState } from "react";
 
-export default function ChartOfAccounts({ params }: { params: { id: string } }) {
-  const [client, setClient] = useState<Client | null>(null);
-  const [accounts, setAccounts] = useState<ChartAccount[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [q, setQ] = useState("");
-  const [code, setCode] = useState("");
-  const [desc, setDesc] = useState("");
-  const [parent, setParent] = useState("");
-  const [msg, setMsg] = useState("");
-  const [importing, setImporting] = useState(false);
-  const fileRef = useRef<HTMLInputElement>(null);
+/**
+ * O plano de contas COMO ESTE CLIENTE O VÊ.
+ *
+ * Duas listas, e a diferença entre elas é a coisa mais importante desta tela:
+ *
+ *   - as contas do ESCRITÓRIO, partilhadas pelos 35 clientes, aqui só de
+ *     leitura — mudá-las é decisão de escritório e faz-se no menu geral;
+ *   - as contas PRÓPRIAS deste cliente, na faixa 9000–9899, que se criam aqui
+ *     porque só a ele dizem respeito.
+ *
+ * Antes esta tela mostrava apenas as contas com o `client_id` do cliente — que
+ * é um plano que a contabilidade NÃO usa. Nos clientes de demonstração vinha
+ * vazia, com zero contas, enquanto o razão trabalhava com 41. Quem abrisse
+ * concluiria que o cliente não tem plano nenhum.
+ *
+ * Quem chega com plano próprio de outro sistema não o recria aqui: mapeia-o
+ * uma vez no de-para, em Contabilidade → Contas → Abertura.
+ */
 
-  async function load() {
-    const c = await (await fetch(`/api/clients/${params.id}`)).json();
-    setClient(c.client || null);
-    const d = await (await fetch(`/api/clients/${params.id}/accounts`)).json();
-    setAccounts(d.accounts || []);
-    setLoading(false);
-  }
-  useEffect(() => { load(); /* eslint-disable-next-line */ }, [params.id]);
+type Conta = {
+  id: string; code: string; description: string; type: string | null;
+  report_group: string | null; active: boolean; client_id: string | null;
+};
 
-  async function addOne() {
-    if (!code.trim()) return;
-    const res = await fetch(`/api/clients/${params.id}/accounts`, {
-      method: "POST", headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ code, description: desc, parent_code: parent || null }),
-    });
-    const d = await res.json();
-    if (!res.ok) { setMsg(d.error || "Error."); return; }
-    setCode(""); setDesc(""); setParent(""); setMsg("Account added.");
-    load();
-  }
+const NOME_TIPO: Record<string, string> = {
+  asset: "Ativo", liability: "Passivo", equity: "Património",
+  revenue: "Receita", expense: "Despesa",
+};
 
-  async function saveRow(a: ChartAccount) {
-    await fetch(`/api/clients/${params.id}/accounts/${a.id}`, {
-      method: "PATCH", headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ code: a.code, description: a.description, parent_code: a.parent_code, active: a.active }),
-    });
-    setMsg("Saved.");
-  }
-  async function removeRow(id: string) {
-    if (!confirm("Delete this account?")) return;
-    await fetch(`/api/clients/${params.id}/accounts/${id}`, { method: "DELETE" });
-    setAccounts((prev) => prev.filter((a) => a.id !== id));
-  }
-  function editRow(id: string, patch: Partial<ChartAccount>) {
-    setAccounts((prev) => prev.map((a) => (a.id === id ? { ...a, ...patch } : a)));
-  }
+const FAIXA = { de: "9000", ate: "9899" };
 
-  async function onFile(file: File) {
-    setImporting(true); setMsg("");
+export default function PlanoDoCliente({ params }: { params: { id: string } }) {
+  const [doEscritorio, setDoEscritorio] = useState<Conta[]>([]);
+  const [proprias, setProprias] = useState<Conta[]>([]);
+  const [carregando, setCarregando] = useState(true);
+  const [busca, setBusca] = useState("");
+  const [erro, setErro] = useState<string | null>(null);
+  const [nova, setNova] = useState({ code: "", description: "", type: "expense", report_group: "administrative_expenses" });
+
+  const carregar = useCallback(async () => {
+    setCarregando(true);
     try {
-      const buf = await file.arrayBuffer();
-      const wb = XLSX.read(buf, { type: "array" });
-      const ws = wb.Sheets[wb.SheetNames[0]];
-      const raw: any[] = XLSX.utils.sheet_to_json(ws, { defval: "" });
-      const rows = raw.map((r) => {
-        const keys = Object.keys(r);
-        const pick = (...names: string[]) => {
-          const k = keys.find((kk) => names.some((n) => kk.toLowerCase().trim().includes(n)));
-          return k ? String(r[k]).trim() : "";
-        };
-        return {
-          code: pick("codigo", "código", "code", "conta", "account", "nº", "no"),
-          description: pick("descri", "description", "nome", "name", "title"),
-          parent_code: pick("pai", "parent", "superior", "grupo"),
-        };
-      }).filter((r) => r.code);
-      if (!rows.length) { setMsg("No rows with a code column were found."); setImporting(false); return; }
-      const res = await fetch(`/api/clients/${params.id}/accounts`, {
-        method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ rows }),
-      });
-      const d = await res.json();
-      setMsg(`${d.imported ?? 0} accounts imported.`);
-      load();
-    } catch (e: any) {
-      setMsg("Could not read the file: " + (e?.message || "unknown error"));
-    }
-    setImporting(false);
-    if (fileRef.current) fileRef.current.value = "";
+      const d = await (await fetch(`/api/clients/${params.id}/accounts`, { cache: "no-store" })).json();
+      setDoEscritorio(d.ledgerAccounts || []);
+      setProprias(d.accounts || []);
+    } finally { setCarregando(false); }
+  }, [params.id]);
+  useEffect(() => { carregar(); }, [carregar]);
+
+  const filtradas = useMemo(() => {
+    const q = busca.trim().toLowerCase();
+    if (!q) return doEscritorio;
+    return doEscritorio.filter((c) => c.code.includes(q) || c.description.toLowerCase().includes(q));
+  }, [doEscritorio, busca]);
+
+  async function criar() {
+    setErro(null);
+    const r = await fetch(`/api/clients/${params.id}/accounts`, {
+      method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(nova),
+    });
+    const d = await r.json();
+    if (!r.ok) { setErro(d.error || "Não gravou."); return; }
+    setNova({ ...nova, code: "", description: "" });
+    carregar();
   }
 
-  const shown = accounts.filter((a) =>
-    !q || `${a.code} ${a.description}`.toLowerCase().includes(q.toLowerCase()));
+  async function apagar(id: string) {
+    await fetch(`/api/clients/${params.id}/accounts/${id}`, { method: "DELETE" });
+    carregar();
+  }
 
   return (
     <div className="space-y-6">
-      <div className="rise flex flex-wrap items-end justify-between gap-3">
-        <div>
-          <h1 className="font-display text-xl font-semibold tracking-tight">Chart of accounts</h1>
-          <p className="mt-1 text-muted">Plano de contas de {client?.name || "this client"}. Import from Excel or add accounts manually.</p>
+      <div className="rise">
+        <h1 className="font-display text-2xl font-semibold tracking-tight">Plano de contas</h1>
+        <p className="mt-1 text-muted">O que este cliente usa: a espinha do escritório, mais o que só ele precisa.</p>
+      </div>
+
+      <section className="card p-5">
+        <div className="flex flex-wrap items-baseline justify-between gap-2">
+          <h2 className="font-display text-lg font-semibold">
+            Contas próprias deste cliente
+          </h2>
+          <span className="chip bg-surface-2 font-mono text-[11px] text-muted">{FAIXA.de}–{FAIXA.ate}</span>
         </div>
-        <div className="flex items-center gap-2">
-          <button className="btn-ghost" onClick={() => fileRef.current?.click()} disabled={importing}>
-            {importing ? "Importing…" : "Import Excel / CSV"}
+        <p className="text-sm text-muted">
+          Para análise que mais nenhum cliente precisa. Fora desta faixa, a conta é do escritório.
+        </p>
+
+        <div className="mt-4 grid gap-3 sm:grid-cols-[110px_minmax(0,1fr)_140px_auto] sm:items-end">
+          <label className="flex flex-col leading-tight">
+            <span className="label">Código</span>
+            <input className="input w-full font-mono text-[13px]" placeholder="9010"
+              value={nova.code} onChange={(e) => setNova({ ...nova, code: e.target.value })} />
+          </label>
+          <label className="flex flex-col leading-tight">
+            <span className="label">Descrição</span>
+            <input className="input w-full" value={nova.description}
+              onChange={(e) => setNova({ ...nova, description: e.target.value })} />
+          </label>
+          <label className="flex flex-col leading-tight">
+            <span className="label">Natureza</span>
+            <select className="input w-full text-[13px]" value={nova.type}
+              onChange={(e) => setNova({ ...nova, type: e.target.value })}>
+              {Object.entries(NOME_TIPO).map(([v, r]) => <option key={v} value={v}>{r}</option>)}
+            </select>
+          </label>
+          <button className="btn-primary h-10 px-4 text-sm" disabled={!nova.code.trim()} onClick={criar}>
+            Criar
           </button>
-          <input ref={fileRef} type="file" accept=".xlsx,.xls,.csv" className="hidden"
-            onChange={(e) => e.target.files && e.target.files[0] && onFile(e.target.files[0])} />
         </div>
-      </div>
+        {erro && <p className="mt-2 text-sm text-danger">{erro}</p>}
 
-      <div className="card rise p-4">
-        <p className="label mb-2">Add account</p>
-        <div className="grid gap-3 sm:grid-cols-[140px_1fr_140px_auto]">
-          <input className="input" placeholder="Code" value={code} onChange={(e) => setCode(e.target.value)} />
-          <input className="input" placeholder="Description" value={desc} onChange={(e) => setDesc(e.target.value)} />
-          <input className="input" placeholder="Parent (optional)" value={parent} onChange={(e) => setParent(e.target.value)} />
-          <button className="btn-primary" onClick={addOne}>Add</button>
-        </div>
-        <p className="mt-2 text-xs text-muted">Excel columns are auto-detected: code/código/conta, description/descrição/nome, parent/pai (optional).</p>
-        {msg && <p className="mt-2 text-sm text-brand-700">{msg}</p>}
-      </div>
-
-      <div className="card overflow-hidden rise">
-        <div className="flex items-center justify-between gap-3 border-b border-line p-3">
-          <input className="input max-w-xs" placeholder="Search code or description…" value={q} onChange={(e) => setQ(e.target.value)} />
-          <span className="text-sm text-muted">{shown.length} of {accounts.length}</span>
-        </div>
-        {loading ? (
-          <p className="p-6 text-muted">Loading…</p>
-        ) : shown.length === 0 ? (
-          <p className="p-6 text-muted">No accounts yet. Import an Excel file or add one above.</p>
-        ) : (
-          <div className="overflow-x-auto">
-            <table className="w-full text-sm">
-              <thead>
-                <tr className="border-b border-line bg-surface-2/60 text-left text-xs uppercase tracking-wide text-muted">
-                  <th className="px-4 py-3 font-medium w-[140px]">Code</th>
-                  <th className="px-4 py-3 font-medium">Description</th>
-                  <th className="px-4 py-3 font-medium w-[140px]">Parent</th>
-                  <th className="px-4 py-3 font-medium text-center w-[120px]">Actions</th>
+        {proprias.length > 0 ? (
+          <table className="mt-4 w-full text-[13px]">
+            <tbody>
+              {proprias.map((c) => (
+                <tr key={c.id} className="border-b border-line/50">
+                  <td className="py-1.5 font-mono">{c.code}</td>
+                  <td className="py-1.5">{c.description}</td>
+                  <td className="py-1.5 text-muted">{NOME_TIPO[c.type ?? ""] ?? "—"}</td>
+                  <td className="py-1.5 text-right">
+                    <button className="btn-ghost h-6 px-2 text-[11px]" onClick={() => apagar(c.id)}>remover</button>
+                  </td>
                 </tr>
-              </thead>
-              <tbody>
-                {shown.map((a) => (
-                  <tr key={a.id} className="border-b border-line/70">
-                    <td className="px-4 py-2"><input className="input py-1 font-mono" value={a.code} onChange={(e) => editRow(a.id, { code: e.target.value })} onBlur={() => saveRow(a)} /></td>
-                    <td className="px-4 py-2"><input className="input py-1" value={a.description} onChange={(e) => editRow(a.id, { description: e.target.value })} onBlur={() => saveRow(a)} /></td>
-                    <td className="px-4 py-2"><input className="input py-1 font-mono" value={a.parent_code || ""} onChange={(e) => editRow(a.id, { parent_code: e.target.value })} onBlur={() => saveRow(a)} /></td>
-                    <td className="px-4 py-2 text-center">
-                      <button className="chip-danger" onClick={() => removeRow(a.id)}>Delete</button>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
+              ))}
+            </tbody>
+          </table>
+        ) : (
+          <p className="mt-4 text-sm text-muted">
+            Nenhuma conta própria — este cliente usa só o plano do escritório, que é o caso normal.
+          </p>
         )}
-      </div>
+      </section>
+
+      <section className="card overflow-hidden">
+        <div className="flex flex-wrap items-center justify-between gap-3 border-b border-line px-5 py-3">
+          <div>
+            <h2 className="font-display text-lg font-semibold">Contas do escritório</h2>
+            <p className="text-sm text-muted">
+              Partilhadas por todos os clientes. {/* Só de leitura aqui, de propósito. */}
+              Para mudar,{" "}
+              <Link href="/chart" className="text-brand-700 underline">abra o plano geral</Link>.
+            </p>
+          </div>
+          <input className="input h-9 w-56 text-[13px]" placeholder="procurar…"
+            value={busca} onChange={(e) => setBusca(e.target.value)} />
+        </div>
+        <div className="max-h-[26rem] overflow-y-auto">
+          <table className="row-hover w-full text-[13px]">
+            <tbody>
+              {filtradas.map((c) => (
+                <tr key={c.id} className={`border-b border-line/50 ${c.active ? "" : "opacity-45"}`}>
+                  <td className="px-4 py-1.5 font-mono">{c.code}</td>
+                  <td className="px-4 py-1.5">{c.description}</td>
+                  <td className="px-4 py-1.5 text-muted">{NOME_TIPO[c.type ?? ""] ?? "—"}</td>
+                  <td className="px-4 py-1.5 font-mono text-[11px] text-muted">{c.report_group ?? "—"}</td>
+                </tr>
+              ))}
+              {carregando && (
+                <tr><td colSpan={4} className="px-4 py-8 text-center text-muted">…</td></tr>
+              )}
+            </tbody>
+          </table>
+        </div>
+      </section>
+
+      <p className="px-1 text-xs text-muted">
+        Cliente que chega com plano de outro sistema não o recria aqui: mapeia-se uma vez em{" "}
+        <Link href={`/clients/${params.id}/accounting`} className="text-brand-700 underline">
+          Contabilidade → Contas → Abertura
+        </Link>, e daí em diante ele trabalha no plano do escritório.
+      </p>
     </div>
   );
 }

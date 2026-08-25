@@ -10,6 +10,7 @@
 import { useEffect, useState } from "react";
 import { useT } from "@/lib/i18n";
 import { THEME_KEY, type Theme } from "@/components/ThemeToggle";
+import { paintWindowChrome } from "@/components/themeChrome";
 
 const S = { stroke: "currentColor", strokeWidth: 1.8, strokeLinecap: "round" as const, strokeLinejoin: "round" as const };
 
@@ -20,7 +21,9 @@ export default function ThemeToggleRow({ showLabel }: { showLabel: string }) {
   const [theme, setTheme] = useState<Theme | null>(null);
 
   useEffect(() => {
-    setTheme((document.documentElement.dataset.theme as Theme) || "light");
+    const current = (document.documentElement.dataset.theme as Theme) || "light";
+    setTheme(current);
+    paintWindowChrome(current);
   }, []);
 
   function toggle() {
@@ -28,6 +31,7 @@ export default function ThemeToggleRow({ showLabel }: { showLabel: string }) {
     document.documentElement.dataset.theme = next;
     try { localStorage.setItem(THEME_KEY, next); } catch { /* modo privado */ }
     setTheme(next);
+    paintWindowChrome(next);
   }
 
   const isLight = theme !== "dark";

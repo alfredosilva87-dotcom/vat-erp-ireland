@@ -1,266 +1,382 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import Link from "next/link";
-import { fileToRows } from "@/lib/sheet";
-import type { Client, SalesEntry } from "@/lib/types";
+/**
+ * Notas de saída (T1) — a lista primeiro.
+ *
+ * Antes esta tela abria com uma grade de cinco linhas em branco pedindo
+ * digitação, e as vendas já lançadas ficavam depois de rolar a página. A
+ * pergunta do dia a dia é "o que já entrou neste período?", não "o que quero
+ * digitar agora" — então a lista vem primeiro e as quatro formas de lançar
+ * moram atrás de um botão (components/SalesEntryDialog.tsx).
+ *
+ * Mesma forma da tela de Compras: resumo que segue os filtros, filtros com
+ * atalhos de período, tabela com realce de linha e acesso ao documento.
+ */
 
-function normDate(v: any): string {
-  if (v === null || v === undefined || v === "") return "";
-  if (v instanceof Date && !isNaN(v.getTime())) return v.toISOString().slice(0, 10);
-  const s = String(v).trim();
-  if (/^\d{4}-\d{2}-\d{2}/.test(s)) return s.slice(0, 10);
-  const m = s.match(/^(\d{1,2})[\/\-.](\d{1,2})[\/\-.](\d{2,4})$/);
-  if (m) { let [, d, mo, y] = m; if (y.length === 2) y = "20" + y; return `${y}-${mo.padStart(2, "0")}-${d.padStart(2, "0")}`; }
-  return s;
-}
-function cleanNum(s: string): string {
-  return String(s ?? "").replace(/[^0-9.,-]/g, "").replace(/\.(?=\d{3}\b)/g, "").replace(",", ".");
-}
+import { Fragment, useCallback, useEffect, useMemo, useState } from "react";
+import Link from "next/link";
+import ExportPanel from "@/components/ExportPanel";
+import SalesEntryDialog from "@/components/SalesEntryDialog";
+import { useT } from "@/lib/i18n";
+import type { SalesEntry, SalesItem } from "@/lib/types";
 
 const money = (n: number | null | undefined) =>
   n === null || n === undefined ? "—" : n.toLocaleString("en-IE", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
-const numOrNull = (v: string): number | null => (v.trim() === "" ? null : Number(v.replace(",", ".")) || 0);
 
-type Draft = { entry_date: string; doc_number: string; customer: string; net: string; rate: string };
-const blank = (): Draft => ({ entry_date: "", doc_number: "", customer: "", net: "", rate: "23" });
-const vatOf = (d: Draft) => {
-  const net = numOrNull(d.net), rate = numOrNull(d.rate);
-  return net != null && rate != null ? (net * rate) / 100 : 0;
-};
-const grossOf = (d: Draft) => (numOrNull(d.net) ?? 0) + vatOf(d);
+const pad = (n: number) => String(n).padStart(2, "0");
+const f = (d: Date) => `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
 
-export default function SalesEntryPage({ params }: { params: { id: string } }) {
-  const [client, setClient] = useState<Client | null>(null);
+/**
+ * Por onde a venda entrou. `null` é a venda digitada ou vinda de planilha —
+ * dizer "manual" é honesto, e diferente de "não registrada".
+ */
+const originLabel = (s: string | null) =>
+  s === "phone" ? "Link de telefone" : s === "email" ? "E-mail" : s === "upload" ? "Arquivo enviado" : "Manual";
+
+export default function SalesPage({ params }: { params: { id: string } }) {
+  const { t } = useT();
   const [sales, setSales] = useState<SalesEntry[]>([]);
-  const [drafts, setDrafts] = useState<Draft[]>(Array.from({ length: 5 }, blank));
-  const [paste, setPaste] = useState("");
+  const [loading, setLoading] = useState(true);
+  const [dialog, setDialog] = useState(false);
   const [msg, setMsg] = useState<string | null>(null);
-  const [saving, setSaving] = useState(false);
-  const [importing, setImporting] = useState(false);
-  const fileRef = useRef<HTMLInputElement>(null);
+  const [q, setQ] = useState("");
+  const [query, setQuery] = useState("");
+  const [start, setStart] = useState("");
+  const [end, setEnd] = useState("");
+  // Detalhe por alíquota, aberto sob demanda — mesma seta da tela de entrada.
+  const [expanded, setExpanded] = useState<Set<string>>(new Set());
+  const [itemsCache, setItemsCache] = useState<Record<string, SalesItem[]>>({});
+  const [loadingItems, setLoadingItems] = useState<Set<string>>(new Set());
+  const [copiedId, setCopiedId] = useState<string | null>(null);
 
   const load = useCallback(async () => {
-    const c = await (await fetch(`/api/clients/${params.id}`)).json();
-    setClient(c.client || null);
-    const s = await (await fetch(`/api/clients/${params.id}/sales`)).json();
-    setSales(s.sales || []);
+    setLoading(true);
+    try {
+      const d = await (await fetch(`/api/clients/${params.id}/sales`)).json();
+      setSales(d.sales || []);
+    } finally { setLoading(false); }
   }, [params.id]);
   useEffect(() => { load(); }, [load]);
 
-  function setDraft(i: number, patch: Partial<Draft>) {
-    setDrafts((prev) => prev.map((d, k) => (k === i ? { ...d, ...patch } : d)));
-  }
-  function addBlank() { setDrafts((prev) => [...prev, blank()]); }
+  /*
+   * Filtro no navegador, não no servidor.
+   *
+   * A lista de vendas de um cliente é curta (dezenas por período, não
+   * milhares como as notas de entrada), então filtrar aqui evita uma ida ao
+   * banco a cada tecla. Se um dia crescer, isto vira parâmetro na rota.
+   */
+  const shown = useMemo(() => {
+    const needle = query.trim().toLowerCase();
+    return sales.filter((s) => {
+      if (start && s.entry_date < start) return false;
+      if (end && s.entry_date > end) return false;
+      if (!needle) return true;
+      return [s.doc_number, s.customer].filter(Boolean).join(" ").toLowerCase().includes(needle);
+    });
+  }, [sales, query, start, end]);
 
-  function importPaste() {
-    // lines: date,net,rate   OR   date;doc;customer;net;rate
-    const rows: Draft[] = [];
-    for (const line of paste.split("\n").map((l) => l.trim()).filter(Boolean)) {
-      const p = line.split(/[;,\t]/).map((x) => x.trim());
-      if (p.length >= 5) rows.push({ entry_date: p[0], doc_number: p[1], customer: p[2], net: p[3], rate: p[4] });
-      else if (p.length >= 3) rows.push({ entry_date: p[0], doc_number: "", customer: "", net: p[1], rate: p[2] });
-      else if (p.length === 2) rows.push({ entry_date: p[0], doc_number: "", customer: "", net: p[1], rate: "23" });
-    }
-    if (rows.length) { setDrafts((prev) => [...prev.filter((d) => d.entry_date || d.net), ...rows]); setPaste(""); setMsg(`${rows.length} lines parsed.`); }
-  }
+  // O resumo acompanha o que está na tela, então segue os filtros.
+  const totals = useMemo(() => ({
+    count: shown.length,
+    net: shown.reduce((a, s) => a + (s.net_amount || 0), 0),
+    vat: shown.reduce((a, s) => a + (s.vat_amount || 0), 0),
+    // Pendente é o que ninguém assinou — leitura fraca é só um agravante.
+    review: shown.filter((s) => !s.reviewed_at).length,
+  }), [shown]);
 
-  function parseRows(aoa: any[][]): Draft[] {
-    if (!aoa.length) return [];
-    const norm = (s: any) => String(s ?? "").toLowerCase().trim();
-    const header = (aoa[0] || []).map(norm);
-    const find = (...names: string[]) => header.findIndex((h) => names.some((n) => h.includes(n)));
-    const hdrKeywords = ["date", "data", "net", "líquido", "liquido", "amount", "valor", "vat", "iva", "rate", "aliquota", "alíquota", "customer", "cliente", "doc", "invoice", "ref", "taxa", "%"];
-    const hasHeader = header.some((h) => hdrKeywords.some((n) => h.includes(n)));
-    const idx = hasHeader ? {
-      date: find("date", "data"),
-      doc: find("doc", "invoice", "fatura", "ref", "number", "nº", "no"),
-      customer: find("customer", "cliente", "client", "nome", "name"),
-      net: find("net", "líquido", "liquido", "amount", "valor", "subtotal", "base"),
-      rate: find("rate", "aliquota", "alíquota", "taxa", "vat %", "vat%", "%"),
-      vat: find("vat amount", "iva", "imposto", "vat €", "vat value", "tax"),
-    } : null;
-    const rows = hasHeader ? aoa.slice(1) : aoa;
-    const out: Draft[] = [];
-    for (const r of rows) {
-      if (!r || r.every((c: any) => String(c ?? "").trim() === "")) continue;
-      let entry_date = "", doc = "", customer = "", net = "", rate = "23";
-      if (idx) {
-        const g = (i: number) => (i >= 0 ? r[i] : "");
-        entry_date = normDate(g(idx.date));
-        doc = String(g(idx.doc) ?? "").trim();
-        customer = String(g(idx.customer) ?? "").trim();
-        net = cleanNum(String(g(idx.net) ?? ""));
-        const rr = cleanNum(String(g(idx.rate) ?? "")); if (rr) rate = rr;
-        const vat = cleanNum(String(g(idx.vat) ?? ""));
-        if (!net && vat && rate) { const v = parseFloat(vat), rt = parseFloat(rate); if (v && rt) net = (v / rt * 100).toFixed(2); }
-      } else {
-        const p = r.map((x: any) => String(x ?? "").trim());
-        if (p.length >= 5) { entry_date = normDate(p[0]); doc = p[1]; customer = p[2]; net = cleanNum(p[3]); rate = cleanNum(p[4]) || "23"; }
-        else if (p.length >= 3) { entry_date = normDate(p[0]); net = cleanNum(p[1]); rate = cleanNum(p[2]) || "23"; }
-        else if (p.length === 2) { entry_date = normDate(p[0]); net = cleanNum(p[1]); }
-      }
-      if (entry_date || net) out.push({ entry_date, doc_number: doc, customer, net, rate });
-    }
-    return out;
-  }
-
-  async function onFile(file: File) {
-    setImporting(true); setMsg(null);
-    try {
-      // Reading the file into cells is the same job here and in the bank
-      // statement import, so it lives in lib/sheet.ts. What the columns *mean*
-      // is what differs, and that stays below in parseRows.
-      const { rows: aoa } = await fileToRows(file);
-      const parsed = parseRows(aoa as any[][]);
-      if (!parsed.length) { setMsg("No rows recognised in the file. Check it has date and amount columns."); return; }
-      setDrafts((prev) => [...prev.filter((d) => d.entry_date || d.net), ...parsed]);
-      setMsg(`${parsed.length} rows loaded from ${file.name}. Review the grid and click Save sales.`);
-    } catch (e: any) {
-      setMsg("Could not read the file: " + (e?.message || "unknown error"));
-    } finally {
-      setImporting(false);
-      if (fileRef.current) fileRef.current.value = "";
+  function preset(k: "month" | "prev" | "year") {
+    const now = new Date();
+    if (k === "month") {
+      setStart(f(new Date(now.getFullYear(), now.getMonth(), 1)));
+      setEnd(f(new Date(now.getFullYear(), now.getMonth() + 1, 0)));
+    } else if (k === "prev") {
+      setStart(f(new Date(now.getFullYear(), now.getMonth() - 1, 1)));
+      setEnd(f(new Date(now.getFullYear(), now.getMonth(), 0)));
+    } else {
+      setStart(f(new Date(now.getFullYear(), 0, 1)));
+      setEnd(f(new Date(now.getFullYear(), 11, 31)));
     }
   }
-
-  const totalVat = useMemo(() => drafts.reduce((a, d) => a + (d.entry_date && d.net ? vatOf(d) : 0), 0), [drafts]);
-
-  async function save() {
-    const rows = drafts
-      .filter((d) => d.entry_date && d.net)
-      .map((d) => ({ entry_date: d.entry_date, doc_number: d.doc_number || null, customer: d.customer || null, net_amount: numOrNull(d.net), vat_rate: numOrNull(d.rate) }));
-    if (!rows.length) { setMsg("Fill at least a date and net amount."); return; }
-    setSaving(true);
-    try {
-      const res = await fetch(`/api/clients/${params.id}/sales`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ rows }) });
-      const d = await res.json();
-      // refresh obligations so T1 updates
-      await fetch(`/api/clients/${params.id}/obligations?refresh=1`);
-      setDrafts(Array.from({ length: 5 }, blank));
-      setMsg(`${d.count} sales saved. VAT on sales (T1) updated in the obligations.`);
-      load();
-    } finally { setSaving(false); }
-  }
+  const filtersOn = !!(start || end || query);
 
   async function remove(id: string) {
+    if (!confirm("Excluir esta venda? O documento guardado também sai.")) return;
     await fetch(`/api/sales/${id}`, { method: "DELETE" });
+    // O T1 do VAT3 vem daqui: sem recalcular, a obrigação segue mostrando o
+    // número de antes.
     await fetch(`/api/clients/${params.id}/obligations?refresh=1`);
     load();
   }
 
-  const salesTotal = sales.reduce((a, s) => a + (s.vat_amount || 0), 0);
+  /** Busca as linhas só quando a seta é aberta, e guarda o resultado. */
+  async function toggleExpand(id: string) {
+    setExpanded((prev) => {
+      const next = new Set(prev);
+      next.has(id) ? next.delete(id) : next.add(id);
+      return next;
+    });
+    if (!itemsCache[id]) {
+      setLoadingItems((prev) => new Set(prev).add(id));
+      try {
+        const d = await (await fetch(`/api/clients/${params.id}/sales/${id}`)).json();
+        setItemsCache((prev) => ({ ...prev, [id]: d.items || [] }));
+      } finally {
+        setLoadingItems((prev) => { const n = new Set(prev); n.delete(id); return n; });
+      }
+    }
+  }
+
+  /*
+   * Líquido por alíquota da venda.
+   *
+   * A conferência é a mesma da entrada: soma dos líquidos + IVA tem de dar o
+   * bruto. É o que denuncia documento mal lido sem precisar abrir a imagem —
+   * e do lado da venda um líquido a mais vira imposto a mais a pagar.
+   *
+   * A alíquota da LINHA manda; sem ela, cai na do cabeçalho. Linha sem
+   * nenhuma das duas entra como 0%, que é o honesto: dizer 23% por costume
+   * inventaria imposto que o documento não declara.
+   */
+  function rateBreakdown(sale: SalesEntry, items: SalesItem[]) {
+    const byRate = new Map<number, number>();
+    for (const it of items) {
+      const rate = it.vat_rate ?? sale.vat_rate ?? 0;
+      byRate.set(rate, (byRate.get(rate) || 0) + (it.net_amount || 0));
+    }
+    const rates = Array.from(byRate.entries())
+      .map(([rate, net]) => ({ rate, net }))
+      .sort((a, b) => b.rate - a.rate);
+    const netSum = rates.reduce((a, r) => a + r.net, 0);
+    const gross = (sale.net_amount || 0) + (sale.vat_amount || 0);
+    const reconciled = Math.abs(netSum + (sale.vat_amount || 0) - gross) <= Math.max(0.05, Math.abs(gross) * 0.02);
+    return { rates, reconciled, gross };
+  }
+
+  /** Separado por tabulação: cola como linhas no Excel, não como texto. */
+  function copyBreakdown(sale: SalesEntry, b: { rates: { rate: number; net: number }[]; gross: number }) {
+    navigator.clipboard.writeText([
+      `Cliente: ${sale.customer || "—"}`,
+      `Doc: ${sale.doc_number || "—"}`,
+      `Bruto\t${money(b.gross)}`,
+      `IVA\t${money(sale.vat_amount)}`,
+      ...b.rates.map((r) => `Líquido ${r.rate}%\t${money(r.net)}`),
+    ].join("\n"));
+    setCopiedId(sale.id);
+    setTimeout(() => setCopiedId((c) => (c === sale.id ? null : c)), 1500);
+  }
+
+  const ids = shown.map((s) => s.id).join(",");
 
   return (
-    <div className="space-y-6">
-      <div className="rise flex flex-wrap items-start justify-between gap-3">
+    <div className="space-y-4">
+      <div className="flex flex-wrap items-end justify-between gap-3">
         <div>
-          <h1 className="font-display text-xl font-semibold tracking-tight">Sales entry (VAT on sales · T1)</h1>
-          <p className="mt-1 text-muted">
-            Enter emitted invoices (sales) in bulk. The VAT on sales feeds the client&apos;s bi-monthly
-            VAT3 and annual RTD automatically.
-          </p>
+          <h2 className="font-display text-xl font-semibold tracking-tight">{t("client.tabSales")}</h2>
+          <p className="text-sm text-muted">Débito de IVA — venda não gera crédito.</p>
         </div>
-        <span className="chip bg-brand text-white">Recorded VAT on sales € {money(salesTotal)}</span>
-      </div>
-
-      {/* Bulk entry grid */}
-      <div className="card p-5">
-        <div className="overflow-x-auto">
-          <table className="w-full text-sm">
-            <thead>
-              <tr className="border-b border-line text-left text-xs uppercase tracking-wide text-muted">
-                <th className="px-2 py-2 font-medium">Date</th>
-                <th className="px-2 py-2 font-medium">Doc no.</th>
-                <th className="px-2 py-2 font-medium">Customer</th>
-                <th className="px-2 py-2 font-medium text-right">Net €</th>
-                <th className="px-2 py-2 font-medium text-right">VAT %</th>
-                <th className="px-2 py-2 font-medium text-right">VAT €</th>
-                <th className="px-2 py-2 font-medium text-right">Gross €</th>
-              </tr>
-            </thead>
-            <tbody>
-              {drafts.map((d, i) => (
-                <tr key={i} className="border-b border-line/60">
-                  <td className="px-2 py-1.5"><input type="date" className="input h-9" value={d.entry_date} onChange={(e) => setDraft(i, { entry_date: e.target.value })} /></td>
-                  <td className="px-2 py-1.5"><input className="input h-9 w-28" value={d.doc_number} onChange={(e) => setDraft(i, { doc_number: e.target.value })} /></td>
-                  <td className="px-2 py-1.5"><input className="input h-9" value={d.customer} onChange={(e) => setDraft(i, { customer: e.target.value })} /></td>
-                  <td className="px-2 py-1.5"><input className="input h-9 w-28 text-right" value={d.net} onChange={(e) => setDraft(i, { net: e.target.value })} /></td>
-                  <td className="px-2 py-1.5"><input className="input h-9 w-20 text-right" value={d.rate} onChange={(e) => setDraft(i, { rate: e.target.value })} /></td>
-                  <td className="px-2 py-1.5 text-right tnum">{money(vatOf(d))}</td>
-                  <td className="px-2 py-1.5 text-right tnum font-medium">{money(grossOf(d))}</td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-        <div className="mt-3 flex flex-wrap items-center gap-3">
-          <button className="btn-ghost" onClick={addBlank}>+ Add row</button>
-          <span className="text-sm text-muted">VAT to add: <strong className="tnum">€ {money(totalVat)}</strong></span>
-          <button className="btn-primary ml-auto" onClick={save} disabled={saving}>{saving ? "Saving…" : "Save sales"}</button>
-        </div>
-        {msg && <p className="mt-2 text-xs text-muted">{msg}</p>}
-      </div>
-
-      {/* Import file */}
-      <div className="card p-5">
-        <div className="flex flex-wrap items-center justify-between gap-3">
-          <div>
-            <h2 className="font-display text-lg font-semibold">Import file (Excel / CSV / TXT / statement)</h2>
-            <p className="mt-1 text-sm text-muted">
-              Upload a sales file or bank statement. Columns are auto-detected (date, doc, customer, net, rate, VAT).
-              Rows load into the grid above for review before saving.
-            </p>
-          </div>
-          <button className="btn-primary" onClick={() => fileRef.current?.click()} disabled={importing}>
-            {importing ? "Reading…" : "Choose file"}
+        <div className="flex flex-wrap items-center gap-2">
+          <ExportPanel clientId={params.id} defaultSets={["sales"]} />
+          <button className="btn-primary h-9 px-3 text-sm" onClick={() => setDialog(true)}>
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+              <path d="M12 5v14M5 12h14" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
+            </svg>
+            Lançar vendas
           </button>
-          <input ref={fileRef} type="file" accept=".xlsx,.xls,.csv,.txt" className="hidden"
-            onChange={(e) => e.target.files && e.target.files[0] && onFile(e.target.files[0])} />
         </div>
       </div>
 
-      {/* Paste bulk */}
-      <div className="card p-5">
-        <h2 className="font-display text-lg font-semibold">Paste bulk</h2>
-        <p className="mt-1 text-sm text-muted">One per line: <code className="font-mono">date, net, rate</code> or <code className="font-mono">date; doc; customer; net; rate</code> (e.g. <code className="font-mono">2026-01-15, 1000, 23</code>).</p>
-        <textarea className="input mt-3 h-28 py-2" value={paste} onChange={(e) => setPaste(e.target.value)} placeholder={"2026-01-15, 1000, 23\n2026-02-03, 500, 13.5"} />
-        <button className="btn-ghost mt-3" onClick={importPaste}>Parse into grid</button>
+      {msg && <p className="rounded-xl border border-brand/40 bg-brand-50 px-4 py-2.5 text-sm text-brand-700">{msg}</p>}
+
+      {/* Resumo — segue os filtros. */}
+      <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+        <Stat label="Vendas" value={String(totals.count)} />
+        <Stat label="Líquido €" value={money(totals.net)} />
+        <Stat label="IVA sobre vendas €" value={money(totals.vat)} strong />
+        <Stat label="A conferir" value={String(totals.review)} warn={totals.review > 0} />
       </div>
 
-      {/* Existing sales */}
+      {/* Filtros */}
+      <div className="card flex flex-wrap items-end gap-3 p-4">
+        <div>
+          <label className="label">{t("common.from")}</label>
+          <input type="date" className="input h-9 w-40 text-sm" value={start} onChange={(e) => setStart(e.target.value)} />
+        </div>
+        <div>
+          <label className="label">{t("common.to")}</label>
+          <input type="date" className="input h-9 w-40 text-sm" value={end} onChange={(e) => setEnd(e.target.value)} />
+        </div>
+        <div className="flex flex-wrap gap-1.5 pb-0.5">
+          {([["month", "records.thisMonth"], ["prev", "records.lastMonth"], ["year", "records.thisYear"]] as const).map(([k, lbl]) => (
+            <button
+              key={k}
+              className="rounded-lg bg-surface-2 px-2.5 py-1.5 text-xs font-medium text-muted transition-colors hover:text-ink"
+              onClick={() => preset(k)}
+            >
+              {t(lbl)}
+            </button>
+          ))}
+        </div>
+        <form onSubmit={(e) => { e.preventDefault(); setQuery(q); }} className="flex items-end gap-2">
+          <div>
+            <label className="label">{t("common.search")}</label>
+            <input
+              className="input h-9 w-56 text-sm" placeholder="documento ou cliente"
+              value={q} onChange={(e) => setQ(e.target.value)}
+            />
+          </div>
+          <button className="btn-primary h-9 px-3 text-xs" type="submit">{t("common.search")}</button>
+        </form>
+        {filtersOn && (
+          <button
+            className="btn-ghost h-9 px-3 text-xs"
+            onClick={() => { setStart(""); setEnd(""); setQ(""); setQuery(""); }}
+          >
+            {t("common.clear")}
+          </button>
+        )}
+      </div>
+
+      {/* Lista */}
       <div className="card overflow-hidden">
         <div className="overflow-x-auto">
-          <table className="w-full text-sm">
+          <table className="row-hover w-full text-sm">
             <thead>
-              <tr className="border-b border-line bg-surface-2/60 text-left text-xs uppercase tracking-wide text-muted">
-                <th className="px-4 py-3 font-medium">Date</th>
+              <tr className="border-b border-line text-left text-[10px] uppercase tracking-wide text-muted">
+                <th className="w-8 px-2 py-3" />
+                <th className="px-4 py-3 font-medium">{t("common.date")}</th>
                 <th className="px-4 py-3 font-medium">Doc</th>
-                <th className="px-4 py-3 font-medium">Customer</th>
-                <th className="px-4 py-3 font-medium text-right">Net €</th>
-                <th className="px-4 py-3 font-medium text-right">VAT %</th>
-                <th className="px-4 py-3 font-medium text-right">VAT €</th>
-                <th className="px-4 py-3 font-medium text-right">Gross €</th>
-                <th className="px-4 py-3 font-medium text-center">—</th>
+                <th className="px-4 py-3 font-medium">Cliente</th>
+                <th className="px-4 py-3 text-right font-medium">Líquido €</th>
+                <th className="px-4 py-3 text-right font-medium">Alíq. %</th>
+                <th className="px-4 py-3 text-right font-medium">IVA €</th>
+                <th className="px-4 py-3 text-right font-medium">Bruto €</th>
+                <th className="px-4 py-3 font-medium">Origem</th>
+                <th className="px-4 py-3 text-center font-medium">{t("common.actions")}</th>
               </tr>
             </thead>
             <tbody>
-              {sales.map((s) => (
-                <tr key={s.id} className="border-b border-line/70">
+              {shown.map((s) => {
+                const isOpen = expanded.has(s.id);
+                const items = itemsCache[s.id];
+                const b = isOpen && items ? rateBreakdown(s, items) : null;
+                return (
+                <Fragment key={s.id}>
+                <tr className="border-b border-line/70">
+                  <td className="px-2 py-2">
+                    <button
+                      className="text-muted transition-colors hover:text-ink"
+                      onClick={() => toggleExpand(s.id)}
+                      aria-expanded={isOpen}
+                      title="Líquido por alíquota"
+                    >
+                      {isOpen ? "▾" : "▸"}
+                    </button>
+                  </td>
                   <td className="px-4 py-2 tnum">{s.entry_date}</td>
                   <td className="px-4 py-2 font-mono text-xs">{s.doc_number || "—"}</td>
                   <td className="px-4 py-2">{s.customer || "—"}</td>
                   <td className="px-4 py-2 text-right tnum">{money(s.net_amount)}</td>
                   <td className="px-4 py-2 text-right tnum">{s.vat_rate ?? "—"}</td>
                   <td className="px-4 py-2 text-right tnum font-semibold">{money(s.vat_amount)}</td>
-                  <td className="px-4 py-2 text-right tnum font-semibold">{money((s.net_amount || 0) + (s.vat_amount || 0))}</td>
-                  <td className="px-4 py-2 text-center"><button className="btn-ghost h-8 px-3 text-xs text-danger" onClick={() => remove(s.id)}>Delete</button></td>
+                  <td className="px-4 py-2 text-right tnum">{money((s.net_amount || 0) + (s.vat_amount || 0))}</td>
+                  <td className="px-4 py-2 text-xs">
+                    <span className="text-muted">{originLabel(s.source)}</span>
+                    {s.document_path && (
+                      <a
+                        className="ml-2 text-brand hover:underline"
+                        href={`/api/clients/${params.id}/sales/${s.id}/document`}
+                        target="_blank" rel="noreferrer"
+                      >
+                        ver doc
+                      </a>
+                    )}
+                    {s.reviewed_at
+                      ? <span className="chip-ok ml-2" title={`por ${s.reviewed_by_email || "—"}`}>conferida</span>
+                      : <span className={`ml-2 ${s.needs_review ? "chip-warn" : "chip bg-surface-2 text-muted"}`}>
+                          {s.needs_review ? "revisar" : "a conferir"}
+                        </span>}
+                  </td>
+                  <td className="px-4 py-2">
+                    <div className="flex items-center justify-center gap-1">
+                      <Link className="btn-ghost h-8 px-3 text-xs" href={`/clients/${params.id}/sales/${s.id}?ids=${ids}`}>
+                        Conferir
+                      </Link>
+                      <button className="btn-ghost h-8 px-3 text-xs text-danger" onClick={() => remove(s.id)}>
+                        {t("common.delete")}
+                      </button>
+                    </div>
+                  </td>
                 </tr>
-              ))}
-              {!sales.length && <tr><td colSpan={8} className="px-4 py-8 text-center text-muted">No sales recorded yet.</td></tr>}
+                {isOpen && (
+                  <tr className="border-b border-line/70 bg-surface-2/40">
+                    <td />
+                    <td colSpan={9} className="px-4 py-3">
+                      {loadingItems.has(s.id) || !b ? (
+                        <span className="text-xs text-muted">{t("common.loading")}</span>
+                      ) : (
+                        <div className="flex flex-wrap items-center gap-x-6 gap-y-2 text-xs">
+                          <span><span className="text-muted">Bruto </span><strong className="tnum">€ {money(b.gross)}</strong></span>
+                          <span><span className="text-muted">IVA </span><strong className="tnum">€ {money(s.vat_amount)}</strong></span>
+                          {b.rates.map((r) => (
+                            <span key={r.rate}>
+                              <span className="text-muted">Líquido {r.rate}% </span>
+                              <strong className="tnum">€ {money(r.net)}</strong>
+                            </span>
+                          ))}
+                          <span className={b.reconciled ? "chip-ok" : "chip-warn"}>
+                            {b.reconciled ? "Líquidos + IVA = Bruto" : "Líquidos + IVA ≠ Bruto — confira o documento"}
+                          </span>
+                          <button className="btn-ghost h-7 px-2 text-xs" onClick={() => copyBreakdown(s, b)}>
+                            {copiedId === s.id ? "Copiado!" : "Copiar"}
+                          </button>
+                        </div>
+                      )}
+                    </td>
+                  </tr>
+                )}
+                </Fragment>
+                );
+              })}
+              {!loading && !shown.length && (
+                <tr>
+                  <td colSpan={10} className="px-4 py-10 text-center text-muted">
+                    {sales.length
+                      ? "Nenhuma venda nestes filtros."
+                      : "Nenhuma venda lançada ainda. Use “Lançar vendas” para digitar, importar planilha ou enviar foto."}
+                  </td>
+                </tr>
+              )}
+              {loading && (
+                <tr><td colSpan={10} className="px-4 py-10 text-center text-muted">{t("common.loading")}</td></tr>
+              )}
             </tbody>
           </table>
         </div>
+      </div>
+
+      {dialog && (
+        <SalesEntryDialog
+          clientId={params.id}
+          onClose={() => setDialog(false)}
+          onSaved={(n) => {
+            setDialog(false);
+            setMsg(`${n} venda(s) lançada(s). O IVA sobre vendas (T1) das obrigações foi atualizado.`);
+            load();
+          }}
+        />
+      )}
+    </div>
+  );
+}
+
+function Stat({ label, value, strong, warn }: { label: string; value: string; strong?: boolean; warn?: boolean }) {
+  return (
+    <div className="card p-4">
+      <div className="text-[10px] font-medium uppercase tracking-wide text-muted">{label}</div>
+      <div className={`mt-1 font-display text-2xl font-semibold tnum ${
+        warn ? "text-warning" : strong ? "text-brand-700" : ""
+      }`}>
+        {value}
       </div>
     </div>
   );

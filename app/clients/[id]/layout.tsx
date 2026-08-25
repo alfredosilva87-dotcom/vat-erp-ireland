@@ -1,36 +1,20 @@
 "use client";
 
 import Link from "next/link";
-import { usePathname } from "next/navigation";
 import { useEffect, useState } from "react";
 import type { Client } from "@/lib/types";
 import { setCurrentClient } from "@/lib/currentClient";
+import { cachedClient, fetchClient } from "@/lib/clientCache";
 import ExportPanel from "@/components/ExportPanel";
-import { useT, type TKey } from "@/lib/i18n";
+import { useT } from "@/lib/i18n";
 
 // Everything you can do with a client lives here, so opening a sub-screen
 // never loses the client context the way the old button row did.
 //
-// Três abas saíram nesta revisão, e cada uma por um motivo de lugar:
-//   - "Visão geral" virou parte do Painel. Eram duas telas respondendo à mesma
-//     pergunta, e a pessoa tinha de abrir as duas para ter a resposta inteira.
-//   - "Filiais" e "E-mail" foram para o Cadastro. As duas são configuração que
-//     se faz uma vez, não trabalho do dia; ficavam ocupando a mesma fila das
-//     telas de uso diário e empurravam as de trabalho para fora do campo de
-//     visão.
-const TABS: { seg: string; key: TKey }[] = [
-  { seg: "dashboard", key: "client.tabDashboard" },
-  { seg: "purchases", key: "client.tabPurchases" },
-  { seg: "sales", key: "client.tabSales" },
-  { seg: "bank", key: "client.tabBank" },
-  { seg: "suppliers", key: "client.tabSuppliers" },
-  { seg: "obligations", key: "client.tabObligations" },
-  { seg: "vat", key: "client.tabVat" },
-  { seg: "accounts", key: "client.tabAccounts" },
-  { seg: "settings", key: "client.tabSettings" },
-  { seg: "bright", key: "client.tabBright" },
-];
-
+// A navegação por módulo (Financeiro, Fiscal, Vendas...) mora no menu
+// lateral agora — ver components/ModuleSidebar.tsx, ligado em AppFrame.tsx
+// sempre que a URL está sob /clients/[id]. Este arquivo cuida só do cabeçalho
+// com a identidade do cliente e as ações rápidas; zero navegação aqui.
 export default function ClientLayout({
   children,
   params,
@@ -38,26 +22,35 @@ export default function ClientLayout({
   children: React.ReactNode;
   params: { id: string };
 }) {
-  const pathname = usePathname();
   const { t } = useT();
-  const [client, setClient] = useState<Client | null>(null);
-  const [active, setActive] = useState(false);
+  /*
+   * Começa do que já está em memória.
+   *
+   * Ao navegar entre telas do mesmo cliente, o cabeçalho pinta o nome no
+   * primeiro quadro em vez de mostrar "—" e depois trocar. O pedido continua
+   * a acontecer; o que deixa de acontecer é o ecrã esvaziar-se a cada clique.
+   */
+  const [client, setClient] = useState<Client | null>(() => cachedClient(params.id) ?? null);
 
   useEffect(() => {
-    (async () => {
-      const c = await (await fetch(`/api/clients/${params.id}`)).json();
-      setClient(c.client || null);
-    })();
+    let vivo = true;
+    fetchClient(params.id).then((c) => { if (vivo) setClient(c); });
+    return () => { vivo = false; };
   }, [params.id]);
 
   const base = `/clients/${params.id}`;
-  const currentSeg = pathname === base ? "" : pathname.slice(base.length + 1).split("/")[0];
 
-  function makeActive() {
+  /*
+   * Estar trabalhando num cliente É tê-lo como ativo.
+   *
+   * Antes isso dependia de lembrar de clicar em "Definir como ativo" — e quem
+   * esquecia ia para Analisar notas e encontrava a tela apontando para outra
+   * empresa. As telas globais (Analisar, Base de dados) leem daqui.
+   */
+  useEffect(() => {
     if (!client) return;
     setCurrentClient({ id: client.id, name: client.name, activity_code: client.activity_code });
-    setActive(true);
-  }
+  }, [client]);
 
   return (
     <div className="space-y-6">
@@ -101,27 +94,7 @@ export default function ClientLayout({
             </Link>
             <Link href={`${base}/sales`} className="btn-ghost h-9 px-3 text-sm">{t("client.newSale")}</Link>
             <ExportPanel clientId={params.id} />
-            <button className="btn-ghost h-9 px-3 text-sm" onClick={makeActive}>
-              {active ? t("client.isActive") : t("client.setActive")}
-            </button>
           </div>
-        </div>
-
-        {/* Sub-panel nav */}
-        <div className="flex gap-1 overflow-x-auto border-t border-line bg-surface-2/60 p-2">
-          {TABS.map((tab) => {
-            const href = tab.seg ? `${base}/${tab.seg}` : base;
-            const isActive = currentSeg === tab.seg;
-            return (
-              <Link
-                key={tab.seg || "overview"}
-                href={href}
-                className={`subnav-item ${isActive ? "subnav-item-active" : ""}`}
-              >
-                {t(tab.key)}
-              </Link>
-            );
-          })}
         </div>
       </div>
 

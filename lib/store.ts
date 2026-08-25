@@ -6,6 +6,7 @@ import { checkFit, verifyLicenseKey } from "@/lib/licenseKey";
 import type {
   StoredInvoice, StoredItem, MasterItem, Client, ClientWithStats,
   CreditRule, ClientObligation, SalesEntry, AppUser, ChartAccount, Branch, Company,
+  RecurringObligation,
 } from "@/lib/types";
 
 // Supabase-backed data layer (server-only, service-role). Same export names.
@@ -177,6 +178,12 @@ export interface SaveItem {
 }
 export interface SavePayload {
   client_id: string | null; branch_id: string | null; activity_code: string; engine: string; original_filename: string | null;
+  /** Por onde o documento entrou: "upload" | "email" | "phone". Ver 013_invoice_source.sql. */
+  source?: string | null;
+  /** Quando o documento CHEGOU (não quando foi gravado). Ver 015_captured_at.sql. */
+  captured_at?: string | null;
+  /** O que a leitura disse que ele é (nota, recibo, planilha, ilegível…). */
+  doc_kind?: string | null;
   confidence: number; needs_review: boolean; issues: string[];
   audit?: { engine: string; confidence: number }[];
   header: {
@@ -271,6 +278,11 @@ export async function saveInvoice(
     invoice_time: payload.header.invoice_time, doc_type: payload.header.doc_type,
     currency: "EUR", total_net: payload.header.total_net, total_vat: payload.header.total_vat, total_gross: payload.header.total_gross,
     total_credit: Number(totalCredit.toFixed(2)), engine: payload.engine, original_filename: payload.original_filename,
+    source: payload.source ?? null,
+    // Sem carimbo de chegada usa o de agora: a nota escolhida à mão chega e é
+    // gravada no mesmo gesto, então os dois momentos coincidem de verdade.
+    captured_at: payload.captured_at ?? new Date().toISOString(),
+    doc_kind: payload.doc_kind ?? null,
     document_path: documentPath, item_count: payload.items.length,
     extraction_confidence: payload.confidence, needs_review: payload.needs_review, review_notes: payload.issues,
     extraction_audit: payload.audit ?? [],
@@ -500,6 +512,13 @@ export async function deleteInvoices(ids: string[]): Promise<number> {
     try { await sb().storage.from(BUCKET).remove(paths); } catch { /* keep going; rows still go */ }
   }
 
+  // O item da Caixa de entrada que virou esta nota (camada B2) precisa voltar
+  // pra fila ANTES de apagar — a chave estrangeira já zera `invoice_id`
+  // sozinha ao apagar a nota, mas deixa `status` parado em "saved", e um item
+  // "saved" sem nota não mostra nem Ler nem Descartar: fica travado pra
+  // sempre. Voltar pra "pending" é o que devolve as duas opções.
+  await sb().from("inbox_items").update({ status: "pending", invoice_id: null, invoice_count: 0 }).in("invoice_id", found);
+
   const { error } = await sb().from("invoices").delete().in("id", found);
   return error ? 0 : found.length;
 }
@@ -507,6 +526,10 @@ export async function deleteInvoices(ids: string[]): Promise<number> {
 export async function deleteInvoice(id: string): Promise<boolean> {
   const { data: inv } = await sb().from("invoices").select("document_path").eq("id", id).maybeSingle();
   if (inv?.document_path) { try { await sb().storage.from(BUCKET).remove([inv.document_path]); } catch {} }
+  // Mesma razão do deleteInvoices em lote: sem isto o item da fila fica
+  // "saved" travado, sem ação nenhuma disponível, quando a nota que ele virou
+  // é apagada.
+  await sb().from("inbox_items").update({ status: "pending", invoice_id: null, invoice_count: 0 }).eq("invoice_id", id);
   const { error } = await sb().from("invoices").delete().eq("id", id);
   return !error;
 }
@@ -870,6 +893,27 @@ export async function clientDashboard(clientId: string, year: number) {
     .from("sales").select("*", { count: "exact", head: true })
     .eq("client_id", clientId).gte("entry_date", start).lte("entry_date", end);
 
+  /*
+   * Por onde as notas do ano entraram.
+   *
+   * É o indicador que responde "a entrada automática está valendo a pena?" —
+   * a pergunta que o escritório faz depois de dar o link de telefone ao
+   * cliente e o endereço de e-mail ao fornecedor. Sem isto, a resposta era
+   * abrir a fila e contar no olho, o que ninguém faz.
+   *
+   * Conta por `posting_date` (a data em que a nota entra na apuração), o mesmo
+   * recorte de ano do resto do painel — senão o total daqui não fecharia com o
+   * de cima.
+   */
+  const { data: sourceRows } = await sb()
+    .from("invoices").select("source")
+    .eq("client_id", clientId).gte("posting_date", start).lte("posting_date", end);
+  const bySource: Record<string, number> = {};
+  for (const r of (sourceRows ?? []) as { source: string | null }[]) {
+    const k = r.source || "unknown";
+    bySource[k] = (bySource[k] || 0) + 1;
+  }
+
   const sum = (k: "gross" | "credit" | "sales" | "salesVat" | "count") =>
     series.reduce((a, s) => a + (s[k] || 0), 0);
 
@@ -903,7 +947,7 @@ export async function clientDashboard(clientId: string, year: number) {
       state: o.due_date < today ? "overdue" : withinDays(o.due_date, today, 60) ? "soon" : "pending",
     }));
 
-  return { client, year, kpis, series, vatByMonth, rates, upcoming };
+  return { client, year, kpis, series, vatByMonth, rates, upcoming, bySource };
 }
 
 function withinDays(due: string, from: string, days: number) {
@@ -928,8 +972,99 @@ export async function addSalesEntries(clientId: string, rows: Array<Partial<Sale
   return (data ?? []) as SalesEntry[];
 }
 export async function deleteSalesEntry(id: string): Promise<boolean> {
+  const { data: s } = await sb().from("sales").select("document_path").eq("id", id).maybeSingle();
+  if (s?.document_path) { try { await sb().storage.from(BUCKET).remove([s.document_path]); } catch {} }
   const { error } = await sb().from("sales").delete().eq("id", id);
   return !error;
+}
+
+/** As linhas de uma venda, para a tela de revisão e a apuração por alíquota. */
+export async function listSaleItems(saleId: string) {
+  const { data } = await sb().from("sales_items").select("*").eq("sale_id", saleId).order("created_at");
+  return data ?? [];
+}
+
+export interface SaleDocPayload {
+  entry_date: string;
+  doc_number: string | null;
+  customer: string | null;
+  net_amount: number | null;
+  vat_rate: number | null;
+  vat_amount: number;
+  source?: string | null;
+  original_filename?: string | null;
+  needs_review?: boolean;
+  confidence?: number | null;
+  /** Quando a venda CHEGOU (a foto foi mandada), não quando foi gravada. */
+  captured_at?: string | null;
+  doc_kind?: string | null;
+  items: Array<{
+    description: string; quantity: number | null; unit_price: number | null;
+    net_amount: number | null; vat_rate: number | null; vat_amount: number | null;
+  }>;
+}
+
+/**
+ * Uma venda LIDA DE DOCUMENTO: guarda o arquivo, o cabeçalho e as linhas.
+ *
+ * Separada de `addSalesEntries` (que é digitação e planilha) porque só este
+ * caminho tem documento para guardar — e é justamente o documento que faltava
+ * na venda que entra por foto.
+ *
+ * Sem linha legível no documento, grava UMA linha genérica com o valor e a
+ * alíquota do cabeçalho: sem ela a venda sumiria da apuração por taxa, e o
+ * total por alíquota fecharia menor que o total do período.
+ */
+export async function saveSaleFromDocument(
+  clientId: string, payload: SaleDocPayload, fileBuffer: Buffer | null, ext: string
+): Promise<SalesEntry | null> {
+  if (!payload.entry_date) return null;
+  const id = randomUUID();
+
+  let documentPath: string | null = null;
+  if (fileBuffer) {
+    const safeExt = (ext || "bin").replace(/[^a-z0-9]/gi, "").slice(0, 5) || "bin";
+    const path = `sales/${id}.${safeExt}`;
+    const ct = safeExt === "pdf" ? "application/pdf" : `image/${safeExt === "jpg" ? "jpeg" : safeExt}`;
+    const { error } = await sb().storage.from(BUCKET).upload(path, fileBuffer, { contentType: ct, upsert: true });
+    if (!error) documentPath = path;
+  }
+
+  const row = {
+    id, client_id: clientId,
+    entry_date: payload.entry_date,
+    doc_number: payload.doc_number, customer: payload.customer,
+    net_amount: payload.net_amount, vat_rate: payload.vat_rate,
+    vat_amount: Number((payload.vat_amount || 0).toFixed(2)),
+    document_path: documentPath,
+    original_filename: payload.original_filename ?? null,
+    source: payload.source ?? null,
+    needs_review: payload.needs_review ?? false,
+    extraction_confidence: payload.confidence ?? null,
+    captured_at: payload.captured_at ?? new Date().toISOString(),
+    doc_kind: payload.doc_kind ?? null,
+  };
+  const { data, error } = await sb().from("sales").insert(row).select().single();
+  if (error) throw error;
+
+  const lines = payload.items.length
+    ? payload.items
+    : [{
+        // A linha genérica do documento sem itens (planilha fotografada,
+        // recibo só com o total). Ver 014_sales_document.sql.
+        description: payload.doc_number ? `Venda ${payload.doc_number}` : "Venda",
+        quantity: null, unit_price: null,
+        net_amount: payload.net_amount, vat_rate: payload.vat_rate,
+        vat_amount: payload.vat_amount,
+      }];
+
+  await sb().from("sales_items").insert(lines.map((l) => ({
+    sale_id: id, description: l.description || "Venda",
+    quantity: l.quantity, unit_price: l.unit_price, net_amount: l.net_amount,
+    vat_rate: l.vat_rate, vat_amount: Number((l.vat_amount || 0).toFixed(2)),
+  })));
+
+  return data as SalesEntry;
 }
 
 // ---------------- Branches / lojas (per client) ----------------
@@ -962,21 +1097,81 @@ export async function deleteBranch(id: string): Promise<boolean> {
 }
 
 // ---------------- Chart of accounts (per client) ----------------
+/**
+ * A FAIXA reservada às contas próprias de um cliente.
+ *
+ * Fora dela, a conta é do escritório e vive no plano partilhado — ver a
+ * migração 033. 9900–9999 fica para contas de sistema (arredondamento), por
+ * isso a faixa do cliente acaba em 9899.
+ */
+export const FAIXA_CLIENTE = { de: "9000", ate: "9899" };
+export const dentroDaFaixaDoCliente = (code: string): boolean =>
+  code >= FAIXA_CLIENTE.de && code <= FAIXA_CLIENTE.ate;
+
 export async function listAccounts(clientId: string): Promise<ChartAccount[]> {
   const { data } = await sb().from("chart_of_accounts").select("*").eq("client_id", clientId).order("code");
   return (data ?? []) as ChartAccount[];
 }
-export async function createAccount(clientId: string, input: Partial<ChartAccount>): Promise<ChartAccount | null> {
+
+/** O plano do ESCRITÓRIO — o que a contabilidade usa de facto. */
+export async function listSharedAccounts(): Promise<ChartAccount[]> {
+  const { data } = await sb().from("chart_of_accounts").select("*").is("client_id", null).order("code");
+  return (data ?? []) as ChartAccount[];
+}
+
+/**
+ * Cria (ou atualiza) uma conta.
+ *
+ * `clientId` nulo grava no plano do escritório. Com cliente, o código tem de
+ * estar na faixa reservada: o banco também o impõe, mas uma mensagem em
+ * português vale mais do que um erro de constraint na cara de quem lança.
+ */
+export async function createAccount(
+  clientId: string | null, input: Partial<ChartAccount>
+): Promise<ChartAccount | null> {
+  const code = (input.code || "").trim();
+  if (!code) return null;
+  if (clientId && !dentroDaFaixaDoCliente(code)) {
+    throw new Error(
+      `Conta própria de cliente tem de estar entre ${FAIXA_CLIENTE.de} e ${FAIXA_CLIENTE.ate}. ` +
+      `Fora dessa faixa a conta é do escritório — crie-a no plano geral.`
+    );
+  }
   const row = {
     client_id: clientId,
-    code: (input.code || "").trim(),
+    code,
     description: (input.description || "").trim(),
     parent_code: input.parent_code?.trim() || null,
+    type: (input as any).type || null,
+    report_group: (input as any).report_group || null,
+    postable: (input as any).postable !== false,
     active: input.active !== false,
   };
-  if (!row.code) return null;
-  const { data, error } = await sb().from("chart_of_accounts")
-    .upsert(row, { onConflict: "client_id,code" }).select().single();
+  /*
+   * Inserir-ou-atualizar à mão, e não `upsert`.
+   *
+   * Os índices únicos da migração 033 são PARCIAIS (`where client_id is null`
+   * e `where client_id is not null`), porque em Postgres dois NULOS não são
+   * iguais e um índice em `(client_id, code)` deixaria o plano do escritório
+   * aceitar o mesmo código duas vezes. O `onConflict` do PostgREST não sabe
+   * mirar num índice parcial: devolve "there is no unique or exclusion
+   * constraint matching the ON CONFLICT specification".
+   *
+   * Procurar primeiro e decidir depois faz o mesmo trabalho e diz a verdade.
+   */
+  const busca = sb().from("chart_of_accounts").select("id").eq("code", code);
+  const { data: existente } = await (clientId
+    ? busca.eq("client_id", clientId)
+    : busca.is("client_id", null)).maybeSingle();
+
+  if (existente) {
+    const { data, error } = await sb().from("chart_of_accounts")
+      .update(row).eq("id", (existente as any).id).select().single();
+    if (error) throw error;
+    return data as ChartAccount;
+  }
+
+  const { data, error } = await sb().from("chart_of_accounts").insert(row).select().single();
   if (error) throw error;
   return data as ChartAccount;
 }
@@ -988,6 +1183,45 @@ export async function updateAccount(id: string, patch: Partial<ChartAccount>): P
 }
 export async function deleteAccount(id: string): Promise<boolean> {
   const { error } = await sb().from("chart_of_accounts").delete().eq("id", id);
+  return !error;
+}
+
+// ---------------- Recurring obligations (manual, per client) ----------------
+export async function listRecurringObligations(clientId: string): Promise<RecurringObligation[]> {
+  const { data } = await sb().from("recurring_obligations").select("*")
+    .eq("client_id", clientId).order("due_date", { ascending: true, nullsFirst: false });
+  return (data ?? []) as RecurringObligation[];
+}
+export async function createRecurringObligation(
+  clientId: string, input: Partial<RecurringObligation>
+): Promise<RecurringObligation | null> {
+  const name = (input.name || "").trim();
+  if (!name) return null;
+  const row = {
+    client_id: clientId,
+    name,
+    category: input.category?.trim() || null,
+    periodicity: input.periodicity?.trim() || null,
+    due_date: input.due_date || null,
+    status: input.status?.trim() || "open",
+    notes: input.notes?.trim() || null,
+  };
+  const { data, error } = await sb().from("recurring_obligations").insert(row).select().single();
+  if (error) throw error;
+  return data as RecurringObligation;
+}
+export async function updateRecurringObligation(
+  id: string, patch: Partial<RecurringObligation>
+): Promise<RecurringObligation | null> {
+  const row: any = { updated_at: new Date().toISOString() };
+  for (const k of ["name", "category", "periodicity", "due_date", "status", "notes"]) {
+    if (k in patch) row[k] = (patch as any)[k];
+  }
+  const { data } = await sb().from("recurring_obligations").update(row).eq("id", id).select().maybeSingle();
+  return (data as RecurringObligation) ?? null;
+}
+export async function deleteRecurringObligation(id: string): Promise<boolean> {
+  const { error } = await sb().from("recurring_obligations").delete().eq("id", id);
   return !error;
 }
 export async function bulkImportAccounts(clientId: string, rows: Array<{ code: string; description: string; parent_code?: string | null }>): Promise<number> {
@@ -1041,7 +1275,7 @@ export async function listAppUsers(companyId?: string | null): Promise<AppUser[]
 
 export async function createAppUser(input: {
   email: string; name: string | null; password_hash: string; role: string;
-  company_id?: string | null;
+  company_id?: string | null; screen_access?: string[] | null;
 }): Promise<AppUser> {
   const { data, error } = await sb().from("app_users").insert({
     email: input.email.toLowerCase().trim(),
@@ -1049,6 +1283,7 @@ export async function createAppUser(input: {
     password_hash: input.password_hash,
     role: input.role,
     company_id: input.company_id ?? null,
+    screen_access: input.screen_access ?? null,
     active: true,
     must_change: false,
   }).select().single();
@@ -1058,10 +1293,10 @@ export async function createAppUser(input: {
 
 export async function updateAppUser(
   id: string,
-  patch: Partial<Pick<AppUser, "name" | "role" | "active">> & { password_hash?: string }
+  patch: Partial<Pick<AppUser, "name" | "role" | "active" | "screen_access">> & { password_hash?: string }
 ): Promise<AppUser | null> {
   const row: any = {};
-  for (const k of ["name", "role", "active", "password_hash"]) {
+  for (const k of ["name", "role", "active", "password_hash", "screen_access"]) {
     if (k in patch) row[k] = (patch as any)[k];
   }
   if (!Object.keys(row).length) return null;
@@ -1080,13 +1315,33 @@ export async function findAppUserByEmail(email: string): Promise<AppUser | null>
 }
 
 // ---------------- Stats ----------------
-export async function stats(clientId?: string, allowedClientIds?: string[] | null) {
+/**
+ * Os números do painel.
+ *
+ * `year` é o exercício fiscal escolhido na barra do topo. Quando vem, corta
+ * notas e vendas pela data do documento — e é isso que faz o seletor do topo
+ * significar alguma coisa no painel primário, que até aqui somava o histórico
+ * inteiro e não reagia a ele.
+ *
+ * Sem `year` continua a somar tudo: a contagem de clientes, itens e catálogo
+ * não tem data e não deve encolher por causa do ano escolhido.
+ */
+export async function stats(
+  clientId?: string, allowedClientIds?: string[] | null, year?: number
+) {
   let iq = sb().from("invoices").select("id,total_gross,total_credit,needs_review");
   if (clientId) iq = iq.eq("client_id", clientId);
   else if (allowedClientIds) iq = iq.in("client_id", allowedClientIds.length ? allowedClientIds : ["00000000-0000-0000-0000-000000000000"]);
   let sq = sb().from("sales").select("net_amount,vat_amount");
   if (clientId) sq = sq.eq("client_id", clientId);
   else if (allowedClientIds) sq = sq.in("client_id", allowedClientIds.length ? allowedClientIds : ["00000000-0000-0000-0000-000000000000"]);
+
+  if (year) {
+    const de = `${year}-01-01`;
+    const ate = `${year}-12-31`;
+    iq = iq.gte("invoice_date", de).lte("invoice_date", ate);
+    sq = sq.gte("entry_date", de).lte("entry_date", ate);
+  }
 
   const [{ data: invs }, { data: sales }, { count: clientsCount }, { count: itemsCount }, { count: masterCount }] =
     await Promise.all([

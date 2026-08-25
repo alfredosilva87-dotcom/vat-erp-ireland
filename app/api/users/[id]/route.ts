@@ -2,13 +2,23 @@ import { NextRequest, NextResponse } from "next/server";
 import bcrypt from "bcryptjs";
 import { requireRole } from "@/lib/auth";
 import { updateAppUser, deleteAppUser } from "@/lib/store";
+import { sanitizePermIds } from "@/lib/permissions";
 
 export const runtime = "nodejs";
 
 const safe = (u: any) => ({
   id: u.id, email: u.email, name: u.name, role: u.role,
-  active: u.active, created_at: u.created_at,
+  active: u.active, created_at: u.created_at, screen_access: u.screen_access ?? null,
 });
+
+/** Ver a gêmea em app/api/users/route.ts para por que lista vazia vira `null`. */
+function parseScreenAccess(body: any): string[] | null | undefined {
+  if (!("screen_access" in body)) return undefined;
+  if (body.screen_access === null) return null;
+  if (!Array.isArray(body.screen_access)) return undefined;
+  const ids = sanitizePermIds(body.screen_access);
+  return ids.length ? ids : null;
+}
 
 export async function PATCH(req: NextRequest, { params }: { params: { id: string } }) {
   const guard = await requireRole("admin");
@@ -19,6 +29,8 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
 
   if ("name" in body) patch.name = body.name ? String(body.name) : null;
   if ("active" in body) patch.active = !!body.active;
+  const screenAccess = parseScreenAccess(body);
+  if (screenAccess !== undefined) patch.screen_access = screenAccess;
 
   if ("role" in body) {
     const role = ["user", "admin", "master"].includes(body.role) ? body.role : null;
