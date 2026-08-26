@@ -101,29 +101,29 @@ export default function Reconcile({ params }: { params: { id: string; accountId:
   const gap = balance ? Number((balance.statement_balance - balance.system_balance).toFixed(2)) : 0;
 
   /*
-   * A DIFERENÇA decomposta, e não um número vermelho sozinho.
+   * A DIFERENÇA decomposta — e o que ela NÃO consegue detectar.
    *
-   * Antes o topo mostrava só "Diferença € -3.533,74" a vermelho. Está certo, e
-   * não diz nada: enquanto houver linhas por conciliar e pagamentos em aberto,
-   * uma diferença é o estado NORMAL — ela existe justamente porque há trabalho
-   * por fazer. Marcar isso a vermelho todos os dias ensina a ignorar o número,
-   * e depois ninguém repara no dia em que ele significa mesmo alguma coisa.
+   * Antes o topo mostrava só "Diferença € -3.533,74" a vermelho. Está certa, e
+   * não diz nada: com linhas por conciliar e pagamentos em aberto, uma
+   * diferença é o estado NORMAL — existe porque há trabalho por fazer. Marcar
+   * isso a vermelho todos os dias ensina a ignorar o número.
    *
-   * A conta é a mesma do relatório de fechamento (`lib/closingReport.ts`):
+   * ATENÇÃO ao que isto é e ao que não é. O saldo do extrato aqui NÃO vem do
+   * banco: é calculado a partir das linhas que foram importadas. Logo
    *
-   *   explicada = (o que falta conciliar) − (o que está lançado e o extrato
-   *               ainda não mostrou)
+   *   saldo extrato − saldo sistema  ≡  (por conciliar) − (lançados sem linha)
    *
-   * O que sobra depois disso é a parte que NENHUMA pendência justifica — e
-   * essa sim é sinal de erro: uma linha que nunca foi importada, ou um
-   * movimento lançado que não devia existir.
+   * é uma identidade, não uma verificação — bate sempre, por construção. Uma
+   * linha que nunca foi importada muda os dois lados na mesma medida e não
+   * aparece aqui.
+   *
+   * Quem apanha isso é o FECHAMENTO, onde se digita o saldo que está no
+   * extrato de papel e se compara com o calculado. É a única vez que entra no
+   * sistema um número que não saiu dele próprio.
    */
   const r2 = (n: number) => Number(n.toFixed(2));
   const totalPorConciliar = r2(pending.reduce((s, p) => s + Number(p.line.amount || 0), 0));
   const totalEmAberto = r2(outstanding.reduce((s, t) => s + Number(t.amount || 0), 0));
-  const explicada = r2(totalPorConciliar - totalEmAberto);
-  const inexplicada = r2(gap - explicada);
-  const tudoExplicado = Math.abs(inexplicada) <= 0.01;
 
   return (
     <div className="space-y-6">
@@ -141,26 +141,16 @@ export default function Reconcile({ params }: { params: { id: string; accountId:
       <div className="card grid gap-px overflow-hidden bg-line sm:grid-cols-4">
         <Stat label="Saldo do extrato" value={`€ ${money(balance?.statement_balance)}`} />
         <Stat label="Saldo no sistema" value={`€ ${money(balance?.system_balance)}`} accent />
-        <Stat label="Diferença" value={`€ ${money(gap)}`} danger={!tudoExplicado} />
+        <Stat label="Diferença" value={`€ ${money(gap)}`} />
         <Stat label="Por conciliar" value={String(pending.length)} />
       </div>
 
       {/* De onde vem a diferença — ver o comentário no cálculo acima. */}
       {gap !== 0 && (
-        <div className={`card border-l-4 p-4 ${tudoExplicado ? "border-l-ok" : "border-l-danger"}`}>
+        <div className="card border-l-4 border-l-brand p-4">
           <p className="text-sm">
-            {tudoExplicado ? (
-              <>
-                <span className="chip-ok mr-2">diferença explicada</span>
-                Ela é inteiramente o trabalho que falta — nada aqui indica erro.
-              </>
-            ) : (
-              <>
-                <span className="chip-danger mr-2">€ {money(inexplicada)} sem explicação</span>
-                Esta parte <strong>nenhuma pendência justifica</strong>. Costuma ser uma linha do
-                extrato que nunca foi importada, ou um movimento lançado aqui que não devia existir.
-              </>
-            )}
+            A diferença é o <strong>trabalho que falta</strong>, e não um erro: são as linhas por
+            conciliar menos os pagamentos já lançados que o extrato ainda não mostrou.
           </p>
           <div className="mt-2 flex flex-wrap gap-5 font-mono text-sm tabular-nums">
             <span className="text-muted">
@@ -170,18 +160,18 @@ export default function Reconcile({ params }: { params: { id: string; accountId:
               Lançados sem extrato ({outstanding.length}) <b className="text-ink">€ {money(totalEmAberto)}</b>
             </span>
             <span className="text-muted">
-              Explicam <b className="text-ink">€ {money(explicada)}</b> dos € {money(gap)}
+              Diferença <b className="text-ink">€ {money(gap)}</b>
             </span>
           </div>
+          <p className="mt-2 text-xs text-muted">
+            Esta conta fecha sempre, porque o saldo do extrato aqui é calculado a partir das linhas
+            importadas — não vem do banco. Para saber se falta alguma linha, use o{" "}
+            <Link className="underline" href={`/clients/${params.id}/bank/${params.accountId}/closing`}>
+              fechamento
+            </Link>
+            : é lá que se digita o saldo do extrato de papel e se compara com o calculado.
+          </p>
         </div>
-      )}
-
-      {msg && (
-        <p className={msg.error
-          ? "rounded-lg bg-danger/10 px-3 py-2 text-sm text-danger"
-          : "text-sm text-brand-700"}>
-          {msg.error ? "⚠ " : ""}{msg.text}
-        </p>
       )}
 
       <section className="space-y-3">
