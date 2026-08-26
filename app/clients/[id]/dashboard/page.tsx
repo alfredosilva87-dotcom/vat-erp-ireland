@@ -8,6 +8,7 @@ import { useT } from "@/lib/i18n";
 import { getExercise, defaultExercise, EXERCISE_EVENT } from "@/lib/exercise";
 import { ORIGINS } from "@/lib/origin";
 import type { StoredInvoice } from "@/lib/types";
+import AgingPanel from "@/components/financial/AgingPanel";
 
 type Kpis = {
   salesGross: number; salesVat: number; purchaseGross: number;
@@ -128,6 +129,10 @@ export default function ClientDashboard({ params }: { params: { id: string } }) 
         ao fornecedor. Só aparece quando há nota no ano: uma fileira de zeros
         num cliente novo não informa nada e ainda ocupa o topo do painel.
       */}
+      {/* Dinheiro a entrar e a sair — ver components/financial/AgingPanel.tsx.
+          O painel mostrava imposto e faturação e não mostrava dinheiro. */}
+      <AgingPanel clientId={params.id} />
+
       {bySource && Object.values(bySource).some((n) => n > 0) && (
         <section className="card p-5">
           <h3 className="font-display text-lg font-semibold">{t("dash.originTitle")}</h3>

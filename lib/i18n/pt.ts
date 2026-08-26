@@ -1245,6 +1245,21 @@ const pt: Dict = {
   "unposted.sem_valor": "Sem valor — a leitura falhou; corrija o documento",
   "unposted.data_futura": "Data no futuro — lança quando a data chegar",
   "unposted.devolvido": "Devolvido ou falhou — contabilize de novo depois de corrigir",
+  "aging.title": "Dinheiro a entrar e a sair",
+  "aging.receivable": "A receber",
+  "aging.payable": "A pagar",
+  "aging.openItems": "título(s) em aberto",
+  "aging.overdue": "vencido",
+  "aging.next30": "vence em 30 dias",
+  "aging.partialChip": "parcialmente pago(s)",
+  "aging.partialsTitle": "Parcialmente pagos",
+  "aging.partialsHelp": "Alguém pagou parte e parou — são estes que se vai cobrar",
+  "aging.colDoc": "Documento",
+  "aging.colDue": "Vencimento",
+  "aging.colDue2": "Devido",
+  "aging.colPaid": "Pago",
+  "aging.colOpen": "Em aberto",
+  "aging.colProgress": "Andamento",
 };
 
 export default pt;

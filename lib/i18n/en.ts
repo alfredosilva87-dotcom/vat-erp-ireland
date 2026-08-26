@@ -1244,6 +1244,21 @@ const en = {
   "unposted.sem_valor": "No amount — the reading failed; fix the document",
   "unposted.data_futura": "Dated in the future — it posts when the date arrives",
   "unposted.devolvido": "Returned or failed — post again after fixing it",
+  "aging.title": "Money in and out",
+  "aging.receivable": "To receive",
+  "aging.payable": "To pay",
+  "aging.openItems": "open item(s)",
+  "aging.overdue": "overdue",
+  "aging.next30": "next 30 days",
+  "aging.partialChip": "partly paid",
+  "aging.partialsTitle": "Partly paid",
+  "aging.partialsHelp": "Someone paid part and stopped — these are the ones to chase",
+  "aging.colDoc": "Document",
+  "aging.colDue": "Due",
+  "aging.colDue2": "Owed",
+  "aging.colPaid": "Paid",
+  "aging.colOpen": "Still open",
+  "aging.colProgress": "Progress",
 } as const;
 
 export type Dict = Record<keyof typeof en, string>;
