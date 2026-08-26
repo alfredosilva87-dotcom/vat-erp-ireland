@@ -1260,6 +1260,17 @@ const pt: Dict = {
   "aging.colPaid": "Pago",
   "aging.colOpen": "Em aberto",
   "aging.colProgress": "Andamento",
+  "client.tabCheckup": "Verificação",
+  "checkup.title": "Verificação",
+  "checkup.subtitle": "Tudo o que não fecha neste cliente, num sítio só",
+  "checkup.run": "Correr de novo",
+  "checkup.running": "A correr…",
+  "checkup.allGood": "tudo certo",
+  "checkup.toLookAt": "para olhar",
+  "checkup.allGoodHelp": "Todas as verificações passaram. Os números deste cliente sustentam-se.",
+  "checkup.problemsHelp": "Comece por cima — o que falhou vem primeiro.",
+  "checkup.ranAt": "Corrido às",
+  "checkup.none": "Nada a mostrar.",
 };
 
 export default pt;

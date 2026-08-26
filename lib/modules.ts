@@ -74,6 +74,12 @@ export const MODULES: ModuleDef[] = [
       // FECHO e olha o exercício; esta é de CONCILIAÇÃO e olha uma janela de
       // datas, uma conta de cada vez.
       { seg: "ledger", key: "client.tabLedger" },
+      /*
+       * A varredura a pedido. Mora aqui e não no Financeiro porque a pergunta
+       * que responde é contábil — "posso confiar nos números deste cliente?" —
+       * e é o que se corre antes de fechar o mês ou entregar uma declaração.
+       */
+      { seg: "checkup", key: "client.tabCheckup" },
     ],
   },
   {

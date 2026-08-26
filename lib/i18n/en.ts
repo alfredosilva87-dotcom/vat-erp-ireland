@@ -1259,6 +1259,17 @@ const en = {
   "aging.colPaid": "Paid",
   "aging.colOpen": "Still open",
   "aging.colProgress": "Progress",
+  "client.tabCheckup": "Health check",
+  "checkup.title": "Health check",
+  "checkup.subtitle": "Everything that does not add up in this client, in one place",
+  "checkup.run": "Run again",
+  "checkup.running": "Running…",
+  "checkup.allGood": "all clear",
+  "checkup.toLookAt": "to look at",
+  "checkup.allGoodHelp": "Every check passed. The numbers of this client hold together.",
+  "checkup.problemsHelp": "Start at the top — the checks that failed come first.",
+  "checkup.ranAt": "Ran at",
+  "checkup.none": "Nothing to show.",
 } as const;
 
 export type Dict = Record<keyof typeof en, string>;
