@@ -342,6 +342,40 @@ export async function undoLine(
   const locked = await lineLockError(accountId, lineId);
   if (locked) return { ok: false, affected: 0, error: locked };
 
+  /*
+   * Se o movimento já deu BAIXA num título, refazer aqui não chega.
+   *
+   * `bank_transactions` era apagada e a linha voltava à fila — mas a linha de
+   * `ledger_settlements` ficava (a FK é `on delete set null`, não cascade) e a
+   * partida no razão também. O resultado: contas a pagar continuava a dizer
+   * "pago", o razão continuava com DR fornecedores / CR banco de um movimento
+   * que já não existe, e a nota voltava a aparecer como candidata na
+   * conciliação. Conciliá-la outra vez fazia o gatilho recusar com "baixa
+   * excede o título", e essa transação passava a sujar TODOS os backfills
+   * seguintes, sem saída pela interface.
+   *
+   * Recusar é o certo, e não desfazer a baixa por conta própria: a baixa é uma
+   * decisão contábil, e desfazê-la a partir do ecrã do banco escondia dela
+   * quem a tomou. O painel do título tem o botão que faz isso e sabe também
+   * apagar a partida.
+   */
+  const { data: movimentos } = await sb().from("bank_transactions")
+    .select("id").eq("statement_line_id", lineId).eq("bank_account_id", accountId);
+  const ids = ((movimentos ?? []) as any[]).map((m) => m.id);
+  if (ids.length) {
+    const { data: baixas } = await sb().from("ledger_settlements")
+      .select("id,ledger_item_id").in("bank_transaction_id", ids);
+    const n = ((baixas ?? []) as any[]).length;
+    if (n) {
+      return {
+        ok: false, affected: 0,
+        error: `Este movimento já deu baixa em ${n} título(s). `
+          + "Desfaça a baixa no painel do título, em contas a pagar/receber — ela apaga também a "
+          + "partida no razão. Refazer aqui deixaria o título a dizer que está pago.",
+      };
+    }
+  }
+
   const { data } = await sb().from("bank_transactions").delete()
     .eq("statement_line_id", lineId).eq("bank_account_id", accountId).select("id");
   await sb().from("bank_statement_lines")

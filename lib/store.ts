@@ -1216,15 +1216,52 @@ export async function createAccount(
   if (error) throw error;
   return data as ChartAccount;
 }
-export async function updateAccount(id: string, patch: Partial<ChartAccount>): Promise<ChartAccount | null> {
+export async function updateAccount(
+  id: string, patch: Partial<ChartAccount>, clientId?: string | null
+): Promise<ChartAccount | null> {
   const row: any = {};
   for (const k of ["code", "description", "parent_code", "active"]) if (k in patch) row[k] = (patch as any)[k];
-  const { data } = await sb().from("chart_of_accounts").update(row).eq("id", id).select().maybeSingle();
+  let q = sb().from("chart_of_accounts").update(row).eq("id", id);
+  // Passando `clientId`, a conta tem de ser DELE. Sem isto, o id de uma conta
+  // do plano partilhado — que a rota do cliente devolve em `ledgerAccounts` —
+  // alterava a conta de TODOS os clientes da base.
+  if (clientId) q = q.eq("client_id", clientId);
+  const { data } = await q.select().maybeSingle();
   return (data as ChartAccount) ?? null;
 }
-export async function deleteAccount(id: string): Promise<boolean> {
+
+/**
+ * Apaga uma conta do plano — se ela não tiver movimento.
+ *
+ * O gatilho `journal_conferir` exige que a conta exista no plano, mas só
+ * dispara em `journal_lines`: apagar a conta por baixo de lançamentos que já
+ * a usam passa sem queixa. E o `trial_balance` faz `left join`, então a linha
+ * fica com `type` nulo e é **descartada** do balancete, do DRE e do balanço
+ * (ver `lib/accounting/query.ts`). O lançamento continua lá, balanceado, e
+ * metade dele deixa de ser contada: o balanço passa a não fechar por esse
+ * valor, e o rodapé mostra uma diferença sem causa apontável.
+ */
+export async function deleteAccount(
+  id: string, clientId?: string | null
+): Promise<{ ok: boolean; erro?: string }> {
+  let q = sb().from("chart_of_accounts").select("id,code,client_id").eq("id", id);
+  if (clientId) q = q.eq("client_id", clientId);
+  const { data: conta } = await q.maybeSingle();
+  if (!conta) return { ok: false, erro: "Conta não encontrada neste cliente." };
+
+  const { count } = await sb().from("journal_lines")
+    .select("id", { count: "exact", head: true }).eq("account_code", (conta as any).code);
+  if (count && count > 0) {
+    return {
+      ok: false,
+      erro: `A conta ${(conta as any).code} tem ${count} partida(s) no razão. `
+        + "Desative-a em vez de a apagar — apagar deixaria esses lançamentos fora do balancete, "
+        + "e o balanço passaria a não fechar por esse valor.",
+    };
+  }
+
   const { error } = await sb().from("chart_of_accounts").delete().eq("id", id);
-  return !error;
+  return error ? { ok: false, erro: error.message } : { ok: true };
 }
 
 // ---------------- Recurring obligations (manual, per client) ----------------

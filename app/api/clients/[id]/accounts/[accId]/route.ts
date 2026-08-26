@@ -10,7 +10,8 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
   if (denied(access)) return access.error;
 
   const body = await req.json();
-  const account = await updateAccount(params.accId, body || {});
+  // Escopado ao cliente: ver updateAccount.
+  const account = await updateAccount(params.accId, body || {}, params.id);
   return NextResponse.json({ account });
 }
 
@@ -23,6 +24,8 @@ export async function DELETE(_req: NextRequest, { params }: { params: { id: stri
   const guard = await requireRole("admin");
   if ("error" in guard) return guard.error;
 
-  const ok = await deleteAccount(params.accId);
+  const r = await deleteAccount(params.accId, params.id);
+  if (!r.ok) return NextResponse.json({ error: r.erro }, { status: 409 });
+  const ok = true;
   return NextResponse.json({ ok });
 }

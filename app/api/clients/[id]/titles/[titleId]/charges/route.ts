@@ -84,11 +84,30 @@ export async function DELETE(req: NextRequest, { params }: { params: { id: strin
     .select("id").eq("id", params.titleId).eq("client_id", params.id).maybeSingle();
   if (!dono) return NextResponse.json({ error: "Not found." }, { status: 404 });
 
+  /*
+   * O ENCARGO tem de ser deste titulo — e nao so o titulo deste cliente.
+   *
+   * Antes, o `chargeId` vinha da query string e ia direto para
+   * `descontabilizarEncargo`, que apaga a partida por `document_id` SEM filtro
+   * de cliente. Bastava passar o id de um encargo de outra empresa para lhe
+   * apagar a partida do razao: o encargo dela sobrevivia (o delete abaixo esta
+   * escopado), o valor em aberto continuava a conta-lo, e o razao ficava a
+   * menos exactamente o valor do juro. A resposta era `{ok:true}`.
+   *
+   * O mesmo acontecia por engano dentro do mesmo cliente, com um id de outro
+   * titulo.
+   */
+  const { data: encargo } = await sb.from("ledger_charges")
+    .select("id").eq("id", chargeId).eq("ledger_item_id", params.titleId).maybeSingle();
+  if (!encargo) return NextResponse.json({ error: "Not found." }, { status: 404 });
+
   // O lancamento sai ANTES da linha: apagar o encargo primeiro deixaria uma
   // partida no razao sem nada que a explique.
   await descontabilizarEncargo(chargeId);
-  const { error } = await sb.from("ledger_charges")
-    .delete().eq("id", chargeId).eq("ledger_item_id", params.titleId);
+  const { error, data: apagados } = await sb.from("ledger_charges")
+    .delete().eq("id", chargeId).eq("ledger_item_id", params.titleId).select("id");
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
-  return NextResponse.json({ ok: true });
+  // Contador que bate com o que foi feito: `{ok:true}` tendo apagado zero
+  // linhas e uma mentira barata que custa caro a diagnosticar.
+  return NextResponse.json({ ok: true, removidos: ((apagados ?? []) as any[]).length });
 }
