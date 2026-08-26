@@ -115,7 +115,26 @@ export async function postInvoice(
   invoiceId: string, userId?: string | null
 ): Promise<ResultadoLancamento> {
   const existente = await jaContabilizado("purchase", invoiceId);
-  if (existente) return { journalId: existente, jaExistia: true };
+  if (existente) {
+    /*
+     * Documento JÁ contabilizado ainda assim garante o título.
+     *
+     * Sair aqui a dizer "já existe" assume que lançamento e título nascem sempre
+     * juntos. Não nascem: basta o título ter falhado na primeira vez — por um
+     * defeito, ou porque a integração de pagar/receber estava desligada nesse dia
+     * — para o documento ficar com partida no razão e nada na lista.
+     *
+     * Esse estado não se corrige sozinho: contabilizar de novo salta o documento
+     * exactamente por já ter lançamento, e o título nunca aparece. O sintoma é a
+     * conta de controlo a não bater com o aging, sem nada no ecrã a dizer qual
+     * documento falta — foi o caso da venda 010169 em 2026-08-26.
+     *
+     * `garantirTitulo*` é idempotente, então chamá-lo aqui não custa nada quando
+     * o título já existe.
+     */
+    await garantirTituloDeCompra(invoiceId, existente);
+    return { journalId: existente, jaExistia: true };
+  }
 
   const { data: nota } = await sb().from("invoices")
     .select("id,client_id,supplier_name,supplier_vat,invoice_number,invoice_date,posting_date,total_gross")
@@ -179,7 +198,11 @@ export async function postSaleDoc(
   saleId: string, userId?: string | null
 ): Promise<ResultadoLancamento> {
   const existente = await jaContabilizado("sale", saleId);
-  if (existente) return { journalId: existente, jaExistia: true };
+  if (existente) {
+    // Mesma razão do lado da compra — ver o comentário em `postInvoice`.
+    await garantirTituloDeVenda(saleId, existente);
+    return { journalId: existente, jaExistia: true };
+  }
 
   const { data: venda } = await sb().from("sales")
     .select("id,client_id,customer,doc_number,entry_date,net_amount,vat_amount,vat_rate,account_code")
