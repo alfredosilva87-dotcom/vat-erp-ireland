@@ -70,8 +70,44 @@ export async function DELETE(req: NextRequest, { params }: { params: { id: strin
 
   await sb.from("ledger_settlements").delete().eq("id", settlementId);
   if (b.journal_id) await sb.from("journal").delete().eq("id", b.journal_id);
+
+  /*
+   * O movimento no banco sai — mas COMO depende de onde ele veio.
+   *
+   * Há dois tipos, e tratá-los igual estraga um deles:
+   *
+   *   FABRICADO por esta app (`baixarPeloBanco`, sem `statement_line_id`).
+   *   Nasceu com a baixa e não corresponde a nada no extrato. Desfeita a
+   *   baixa, ele deixa de representar o que quer que seja: apaga-se.
+   *
+   *   VINDO DO EXTRATO (`statement_line_id` preenchido). O dinheiro MEXEU
+   *   mesmo — está no extrato do banco, e nenhuma decisão aqui desfaz isso.
+   *   Apagá-lo e deixar a linha do extrato marcada como conciliada era o pior
+   *   dos dois: o movimento sumia da contabilidade e a linha continuava a
+   *   dizer que já tinha sido tratada, então nunca mais aparecia na fila de
+   *   conciliação. O dinheiro ficava invisível dos dois lados.
+   *
+   * Por isso a linha do extrato VOLTA para "por conciliar": o facto continua
+   * lá, à espera de uma decisão nova.
+   */
   if (b.bank_transaction_id) {
+    const { data: txn } = await sb.from("bank_transactions")
+      .select("id,statement_line_id").eq("id", b.bank_transaction_id)
+      .eq("client_id", params.id).maybeSingle();
+    const linha = (txn as any)?.statement_line_id ?? null;
+
     await sb.from("bank_transactions").delete().eq("id", b.bank_transaction_id).eq("client_id", params.id);
+
+    if (linha) {
+      // Só devolve a linha à fila se mais nenhum movimento a reclamar — uma
+      // linha dividida em várias partes continua conciliada pelas outras.
+      const { count } = await sb.from("bank_transactions")
+        .select("id", { count: "exact", head: true }).eq("statement_line_id", linha);
+      if (!count) {
+        await sb.from("bank_statement_lines")
+          .update({ status: "unreconciled", reconciled_at: null }).eq("id", linha);
+      }
+    }
   }
   return NextResponse.json({ ok: true });
 }

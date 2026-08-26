@@ -263,7 +263,11 @@ export default function SaleReview({ params }: { params: { id: string; saleId: s
         </table>
       </div>
 
-      <IntegrationTrace rastro={integration} clientId={params.id} origem="sale" />
+      <IntegrationTrace
+        rastro={integration} clientId={params.id} origem="sale"
+        documentId={params.saleId}
+        aoDevolver={async () => { await load(); setMsg("Documento devolvido: saiu de contas a receber e do razão."); }}
+      />
     </div>
   );
 }

@@ -1,5 +1,6 @@
 "use client";
 
+import { useState } from "react";
 import Link from "next/link";
 import { eur } from "@/components/financial/tipos";
 
@@ -55,12 +56,19 @@ const CHIP: Record<string, string> = {
 };
 
 export default function IntegrationTrace({
-  rastro, clientId, origem,
+  rastro, clientId, origem, documentId, aoDevolver,
 }: {
   rastro: Rastro | null;
   clientId: string;
   origem: "purchase" | "sale";
+  /** Sem ele não há Devolver — a ação precisa de saber o que devolver. */
+  documentId?: string;
+  /** Chamado depois de devolver, para a tela recarregar o rastro. */
+  aoDevolver?: () => void | Promise<void>;
 }) {
+  const [devolvendo, setDevolvendo] = useState(false);
+  const [erro, setErro] = useState<string | null>(null);
+
   if (!rastro) return null;
 
   const lado = origem === "purchase" ? "payable" : "receivable";
@@ -86,6 +94,56 @@ export default function IntegrationTrace({
           <p className="text-xs text-muted"><span className="chip mr-2">sem lançamento</span></p>
         )}
       </div>
+
+      {/*
+        * DEVOLVER — o inverso da integração.
+        *
+        * Vive aqui, ao lado do que desfaz, e não numa tela de administração:
+        * quem descobre que o documento está errado está a olhar para ele.
+        *
+        * Só aparece quando há o que devolver. Um botão sempre visível que na
+        * maior parte das vezes responde "não há nada a devolver" ensina a
+        * ignorá-lo.
+        */}
+      {documentId && (rastro.posted || rastro.titles.length > 0) && (
+        <div className="mt-3 flex flex-wrap items-center gap-3">
+          <button
+            className="btn-ghost h-8 px-3 text-xs text-danger"
+            disabled={devolvendo}
+            onClick={async () => {
+              if (!confirm(
+                "Devolver este documento?\n\n" +
+                "Sai de contas a pagar/receber e do razão, e volta ao estado de não integrado. " +
+                "O documento em si fica intacto, e pode ser corrigido e contabilizado de novo."
+              )) return;
+              setDevolvendo(true);
+              setErro(null);
+              try {
+                const r = await fetch(`/api/clients/${clientId}/documents/${documentId}/devolver`, {
+                  method: "POST",
+                  headers: { "Content-Type": "application/json" },
+                  body: JSON.stringify({ origem }),
+                });
+                const j = await r.json();
+                // 409 = há baixa ou encargo por desfazer. A mensagem do
+                // servidor diz o quê e por que ordem — mostrá-la crua é melhor
+                // do que traduzi-la para um "não foi possível".
+                if (!r.ok) { setErro(j.error || "Não deu para devolver."); return; }
+                await aoDevolver?.();
+              } finally {
+                setDevolvendo(false);
+              }
+            }}
+          >
+            {devolvendo ? "A devolver…" : "Devolver documento"}
+          </button>
+          <span className="text-xs text-muted">
+            Tira de contas a {origem === "purchase" ? "pagar" : "receber"} e do razão, para poder corrigir.
+          </span>
+        </div>
+      )}
+
+      {erro && <p className="mt-2 text-sm text-danger">{erro}</p>}
 
       {nada ? (
         /*

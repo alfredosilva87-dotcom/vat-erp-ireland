@@ -526,7 +526,15 @@ export default function InvoiceEdit({ params }: { params: { id: string } }) {
       </div>
 
       {inv.client_id && (
-        <IntegrationTrace rastro={integration} clientId={String(inv.client_id)} origem="purchase" />
+        <IntegrationTrace
+          rastro={integration} clientId={String(inv.client_id)} origem="purchase"
+          documentId={inv.id}
+          aoDevolver={async () => {
+            const fresh = await refreshHistory();
+            setInv(fresh.invoice);
+            setMsg("Documento devolvido: saiu de contas a pagar e do razão.");
+          }}
+        />
       )}
 
       <InvoiceHistory
