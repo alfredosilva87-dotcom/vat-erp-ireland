@@ -139,6 +139,46 @@ export default function ReconcileRow({
               ))}
             </ul>
 
+            {/*
+              * O QUE CONFIRMAR VAI FAZER, em números, antes de se clicar.
+              *
+              * O ecrã mostrava o valor da linha de um lado e o em aberto do
+              * documento do outro, e deixava a subtracção para a cabeça de
+              * quem confere. Quando os dois são iguais não custa nada; quando
+              * são diferentes — pagamento parcial, ou o documento errado — é
+              * exactamente aí que a conta importa e é aí que ninguém a faz.
+              *
+              * Sobra > 0 é pagamento parcial, e é normal. Sobra < 0 é a linha
+              * a pagar MAIS do que o documento deve: ou não é este documento,
+              * ou faltam encargos lançados. Essa merece vermelho.
+              */}
+            {(() => {
+              const paga = Math.abs(Number(item.line.amount) || 0);
+              const devido = Math.abs(Number(chosen.candidate.outstanding) || 0);
+              const sobra = Math.round((devido - paga) * 100) / 100;
+              if (Math.abs(sobra) <= 0.01) {
+                return (
+                  <p className="rounded-lg bg-success-50 px-3 py-2 text-xs text-success">
+                    Confirmar liquida o documento por inteiro: € {money(paga)} de € {money(devido)}.
+                  </p>
+                );
+              }
+              if (sobra > 0) {
+                return (
+                  <p className="rounded-lg bg-surface-2 px-3 py-2 text-xs text-muted">
+                    Confirmar baixa <b className="text-ink">€ {money(paga)}</b> dos € {money(devido)} em
+                    aberto. Ficam <b className="text-ink">€ {money(sobra)}</b> por liquidar.
+                  </p>
+                );
+              }
+              return (
+                <p className="rounded-lg bg-danger/10 px-3 py-2 text-xs text-danger">
+                  ⚠ A linha paga € {money(paga)} e o documento só deve € {money(devido)} —
+                  € {money(-sobra)} a mais. Ou não é este documento, ou faltam encargos lançados nele.
+                </p>
+              );
+            })()}
+
             <div className="flex flex-wrap items-center gap-2 pt-1">
               <button className="btn-primary h-9 px-3 text-sm" disabled={busy} onClick={() => confirm(chosen)}>
                 Confirmar

@@ -100,6 +100,31 @@ export default function Reconcile({ params }: { params: { id: string; accountId:
 
   const gap = balance ? Number((balance.statement_balance - balance.system_balance).toFixed(2)) : 0;
 
+  /*
+   * A DIFERENÇA decomposta, e não um número vermelho sozinho.
+   *
+   * Antes o topo mostrava só "Diferença € -3.533,74" a vermelho. Está certo, e
+   * não diz nada: enquanto houver linhas por conciliar e pagamentos em aberto,
+   * uma diferença é o estado NORMAL — ela existe justamente porque há trabalho
+   * por fazer. Marcar isso a vermelho todos os dias ensina a ignorar o número,
+   * e depois ninguém repara no dia em que ele significa mesmo alguma coisa.
+   *
+   * A conta é a mesma do relatório de fechamento (`lib/closingReport.ts`):
+   *
+   *   explicada = (o que falta conciliar) − (o que está lançado e o extrato
+   *               ainda não mostrou)
+   *
+   * O que sobra depois disso é a parte que NENHUMA pendência justifica — e
+   * essa sim é sinal de erro: uma linha que nunca foi importada, ou um
+   * movimento lançado que não devia existir.
+   */
+  const r2 = (n: number) => Number(n.toFixed(2));
+  const totalPorConciliar = r2(pending.reduce((s, p) => s + Number(p.line.amount || 0), 0));
+  const totalEmAberto = r2(outstanding.reduce((s, t) => s + Number(t.amount || 0), 0));
+  const explicada = r2(totalPorConciliar - totalEmAberto);
+  const inexplicada = r2(gap - explicada);
+  const tudoExplicado = Math.abs(inexplicada) <= 0.01;
+
   return (
     <div className="space-y-6">
       <div className="rise">
@@ -116,9 +141,40 @@ export default function Reconcile({ params }: { params: { id: string; accountId:
       <div className="card grid gap-px overflow-hidden bg-line sm:grid-cols-4">
         <Stat label="Saldo do extrato" value={`€ ${money(balance?.statement_balance)}`} />
         <Stat label="Saldo no sistema" value={`€ ${money(balance?.system_balance)}`} accent />
-        <Stat label="Diferença" value={`€ ${money(gap)}`} danger={gap !== 0} />
+        <Stat label="Diferença" value={`€ ${money(gap)}`} danger={!tudoExplicado} />
         <Stat label="Por conciliar" value={String(pending.length)} />
       </div>
+
+      {/* De onde vem a diferença — ver o comentário no cálculo acima. */}
+      {gap !== 0 && (
+        <div className={`card border-l-4 p-4 ${tudoExplicado ? "border-l-ok" : "border-l-danger"}`}>
+          <p className="text-sm">
+            {tudoExplicado ? (
+              <>
+                <span className="chip-ok mr-2">diferença explicada</span>
+                Ela é inteiramente o trabalho que falta — nada aqui indica erro.
+              </>
+            ) : (
+              <>
+                <span className="chip-danger mr-2">€ {money(inexplicada)} sem explicação</span>
+                Esta parte <strong>nenhuma pendência justifica</strong>. Costuma ser uma linha do
+                extrato que nunca foi importada, ou um movimento lançado aqui que não devia existir.
+              </>
+            )}
+          </p>
+          <div className="mt-2 flex flex-wrap gap-5 font-mono text-sm tabular-nums">
+            <span className="text-muted">
+              Por conciliar ({pending.length}) <b className="text-ink">€ {money(totalPorConciliar)}</b>
+            </span>
+            <span className="text-muted">
+              Lançados sem extrato ({outstanding.length}) <b className="text-ink">€ {money(totalEmAberto)}</b>
+            </span>
+            <span className="text-muted">
+              Explicam <b className="text-ink">€ {money(explicada)}</b> dos € {money(gap)}
+            </span>
+          </div>
+        </div>
+      )}
 
       {msg && (
         <p className={msg.error
