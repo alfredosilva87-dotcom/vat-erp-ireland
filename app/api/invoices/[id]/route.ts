@@ -43,10 +43,17 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
   // mudou o valor", que numa auditoria nao vale nada.
   const actor = await getSessionUser();
   // credits-only payload (legacy) vs general header/items edit
-  const data =
-    body?.credits && !body?.header && !body?.items
-      ? await updateInvoiceCredits(params.id, body.credits as Record<string, boolean>)
-      : await updateInvoice(params.id, { header: body?.header, items: body?.items }, actor);
+  let data;
+  try {
+    data =
+      body?.credits && !body?.header && !body?.items
+        ? await updateInvoiceCredits(params.id, body.credits as Record<string, boolean>)
+        : await updateInvoice(params.id, { header: body?.header, items: body?.items }, actor);
+  } catch (e: any) {
+    // 409 e nao 500: o pedido esta bem formado, e o ESTADO do documento que
+    // impede. A mensagem ja diz o que fazer — ver impedimentoParaEditar.
+    return NextResponse.json({ error: e?.message || "Nao deu para gravar." }, { status: 409 });
+  }
   if (!data) return NextResponse.json({ error: "Not found." }, { status: 404 });
   return NextResponse.json(data);
 }

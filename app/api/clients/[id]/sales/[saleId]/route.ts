@@ -4,6 +4,7 @@ import { listSaleItems, deleteSalesEntry } from "@/lib/store";
 import { denied, requireClient } from "@/lib/access";
 import { requireRole } from "@/lib/auth";
 import { rastroDoDocumento } from "@/lib/financial/trace";
+import { impedimentoParaEditar } from "@/lib/financial/devolver";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -47,6 +48,24 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
   const { data: current } = await sb
     .from("sales").select("*").eq("id", params.saleId).eq("client_id", params.id).maybeSingle();
   if (!current) return NextResponse.json({ error: "Not found." }, { status: 404 });
+
+  /*
+   * Num documento integrado, valor e data nao se mexem — mesma razao da nota
+   * de compra, ver `impedimentoParaEditar`. So os campos que MUDAM de facto
+   * contam: reenviar o mesmo numero nao e alteracao.
+   */
+  const mudam = Object.keys(row).filter((k) => {
+    const antes = (current as any)[k];
+    const depois = (row as any)[k];
+    if (antes == null && depois == null) return false;
+    return Number.isFinite(Number(antes)) && Number.isFinite(Number(depois))
+      ? Number(antes) !== Number(depois)
+      : String(antes ?? "") !== String(depois ?? "");
+  });
+  if (mudam.length) {
+    const impedimento = await impedimentoParaEditar(params.id, params.saleId, "sale", mudam);
+    if (impedimento) return NextResponse.json({ error: impedimento }, { status: 409 });
+  }
 
   const net = row.net_amount ?? current.net_amount;
   const rate = row.vat_rate ?? current.vat_rate;

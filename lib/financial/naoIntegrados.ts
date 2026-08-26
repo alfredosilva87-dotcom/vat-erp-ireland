@@ -16,12 +16,11 @@ import { integracoesDo } from "@/lib/integrations";
  * As causas são estas, e cada uma pede uma acção diferente:
  *
  *   por conferir  → alguém tem de olhar e aprovar
- *   integração desligada → é a configuração do cliente, não é defeito
  *   sem valor     → a leitura falhou; corrigir o documento
  *   data futura   → o motor não lança documento que ainda não aconteceu
  *   devolvido     → foi tirado de propósito para correção, e falta reintegrar
- *   erro          → tentou e o motor recusou
  *
+ * O que a configuração do cliente NÃO manda integrar não entra aqui de todo.
  * Juntar "não é defeito" com "erro" na mesma lista faria a lista crescer com
  * coisas que ninguém tem de tratar — e uma lista assim deixa de ser lida.
  * Por isso cada linha diz o motivo, e o motivo diz o que fazer.
@@ -30,7 +29,6 @@ import { integracoesDo } from "@/lib/integrations";
 
 export type MotivoNaoIntegrado =
   | "por_conferir"
-  | "integracao_desligada"
   | "sem_valor"
   | "data_futura"
   | "devolvido";
@@ -80,14 +78,36 @@ export async function documentosNaoIntegrados(clientId: string): Promise<ResumoN
 
   const itens: DocumentoNaoIntegrado[] = [];
 
+  /*
+   * O que se ESPERA deste documento depende da configuração do cliente.
+   *
+   * A primeira versão comparava contra "tem título E tem partida", sempre. Num
+   * cliente com `documents_to_accounting` desligado — que é um caso previsto e
+   * documentado, o cliente que quer só a lista do que deve — nenhum documento
+   * tem partida, por desenho. Resultado: TODOS apareciam nesta tela marcados
+   * como meia-integração, em cartão vermelho, descritos como "estado partido".
+   *
+   * Um cliente configurado correctamente a parecer inteiramente avariado é
+   * pior do que não ter a tela: o alarme que devia apontar as meias-integrações
+   * a sério passa a ser ruído, e quem o vê todos os dias deixa de o ler.
+   *
+   * Por isso a comparação é agora contra o ESPERADO, e não contra um ideal
+   * fixo. Documento que está exactamente como a configuração manda não aparece.
+   */
+  const esperaLancamento = integra.documents_to_accounting;
+
   const avaliar = (
     id: string, origem: "purchase" | "sale", ref: string | null,
     contraparte: string | null, data: string | null, valor: number,
-    conferido: boolean, integracaoLigada: boolean
+    conferido: boolean, esperaTitulo: boolean
   ) => {
     const temTitulo = comTitulo.has(id);
     const temLancamento = comLancamento.has(id);
-    if (temTitulo && temLancamento) return;
+
+    const faltaTitulo = esperaTitulo && !temTitulo;
+    const faltaLancamento = esperaLancamento && !temLancamento;
+    // Está como devia estar — incluindo o cliente que não integra nada.
+    if (!faltaTitulo && !faltaLancamento) return;
 
     /*
      * A ordem das causas importa: a primeira que responder é a que se mostra,
@@ -96,17 +116,21 @@ export async function documentosNaoIntegrados(clientId: string): Promise<ResumoN
      * não olhou.
      */
     let motivo: MotivoNaoIntegrado;
-    if (!integracaoLigada) motivo = "integracao_desligada";
-    else if (!conferido) motivo = "por_conferir";
+    if (!conferido) motivo = "por_conferir";
     else if (data && data > hoje) motivo = "data_futura";
     else if (valor <= 0) motivo = "sem_valor";
     else motivo = "devolvido";
 
     itens.push({
       id, origem, documentRef: ref, contraparte, data, valor, motivo,
-      // Um lado sem o outro é meia-integração — o estado que a conciliação da
-      // conta de controlo acusa sem conseguir dizer de onde vem.
-      meiaIntegracao: temTitulo !== temLancamento,
+      /*
+       * Meia-integração só quando os DOIS lados são esperados e só um existe.
+       *
+       * É esse o estado partido que a conciliação da conta de controlo acusa
+       * sem conseguir dizer de onde vem. Com um dos lados desligado por
+       * configuração, ter um e não ter o outro é o comportamento correcto.
+       */
+      meiaIntegracao: esperaTitulo && esperaLancamento && temTitulo !== temLancamento,
     });
   };
 

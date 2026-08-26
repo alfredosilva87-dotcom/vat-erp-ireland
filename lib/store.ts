@@ -1,5 +1,5 @@
 import { randomUUID } from "crypto";
-import { impedimentoParaApagar } from "@/lib/financial/devolver";
+import { impedimentoParaApagar, impedimentoParaEditar } from "@/lib/financial/devolver";
 import { getServerSupabase } from "@/lib/supabase";
 import { computeLines } from "@/lib/vat";
 import { diffFields, recordAudit, type Actor, type AuditAction } from "@/lib/reviewStore";
@@ -446,6 +446,24 @@ export async function updateInvoice(
       // Lido ANTES de escrever: é a única hora em que o valor antigo existe.
       const { data: before } = await sb()
         .from("invoices").select(AUDITED_HEADER.join(",")).eq("id", invoiceId).maybeSingle();
+
+      /*
+       * Num documento integrado, valor e data não se mexem — ver
+       * `impedimentoParaEditar`. A conferência usa o que MUDA de facto: uma
+       * gravação que reenvia o mesmo número não é alteração nenhuma, e recusar
+       * por causa dela faria a tela ficar impossível de usar.
+       */
+      const mudam = diffFields((before ?? {}) as any, row, AUDITED_HEADER).map((d) => d.field);
+      if (mudam.length) {
+        const { data: dono } = await sb().from("invoices")
+          .select("client_id").eq("id", invoiceId).maybeSingle();
+        const cid = (dono as any)?.client_id as string | null;
+        if (cid) {
+          const impedimento = await impedimentoParaEditar(cid, invoiceId, "purchase", mudam);
+          if (impedimento) throw new Error(impedimento);
+        }
+      }
+
       await sb().from("invoices").update(row).eq("id", invoiceId);
       for (const d of diffFields((before ?? {}) as any, row, AUDITED_HEADER)) {
         audit.push({ action: "edited", field: d.field, old: d.old, new: d.new });

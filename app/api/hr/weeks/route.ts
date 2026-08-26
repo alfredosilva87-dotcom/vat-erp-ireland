@@ -3,6 +3,8 @@ import { requireClient, denied } from "@/lib/access";
 import { setWeekState } from "@/lib/hr/store";
 import { getSessionUser } from "@/lib/auth";
 import { garantirTituloDeFolha, removerTituloDeFolha } from "@/lib/financial/payrollTitles";
+import { contabilizarFolha, descontabilizarFolha } from "@/lib/accounting/service";
+import { getServerSupabase } from "@/lib/supabase";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -61,9 +63,44 @@ export async function PATCH(req: NextRequest) {
   let titulo: unknown = undefined;
   if (field === "payslip") {
     try {
-      titulo = value === "done"
-        ? await garantirTituloDeFolha(clientId, year, week, freq)
-        : await removerTituloDeFolha(clientId, year, week, freq);
+      if (value === "done") {
+        const r = await garantirTituloDeFolha(clientId, year, week, freq);
+        /*
+         * A PROVISÃO vai junto com o título — DR salários / CR folha a pagar.
+         *
+         * Antes o título nascia sozinho e o razão nunca sabia da folha: a 2400
+         * ficava devedora quando a folha era paga, o salário não entrava no
+         * DRE, e a conciliação da conta de controlo acusava uma diferença
+         * permanente. Ver `postPayroll`.
+         *
+         * Só quando o título é NOVO: já existindo, a provisão também já lá
+         * está (e `contabilizarFolha` é idempotente na mesma).
+         */
+        if (r.id) {
+          const lanc = await contabilizarFolha(r.id, null);
+          titulo = { ...r, lancamento: lanc.journalId, lancamentoErro: lanc.erro ?? null };
+        } else {
+          titulo = r;
+        }
+      } else {
+        /*
+         * Desfazer é na ordem inversa: a partida sai ANTES do título.
+         *
+         * Ao contrário, a remoção do título levaria por cascata o que estivesse
+         * pendurado nele e deixaria a partida sem nada que a explique — que é
+         * o mesmo defeito que esta leva toda existe para fechar.
+         */
+        const { data: alvo } = await getServerSupabase().from("hr_weeks")
+          .select("id").eq("client_id", clientId).eq("year", year)
+          .eq("week_no", week).eq("freq_type", freq).maybeSingle();
+        const weekId = (alvo as any)?.id;
+        if (weekId) {
+          const { data: tit } = await getServerSupabase().from("ledger_items")
+            .select("id").eq("client_id", clientId).eq("document_id", weekId).maybeSingle();
+          if ((tit as any)?.id) await descontabilizarFolha((tit as any).id);
+        }
+        titulo = await removerTituloDeFolha(clientId, year, week, freq);
+      }
     } catch (e: any) {
       /*
        * A marca no quadro JÁ FOI GRAVADA acima. Se o título falhar, o estado

@@ -191,5 +191,45 @@ console.log("\n== toda partida e de um lado so ==");
   ok(todas.every((l) => l.debit >= 0 && l.credit >= 0), "e nenhuma tem valor negativo");
 }
 
+// ---------------------------------------------------------------- a folha
+
+/*
+ * A provisao da folha.
+ *
+ * Esta faltava por completo: o titulo nascia em contas a pagar e o razao nunca
+ * sabia da folha. Quando ela era paga, a baixa debitava 2400 contra um 2400
+ * que nunca tinha sido creditado — conta de PASSIVO com saldo DEVEDOR, a
+ * reduzir os credores no balanco — e o salario nunca entrava no DRE.
+ *
+ * O balanco continuava a fechar, porque a baixa esta balanceada. E por isso
+ * que passou despercebido, e e por isso que este teste confere CONTA e LADO.
+ */
+console.log("\n== a provisao da folha ==");
+{
+  const l = P.postPayroll(4820.5, "Folha semanal");
+  const desp = conta(l, "6950");
+  const pass_ = conta(l, "2400");
+  ok(desp.d === 4820.5 && desp.c === 0, "salario e DESPESA (debito em 6950)", desp);
+  ok(pass_.c === 4820.5 && pass_.d === 0, "folha a pagar e PASSIVO (credito em 2400)", pass_);
+  ok(P.balanceado(l), "a provisao fecha");
+
+  // O ciclo completo: provisao + baixa tem de deixar 2400 em ZERO. Se a
+  // provisao nao existisse, 2400 ficaria devedora em 4820,50 — o defeito.
+  const baixa = P.postSettlement("payable", 4820.5, "Folha", undefined, "1100", "2400");
+  const ciclo = [...l, ...baixa];
+  const c2400 = conta(ciclo, "2400");
+  ok(Math.round((c2400.c - c2400.d) * 100) === 0, "provisao + baixa deixam 2400 em ZERO", c2400);
+  const c6950 = conta(ciclo, "6950");
+  ok(c6950.d === 4820.5, "e o salario FICA no resultado depois de pago", c6950);
+}
+{
+  // Conta de controlo propria do titulo: o credito tem de seguir a mesma
+  // conta que a baixa vai debitar, senao uma sobra com saldo e a outra fica
+  // negativa — o mesmo defeito, ao contrario.
+  const l = P.postPayroll(1000, null, { ...P.CONTAS_PADRAO, payrollLiability: "2410" }, "6951");
+  ok(conta(l, "6951").d === 1000, "conta de despesa propria e respeitada");
+  ok(conta(l, "2410").c === 1000, "conta de passivo propria e respeitada");
+}
+
 console.log(`\n=========== ${pass} passaram, ${fail} falharam ===========\n`);
 process.exit(fail === 0 ? 0 : 1);

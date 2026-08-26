@@ -43,6 +43,8 @@ export type ContasPadrao = {
   revenue: string;
   expenseFallback: string;  // despesa quando a cadeia não resolveu
   rounding: string;         // diferenças de arredondamento
+  wages: string;            // salários (despesa)
+  payrollLiability: string; // folha a pagar (passivo)
 };
 
 export const CONTAS_PADRAO: ContasPadrao = {
@@ -54,6 +56,8 @@ export const CONTAS_PADRAO: ContasPadrao = {
   revenue: "4100",
   expenseFallback: "6990",
   rounding: "9999",
+  wages: "6950",
+  payrollLiability: "2400",
 };
 
 /** Dinheiro em cêntimos inteiros — ver `arredondar`. */
@@ -434,5 +438,55 @@ export function fecharComDiferenca(
       resolved_by: "rounding",
       description: "Diferenca de arredondamento",
     },
+  ];
+}
+
+// -------------------------------------------------------------------- folha
+
+/**
+ * A provisão da folha: o salário vira despesa e dívida no mesmo lançamento.
+ *
+ * ---------------------------------------------------------------------------
+ * O QUE FALTAVA, E O ESTRAGO QUE FAZIA
+ *
+ * O módulo de RH abria o título da folha em contas a pagar e **nunca escrevia
+ * no razão**. `journal.source_module` aceitava `'payroll'` desde a migração
+ * 020 e nenhum caminho de código o usava.
+ *
+ * Daí decorriam três coisas, e nenhuma se via no ecrã:
+ *
+ *   1. Quando a folha era paga pelo banco, a baixa usava a conta de controlo
+ *      do título — DR 2400 / CR banco — contra um 2400 que **nunca tinha sido
+ *      creditado**. A conta de passivo ficava com saldo DEVEDOR, entrando no
+ *      balanço a reduzir os credores.
+ *   2. O salário nunca entrava no DRE. O lucro ficava sobrevalorizado pelo
+ *      bruto da folha, todos os períodos.
+ *   3. A conciliação da conta de controlo acusava uma diferença permanente:
+ *      antes de pagar, aging sem razão; depois de pagar, razão sem aging.
+ *      Nunca zero, e o ecrã foi feito para essa diferença significar erro.
+ *
+ * O balanço continuava a fechar, porque a baixa está balanceada. É por isso
+ * que passou despercebido.
+ * ---------------------------------------------------------------------------
+ *
+ * `DR salários / CR folha a pagar`, pelo bruto. É a provisão: reconhece o
+ * custo no período em que o trabalho aconteceu e a dívida que dele nasce.
+ * A baixa posterior consome essa dívida, e aí o 2400 volta a zero — que é
+ * exactamente o que dele se espera.
+ */
+export function postPayroll(
+  bruto: number,
+  descricao?: string | null,
+  contas: ContasPadrao = CONTAS_PADRAO,
+  /** Conta de despesa própria, quando o escritório separa por tipo de folha. */
+  contaDeDespesa?: string | null
+): PostingLine[] {
+  const v = arredondar(Math.abs(bruto));
+  const despesa = (contaDeDespesa && contaDeDespesa.trim()) || contas.wages;
+  return [
+    { account_code: despesa, debit: v, credit: 0, resolved_by: "payroll",
+      description: descricao ?? undefined },
+    { account_code: contas.payrollLiability, debit: 0, credit: v, resolved_by: "payroll",
+      description: descricao ?? undefined },
   ];
 }

@@ -3,7 +3,7 @@ import { garantirTituloDeCompra, garantirTituloDeVenda, refDoDocumento } from "@
 import { integracoesDo } from "@/lib/integrations";
 import { getServerSupabase } from "@/lib/supabase";
 import {
-  CONTAS_PADRAO, postBankDirect, postCharge, postPurchase, postSale, postSettlement,
+  CONTAS_PADRAO, postBankDirect, postCharge, postPayroll, postPurchase, postSale, postSettlement,
   somaCredito, somaDebito, type PostingLine,
 } from "@/lib/accounting/post";
 
@@ -395,6 +395,8 @@ export type ResumoBackfill = {
   titulos: number;
   /** Encargos que estavam sem partida no razão e passaram a ter. */
   encargos: number;
+  /** Folhas que estavam sem provisão no razão e passaram a ter. */
+  folhas: number;
   /** Quando a contabilidade não está integrada neste cliente. */
   semContabilidade?: boolean;
   /**
@@ -422,7 +424,8 @@ export async function backfillClient(
   clientId: string, ate?: string, userId?: string | null
 ): Promise<ResumoBackfill> {
   const resumo: ResumoBackfill = {
-    notas: 0, vendas: 0, banco: 0, jaEstavam: 0, erros: [], titulos: 0, encargos: 0, porConferir: 0,
+    notas: 0, vendas: 0, banco: 0, jaEstavam: 0, erros: [], titulos: 0, encargos: 0,
+    folhas: 0, porConferir: 0,
   };
   const limite = ate ?? new Date().toISOString().slice(0, 10);
 
@@ -521,6 +524,28 @@ export async function backfillClient(
    * Por isso entram aqui: contabilizar é a operação que a pessoa já usa para
    * "pôr o razão em dia", e este é um caso de razão fora de dia.
    */
+  /*
+   * As FOLHAS sem provisão no razão.
+   *
+   * O título da folha nasceu sem partida durante toda a vida do módulo de RH.
+   * Cada uma dessas deixa a 2400 com saldo devedor assim que for paga, e o
+   * salário fora do DRE — ver `postPayroll`. Entram aqui pela mesma razão dos
+   * encargos: contabilizar é a operação que a pessoa já usa para pôr o razão
+   * em dia, e isto é razão fora de dia.
+   */
+  if (integra.documents_to_accounting) {
+    const { data: folhas } = await sb().from("ledger_items")
+      .select("id,issue_date").eq("client_id", clientId).eq("source_module", "payroll");
+    for (const f of ((folhas ?? []) as any[])) {
+      if (f.issue_date && f.issue_date > limite) continue;
+      const r = await contabilizarFolha(f.id, userId);
+      if (r.journalId && !r.jaExistia) resumo.folhas++;
+      else if (r.erro && !/nao integrada|sem valor/i.test(r.erro)) {
+        resumo.erros.push({ doc: `Folha ${f.issue_date ?? f.id}`, erro: r.erro });
+      }
+    }
+  }
+
   if (integra.documents_to_accounting) {
     const { data: titulos } = await sb().from("ledger_items").select("id").eq("client_id", clientId);
     const ids = ((titulos ?? []) as any[]).map((t) => t.id);
@@ -747,4 +772,75 @@ export async function trocarContaDeControlo(
     .in("journal_id", ids).eq("account_code", de).select("id");
   if (error) throw new Error(error.message);
   return ((data ?? []) as any[]).length;
+}
+
+
+// ------------------------------------------------------------------- folha
+
+/**
+ * Contabiliza a PROVISÃO da folha de pagamento.
+ *
+ * O título da folha nascia em contas a pagar sem nada no razão — ver
+ * `postPayroll` em lib/accounting/post.ts para o estrago que isso fazia.
+ *
+ * Idempotente pelo id do título, como todo o resto. Cliente sem contabilidade
+ * integrada não escreve no razão: o título continua a valer, que é o que a
+ * pessoa vê e paga.
+ */
+export async function contabilizarFolha(
+  ledgerItemId: string, userId?: string | null
+): Promise<ResultadoLancamento> {
+  const existente = await jaContabilizado("payroll", ledgerItemId);
+  if (existente) return { journalId: existente, jaExistia: true };
+
+  const { data: titulo } = await sb().from("ledger_items")
+    .select("id,client_id,kind,source_module,counterparty,document_ref,issue_date,original_amount,account_code")
+    .eq("id", ledgerItemId).maybeSingle();
+  const t = titulo as any;
+  if (!t) return { journalId: null, jaExistia: false, erro: "Titulo nao encontrado." };
+  if (t.source_module !== "payroll") {
+    return { journalId: null, jaExistia: false, erro: "Este titulo nao e de folha." };
+  }
+
+  const integra = await integracoesDo(t.client_id);
+  if (!integra.documents_to_accounting) {
+    return { journalId: null, jaExistia: false, erro: "Contabilidade nao integrada." };
+  }
+
+  const bruto = Number(t.original_amount) || 0;
+  if (bruto <= 0) return { journalId: null, jaExistia: false, erro: "Folha sem valor." };
+
+  const data = t.issue_date || new Date().toISOString().slice(0, 10);
+  try {
+    /*
+     * A conta de CONTROLO do título manda no crédito, quando ele tem uma.
+     *
+     * `garantirTituloDeFolha` grava `account_code: "2400"`, e a baixa usa essa
+     * mesma conta. Creditar aqui uma conta diferente da que a baixa vai debitar
+     * era recriar o problema ao contrário: uma sobraria com saldo e a outra
+     * ficaria negativa.
+     */
+    const linhas = postPayroll(bruto, t.counterparty, {
+      ...CONTAS_PADRAO,
+      payrollLiability: (t.account_code && String(t.account_code).trim()) || CONTAS_PADRAO.payrollLiability,
+    });
+    const journalId = await gravar(t.client_id, {
+      entryDate: data, postingDate: data, sourceModule: "payroll",
+      documentId: ledgerItemId, documentRef: t.document_ref,
+      description: t.counterparty, userId,
+    }, linhas);
+    // O título passa a apontar para a partida, para o drill-down do aging
+    // voltar ao razão como acontece nos outros módulos.
+    await sb().from("ledger_items").update({ journal_id: journalId })
+      .eq("id", ledgerItemId).is("journal_id", null);
+    return { journalId, jaExistia: false };
+  } catch (e: any) {
+    return { journalId: null, jaExistia: false, erro: e.message };
+  }
+}
+
+/** Desfaz a provisão quando o título da folha é removido. */
+export async function descontabilizarFolha(ledgerItemId: string): Promise<void> {
+  const j = await jaContabilizado("payroll", ledgerItemId);
+  if (j) await sb().from("journal").delete().eq("id", j);
 }
