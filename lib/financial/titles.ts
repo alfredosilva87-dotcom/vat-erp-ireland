@@ -145,7 +145,24 @@ export async function garantirTituloDeVenda(
     return { id: null, jaExistia: false, ignorado: "Integracao vendas->receber desligada." };
   }
 
-  const bruto = (Number(v.net_amount) || 0) + (Number(v.vat_amount) || 0);
+  /*
+   * O bruto sai do cabeçalho, e as LINHAS são a rede — igual ao lançamento.
+   *
+   * Este era o mesmo defeito em segundo sítio, e mais silencioso: corrigida
+   * só a contabilização, a venda da Renner passou a entrar no razão e mesmo
+   * assim NÃO abria título. Ficava o pior dos dois mundos — receita
+   * reconhecida no DRE e nada em contas a receber, com a conta de controlo
+   * 1200 a deixar de bater com o aging por exactamente esse valor.
+   *
+   * Ver `postSaleDoc` em lib/accounting/service.ts, que faz a mesma coisa.
+   */
+  let bruto = (Number(v.net_amount) || 0) + (Number(v.vat_amount) || 0);
+  if (bruto <= 0) {
+    const { data: linhas } = await sb().from("sales_items")
+      .select("net_amount,vat_amount").eq("sale_id", saleId);
+    bruto = Math.round(((linhas ?? []) as any[]).reduce(
+      (t, l) => t + (Number(l.net_amount) || 0) + (Number(l.vat_amount) || 0), 0) * 100) / 100;
+  }
   if (bruto <= 0) return { id: null, jaExistia: false, ignorado: "Venda sem valor." };
 
   const data0 = v.entry_date || new Date().toISOString().slice(0, 10);
