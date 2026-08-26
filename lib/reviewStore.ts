@@ -235,6 +235,19 @@ export interface ApprovalOutcome {
   /** Notas que já estavam aprovadas — contadas à parte, não como sucesso novo. */
   alreadyApproved: string[];
   notFound: string[];
+  /**
+   * Notas SEM VALOR, que não se aprovam.
+   *
+   * Aprovar é dizer "conferi e está certo". Uma nota sem total nenhum não
+   * está certa: ou a leitura falhou, ou o documento não era uma nota. Deixar
+   * aprová-la produz o pior estado possível — marcada como conferida, e a
+   * seguir recusada pela contabilização, com o número a aparecer numa lista
+   * de erros que ninguém liga à aprovação que deu certo.
+   *
+   * Aconteceu no teste de 2026-08-26: uma nota de compra e uma venda ambas
+   * zeradas foram aprovadas, e só a contabilização reclamou.
+   */
+  zeroValue: string[];
 }
 
 /**
@@ -257,12 +270,20 @@ export async function approveInvoices(
   }
 
   const { data: found } = await sb()
-    .from("invoices").select("id,needs_review,reviewed_at").in("id", unique);
-  const rows = (found ?? []) as { id: string; needs_review: boolean; reviewed_at: string | null }[];
+    .from("invoices").select("id,needs_review,reviewed_at,total_gross,total_net,total_vat").in("id", unique);
+  const rows = (found ?? []) as {
+    id: string; needs_review: boolean; reviewed_at: string | null;
+    total_gross: number | null; total_net: number | null; total_vat: number | null;
+  }[];
   const foundIds = new Set(rows.map((r) => r.id));
 
+  // Sem valor nenhum no cabeçalho a nota não se aprova — ver `zeroValue`.
+  const semValor = (r: { total_gross: number | null; total_net: number | null; total_vat: number | null }) =>
+    !(Number(r.total_gross) || 0) && !(Number(r.total_net) || 0) && !(Number(r.total_vat) || 0);
+
   const already = rows.filter((r) => r.reviewed_at != null).map((r) => r.id);
-  const toApprove = rows.filter((r) => r.reviewed_at == null).map((r) => r.id);
+  const zeroValue = rows.filter((r) => r.reviewed_at == null && semValor(r)).map((r) => r.id);
+  const toApprove = rows.filter((r) => r.reviewed_at == null && !semValor(r)).map((r) => r.id);
 
   if (toApprove.length) {
     await sb().from("invoices").update({
@@ -288,6 +309,7 @@ export async function approveInvoices(
     approved: toApprove,
     alreadyApproved: already,
     notFound: unique.filter((id) => !foundIds.has(id)),
+    zeroValue,
   };
 }
 

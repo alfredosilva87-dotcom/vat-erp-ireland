@@ -1,5 +1,5 @@
 import "server-only";
-import { garantirTituloDeCompra, garantirTituloDeVenda } from "@/lib/financial/titles";
+import { garantirTituloDeCompra, garantirTituloDeVenda, refDoDocumento } from "@/lib/financial/titles";
 import { integracoesDo } from "@/lib/integrations";
 import { getServerSupabase } from "@/lib/supabase";
 import {
@@ -155,7 +155,7 @@ export async function postInvoice(
     );
     const journalId = await gravar(n.client_id, {
       entryDate: dataDoc, postingDate: dataContabil, sourceModule: "purchase",
-      documentId: invoiceId, documentRef: n.invoice_number,
+      documentId: invoiceId, documentRef: refDoDocumento(n.invoice_number, invoiceId),
       description: n.supplier_name, userId,
     }, linhas);
 
@@ -189,10 +189,49 @@ export async function postSaleDoc(
   if (!v.client_id) return { journalId: null, jaExistia: false, erro: "Venda sem cliente." };
 
   const data = v.entry_date || new Date().toISOString().slice(0, 10);
+
+  /*
+   * O valor da venda vem do CABEÇALHO, e as LINHAS são a rede.
+   *
+   * A compra sempre somou os itens (ver `postPurchase`); a venda só olhava o
+   * cabeçalho. A assimetria não se via até chegar um documento com linhas
+   * legíveis e cabeçalho vazio — uma nota estrangeira lida pelo telemóvel, em
+   * que o leitor achou os dois itens mas não o total.
+   *
+   * O que acontecia então: net 0 e VAT 0, partidas todas a zero, e o banco a
+   * recusar com `journal_lines_lado_check`. O documento ficava de fora do
+   * razão e da lista de contas a receber, e a mensagem no ecrã era o nome de
+   * uma restrição de Postgres.
+   *
+   * Somar as linhas quando o cabeçalho não tem valor é o mesmo princípio que
+   * a compra já seguia: o documento diz o que diz, e a soma das partes é a
+   * melhor fonte quando o todo falta.
+   */
+  let net = Number(v.net_amount) || 0;
+  let vat = Number(v.vat_amount) || 0;
+  if (net === 0) {
+    const { data: linhasDaVenda } = await sb().from("sales_items")
+      .select("net_amount,vat_amount").eq("sale_id", saleId);
+    const somar = (f: (l: any) => unknown) =>
+      Math.round(((linhasDaVenda ?? []) as any[])
+        .reduce((t, l) => t + (Number(f(l)) || 0), 0) * 100) / 100;
+    net = somar((l) => l.net_amount);
+    if (vat === 0) vat = somar((l) => l.vat_amount);
+  }
+
+  // Sem valor nenhum não há venda a lançar, e é preciso dizê-lo em português
+  // de gente: o erro que vinha antes era o nome de uma restrição do banco.
+  if (net === 0 && vat === 0) {
+    return {
+      journalId: null, jaExistia: false,
+      erro: "A venda esta sem valor: nem o total do documento nem as linhas dele têm importância.",
+    };
+  }
+
   try {
     const linhas = postSale({
       customer: v.customer, doc_number: v.doc_number,
-      net_amount: v.net_amount, vat_amount: v.vat_amount, vat_rate: v.vat_rate,
+      net_amount: net, vat_amount: vat, vat_rate: v.vat_rate,
       // A conta de receita da venda só entra se for de RESULTADO: o
       // `account_code` de uma venda às vezes guarda a conta do plano do
       // cliente e apontar para um passivo faria o DRE sumir.
@@ -200,7 +239,7 @@ export async function postSaleDoc(
     });
     const journalId = await gravar(v.client_id, {
       entryDate: data, postingDate: data, sourceModule: "sale",
-      documentId: saleId, documentRef: v.doc_number, description: v.customer, userId,
+      documentId: saleId, documentRef: refDoDocumento(v.doc_number, saleId), description: v.customer, userId,
     }, linhas);
 
     // Idem para o outro lado — ver o comentário em postInvoice.

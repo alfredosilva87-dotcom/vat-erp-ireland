@@ -1224,6 +1224,8 @@ const pt: Dict = {
   "src.payroll": "Folha",
   "src.manual": "Manual",
   "src.opening": "Abertura",
+  "acc.failedHeading": "Documentos que não entraram",
+  "acc.failedHelp": "Estes ficaram fora do razão e fora de contas a pagar/receber. Corrija o documento e contabilize outra vez — o que já entrou fica como está.",
 };
 
 export default pt;

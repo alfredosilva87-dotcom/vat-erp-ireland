@@ -52,6 +52,14 @@ export default function AccountingPage({ params }: { params: { id: string } }) {
   const [contabilizando, setContabilizando] = useState(false);
   const [msg, setMsg] = useState<string | null>(null);
   /*
+   * Os erros da contabilização, com documento e motivo.
+   *
+   * A API sempre os devolveu; a tela mostrava só a contagem. "1 falhou"
+   * não diz qual nem porquê, e sem isso a pessoa não tem por onde começar
+   * — tem de abrir os documentos um a um até achar o que não entrou.
+   */
+  const [errosDaCarga, setErrosDaCarga] = useState<{ doc: string; erro: string }[]>([]);
+  /*
    * Que conta está aberta no detalhe, e com que recorte.
    *
    * `from` só existe no DRE: ali o número é o MOVIMENTO do período. No
@@ -80,6 +88,7 @@ export default function AccountingPage({ params }: { params: { id: string } }) {
   async function contabilizar() {
     setContabilizando(true);
     setMsg(null);
+    setErrosDaCarga([]);
     try {
       const r = await fetch(`/api/clients/${params.id}/accounting/backfill`, {
         method: "POST", headers: { "Content-Type": "application/json" }, body: "{}",
@@ -89,6 +98,7 @@ export default function AccountingPage({ params }: { params: { id: string } }) {
       setMsg(t("acc.posted", {
         n: res.notas + res.vendas, ja: res.jaEstavam, erros: res.erros.length,
       }));
+      setErrosDaCarga(res.erros ?? []);
       await load();
     } catch (e: any) {
       setMsg(e.message);
@@ -145,6 +155,23 @@ export default function AccountingPage({ params }: { params: { id: string } }) {
 
       {erro && <p className="text-sm text-danger">{erro}</p>}
       {msg && <p className="text-sm text-muted">{msg}</p>}
+
+      {errosDaCarga.length > 0 && (
+        <div className="card border-l-4 border-l-warning p-4">
+          <h3 className="font-display text-sm font-semibold">
+            {t("acc.failedHeading")}
+          </h3>
+          <p className="mt-1 text-xs text-muted">{t("acc.failedHelp")}</p>
+          <ul className="mt-3 space-y-1.5 text-[13px]">
+            {errosDaCarga.map((e, i) => (
+              <li key={`${e.doc}-${i}`} className="flex flex-wrap gap-x-3">
+                <span className="font-mono text-[12px] font-semibold">{e.doc}</span>
+                <span className="text-muted">{e.erro}</span>
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
 
       {/*
         O veredito primeiro. Um balanço que não fecha não pode exigir

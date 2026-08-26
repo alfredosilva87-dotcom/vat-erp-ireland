@@ -45,6 +45,33 @@ async function existente(clientId: string, documentId: string): Promise<string |
   return (data as any)?.id ?? null;
 }
 
+/**
+ * A referência de um documento que não tem número.
+ *
+ * ---------------------------------------------------------------------------
+ * POR QUE INVENTAR UMA
+ *
+ * Nem todo documento traz número: recibo de balcão, talão de posto, e nota
+ * estrangeira em que o leitor não achou o campo. Até aqui o título nascia com
+ * `document_ref` nulo, e o resultado era uma linha em branco na coluna
+ * "Documento" de contas a pagar e a receber.
+ *
+ * Em branco não é só feio — é inutilizável. Não se procura por ele, não se
+ * cita ao fornecedor, não se aponta numa conferência, e duas notas sem número
+ * do mesmo fornecedor ficam indistinguíveis na lista.
+ *
+ * A referência é DERIVADA do id, então é estável: contabilizar de novo dá a
+ * mesma, e ela não muda se alguém corrigir a data. O prefixo `S/N` diz o que
+ * é — um substituto, não um número que veio do papel — para ninguém o citar
+ * ao fornecedor a pensar que é o número da fatura dele.
+ * ---------------------------------------------------------------------------
+ */
+export function refDoDocumento(numero: string | null | undefined, id: string): string {
+  const limpo = String(numero ?? "").trim();
+  if (limpo) return limpo;
+  return `S/N-${id.replace(/-/g, "").slice(0, 6).toUpperCase()}`;
+}
+
 export type ResultadoTitulo = { id: string | null; jaExistia: boolean; ignorado?: string };
 
 /**
@@ -85,7 +112,7 @@ export async function garantirTituloDeCompra(
   const dataDoc = n.invoice_date || n.posting_date || new Date().toISOString().slice(0, 10);
   const { data, error } = await sb().from("ledger_items").insert({
     client_id: n.client_id, kind: "payable", source_module: "purchase",
-    document_id: invoiceId, document_ref: n.invoice_number,
+    document_id: invoiceId, document_ref: refDoDocumento(n.invoice_number, invoiceId),
     counterparty: n.supplier_name, issue_date: dataDoc,
     due_date: somarDias(dataDoc, VENCIMENTO_PADRAO_DIAS),
     original_amount: bruto, journal_id: journalId ?? null,
@@ -124,7 +151,7 @@ export async function garantirTituloDeVenda(
   const data0 = v.entry_date || new Date().toISOString().slice(0, 10);
   const { data, error } = await sb().from("ledger_items").insert({
     client_id: v.client_id, kind: "receivable", source_module: "sale",
-    document_id: saleId, document_ref: v.doc_number,
+    document_id: saleId, document_ref: refDoDocumento(v.doc_number, saleId),
     counterparty: v.customer, issue_date: data0,
     due_date: somarDias(data0, VENCIMENTO_PADRAO_DIAS),
     original_amount: bruto, journal_id: journalId ?? null,

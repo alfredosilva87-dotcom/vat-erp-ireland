@@ -1223,6 +1223,8 @@ const en = {
   "src.payroll": "Payroll",
   "src.manual": "Manual",
   "src.opening": "Opening",
+  "acc.failedHeading": "Documents that did not post",
+  "acc.failedHelp": "These stayed out of the ledger and out of payables/receivables. Fix the document and post again — what is already in stays in.",
 } as const;
 
 export type Dict = Record<keyof typeof en, string>;

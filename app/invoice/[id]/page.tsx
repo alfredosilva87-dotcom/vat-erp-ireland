@@ -244,6 +244,18 @@ export default function InvoiceEdit({ params }: { params: { id: string } }) {
     });
     const d = await res.json();
     if (!res.ok) { setMsg(d.error || "Erro ao aprovar."); return; }
+    /*
+     * Recusada por não ter valor — e é preciso dizê-lo, não ficar calado.
+     *
+     * A rota responde 200 com a nota em `zeroValue` em vez de erro, porque num
+     * lote as outras foram mesmo aprovadas. Sem esta linha, a tela dizia
+     * "Nota aprovada" para uma nota que não foi, e a contradição só aparecia
+     * depois, na contabilização.
+     */
+    if ((d.zeroValue ?? []).includes(params.id)) {
+      setMsg("Esta nota está sem valor nenhum — confira a leitura antes de aprovar. Aprovar aqui só adiaria o erro para a contabilização.");
+      return;
+    }
     const fresh = await refreshHistory();
     setInv(fresh.invoice);
     setMsg("Nota aprovada.");
