@@ -2,6 +2,8 @@ import { NextRequest, NextResponse } from "next/server";
 import { requireClient, denied } from "@/lib/access";
 import { getServerSupabase } from "@/lib/supabase";
 import { conciliarControlo } from "@/lib/financial/control";
+import { criarTituloManual } from "@/lib/accounting/service";
+import { getSessionUser } from "@/lib/auth";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -94,4 +96,40 @@ export async function GET(req: NextRequest, { params }: { params: { id: string }
         .reduce((s, l) => s + (Number(l.outstanding_amount) || 0), 0) * 100) / 100,
     },
   });
+}
+
+
+/**
+ * Cria um título À MÃO — taxa, encargo, imposto, conta sem nota fiscal.
+ *
+ * Até aqui contas a pagar e a receber só sabiam nascer de documento. Ver
+ * `criarTituloManual` e `postManualTitle` para o porquê.
+ */
+export async function POST(req: NextRequest, { params }: { params: { id: string } }) {
+  const acesso = await requireClient(params.id);
+  if (denied(acesso)) return acesso.error;
+
+  const b = await req.json().catch(() => ({}));
+  const kind = b?.kind === "receivable" ? "receivable" : "payable";
+  const hoje = new Date().toISOString().slice(0, 10);
+  const data = (v: unknown) => (typeof v === "string" && /^\d{4}-\d{2}-\d{2}$/.test(v) ? v : null);
+
+  const user = await getSessionUser();
+  const r = await criarTituloManual({
+    clientId: params.id,
+    kind,
+    counterparty: String(b?.counterparty ?? ""),
+    documentRef: b?.document_ref ?? null,
+    issueDate: data(b?.issue_date) ?? hoje,
+    // Sem vencimento, vence hoje: um título sem data cai fora de qualquer
+    // recorte por vencimento e desaparece da lista de quem cobra.
+    dueDate: data(b?.due_date) ?? data(b?.issue_date) ?? hoje,
+    amount: Number(b?.amount),
+    resultAccount: String(b?.result_account ?? ""),
+    controlAccount: b?.control_account ?? null,
+    notes: b?.notes ?? null,
+    userId: user?.id ?? null,
+  });
+  if (!r.ok) return NextResponse.json({ error: r.erro }, { status: 400 });
+  return NextResponse.json(r);
 }

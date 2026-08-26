@@ -231,5 +231,35 @@ console.log("\n== a provisao da folha ==");
   ok(conta(l, "2410").c === 1000, "conta de passivo propria e respeitada");
 }
 
+// ------------------------------------------------------- titulo manual
+
+/*
+ * O titulo que nao vem de documento: taxa do CRO, seguro, multa.
+ *
+ * O lado importa mais do que o valor. Um titulo a PAGAR que credite a conta de
+ * resultado em vez da de controlo aumenta a receita e nao aumenta a divida —
+ * e o balanco continua a fechar, porque a partida esta balanceada.
+ */
+console.log("\n== titulo manual (sem documento) ==");
+{
+  const l = P.postManualTitle("payable", 350, "6900", "Companies Registration Office", "Taxa anual");
+  ok(conta(l, "6900").d === 350, "a pagar: DESPESA no debito", conta(l, "6900"));
+  ok(conta(l, "2100").c === 350, "a pagar: FORNECEDORES no credito", conta(l, "2100"));
+  ok(P.balanceado(l), "fecha");
+}
+{
+  const l = P.postManualTitle("receivable", 120, "4900", "Cliente X", "Reembolso");
+  ok(conta(l, "1200").d === 120, "a receber: CLIENTES no debito", conta(l, "1200"));
+  ok(conta(l, "4900").c === 120, "a receber: RENDIMENTO no credito", conta(l, "4900"));
+  ok(P.balanceado(l), "fecha");
+}
+{
+  // Conta de controlo propria: a baixa vai debitar esta, entao e esta que tem
+  // de ser creditada aqui.
+  const l = P.postManualTitle("payable", 90, "6300", null, null, P.CONTAS_PADRAO, "2110");
+  ok(conta(l, "2110").c === 90, "conta de controlo propria e respeitada", conta(l, "2110"));
+  ok(conta(l, "2100").n === 0, "e a padrao NAO e usada");
+}
+
 console.log(`\n=========== ${pass} passaram, ${fail} falharam ===========\n`);
 process.exit(fail === 0 ? 0 : 1);

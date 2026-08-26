@@ -490,3 +490,58 @@ export function postPayroll(
       description: descricao ?? undefined },
   ];
 }
+
+// ------------------------------------------------------------ titulo manual
+
+/**
+ * Um título que NÃO nasce de documento: taxa, encargo, imposto, uma conta que
+ * chegou por carta e não tem nota fiscal nenhuma por trás.
+ *
+ * ---------------------------------------------------------------------------
+ * POR QUE FALTAVA, E POR QUE IMPORTA
+ *
+ * Contas a pagar e a receber só sabiam nascer de uma nota de compra ou de uma
+ * venda. Mas há dívida que não vem de documento fiscal: a taxa do CRO, o
+ * seguro pago por débito directo, uma multa da Revenue, um acerto com o
+ * fornecedor. Sem lugar para as pôr, ou ficavam fora da lista — e aí "quanto
+ * devo" mente por omissão — ou alguém inventava uma nota de compra falsa para
+ * as acomodar, que é pior: entra na apuração de VAT como se fosse compra.
+ * ---------------------------------------------------------------------------
+ *
+ * A partida é a mesma ideia do encargo, sem o título por cima:
+ *
+ *   pagar   →  DR conta de resultado    CR conta de controlo (2100)
+ *   receber →  DR conta de controlo     CR conta de resultado (1200 / receita)
+ *
+ * Não passa por VAT de propósito. Um título manual é o valor que se deve ou
+ * se tem a receber; se houver imposto a apurar, isso vem de um documento e
+ * o documento é que tem de entrar.
+ */
+export function postManualTitle(
+  tipo: "payable" | "receivable",
+  valor: number,
+  contaDeResultado: string,
+  contraparte?: string | null,
+  descricao?: string | null,
+  contas: ContasPadrao = CONTAS_PADRAO,
+  /** Conta de controlo própria do título, quando ele tem uma. */
+  contaDeControlo?: string | null
+): PostingLine[] {
+  const v = arredondar(Math.abs(valor));
+  const controlo = (contaDeControlo && contaDeControlo.trim())
+    || (tipo === "payable" ? contas.tradeCreditors : contas.tradeDebtors);
+  const resultado = (contaDeResultado && contaDeResultado.trim())
+    || (tipo === "payable" ? contas.expenseFallback : contas.revenue);
+  const cp = contraparte ?? undefined;
+  const d = descricao ?? undefined;
+
+  return tipo === "payable"
+    ? [
+        { account_code: resultado, debit: v, credit: 0, resolved_by: "manual", counterparty: cp, description: d },
+        { account_code: controlo, debit: 0, credit: v, resolved_by: "manual", counterparty: cp, description: d },
+      ]
+    : [
+        { account_code: controlo, debit: v, credit: 0, resolved_by: "manual", counterparty: cp, description: d },
+        { account_code: resultado, debit: 0, credit: v, resolved_by: "manual", counterparty: cp, description: d },
+      ];
+}

@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useSearchParams } from "next/navigation";
 import PainelDoTitulo from "@/components/financial/TitlePanel";
+import NovoTituloManual from "@/components/financial/NovoTituloManual";
 import type { Titulo } from "@/components/financial/tipos";
 import { eur } from "@/components/financial/tipos";
 
@@ -72,6 +73,7 @@ export default function TitlesView({ clientId, kind }: { clientId: string; kind:
   } | null>(null);
   const [carregando, setCarregando] = useState(true);
   const [aberto, setAberto] = useState<string | null>(null);
+  const [lancando, setLancando] = useState(false);
 
   const contraparte = kind === "payable" ? "Fornecedor" : "Cliente";
 
@@ -120,7 +122,24 @@ export default function TitlesView({ clientId, kind }: { clientId: string; kind:
           <input className="input h-9 w-full py-0 text-[13px]" value={busca}
             onChange={(e) => setBusca(e.target.value)} placeholder="procurar…" />
         </label>
+        {/*
+          * Lançar à mão: taxa, imposto, seguro — dívida que não vem de nota.
+          * Sem isto, ou ficava fora da lista (e "quanto devo" mente por
+          * omissão) ou alguém inventava uma nota de compra falsa para a
+          * acomodar, que entra na apuração de VAT como se fosse compra.
+          */}
+        <button className="btn-primary h-9 shrink-0 px-4 text-sm" onClick={() => setLancando(true)}>
+          + Lançar à mão
+        </button>
       </div>
+
+      {lancando && (
+        <NovoTituloManual
+          clientId={clientId} kind={kind}
+          aoFechar={() => setLancando(false)}
+          aoCriar={async () => { setLancando(false); await carregar(); }}
+        />
+      )}
 
       {d && (
         <div className="card flex flex-wrap items-center justify-between gap-4 border-l-4 border-l-brand p-4">

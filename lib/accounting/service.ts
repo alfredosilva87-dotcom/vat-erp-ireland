@@ -3,7 +3,8 @@ import { garantirTituloDeCompra, garantirTituloDeVenda, refDoDocumento } from "@
 import { integracoesDo } from "@/lib/integrations";
 import { getServerSupabase } from "@/lib/supabase";
 import {
-  CONTAS_PADRAO, postBankDirect, postCharge, postPayroll, postPurchase, postSale, postSettlement,
+  CONTAS_PADRAO, postBankDirect, postCharge, postManualTitle, postPayroll, postPurchase,
+  postSale, postSettlement,
   somaCredito, somaDebito, type PostingLine,
 } from "@/lib/accounting/post";
 
@@ -843,4 +844,85 @@ export async function contabilizarFolha(
 export async function descontabilizarFolha(ledgerItemId: string): Promise<void> {
   const j = await jaContabilizado("payroll", ledgerItemId);
   if (j) await sb().from("journal").delete().eq("id", j);
+}
+
+
+// ----------------------------------------------------------- titulo manual
+
+export type NovoTituloManual = {
+  clientId: string;
+  kind: "payable" | "receivable";
+  counterparty: string;
+  documentRef?: string | null;
+  issueDate: string;
+  dueDate: string;
+  amount: number;
+  /** Conta de resultado — a despesa que se assume, ou o rendimento que se ganha. */
+  resultAccount: string;
+  /** Conta de controlo própria, quando o escritório separa fornecedores. */
+  controlAccount?: string | null;
+  notes?: string | null;
+  userId?: string | null;
+};
+
+/**
+ * Cria um título que não vem de documento — taxa, encargo, imposto.
+ *
+ * Ver `postManualTitle` para o porquê e para a partida. Duas decisões que
+ * valem a pena estar aqui:
+ *
+ * **O título nasce ANTES da partida**, e a partida é opcional. Um cliente sem
+ * contabilidade integrada continua a poder ter a lista do que deve — é o caso
+ * previsto em `lib/integrations.ts` — e recusar o título por causa do razão
+ * negaria a esse cliente a única coisa que ele quer.
+ *
+ * **Se a partida falhar, o título é DESFEITO.** Ao contrário ficaria uma
+ * meia-integração criada por nós, do tipo exacto que a tela de não integrados
+ * existe para acusar. Um título que não vingou não fica.
+ */
+export async function criarTituloManual(
+  t: NovoTituloManual
+): Promise<{ ok: boolean; id?: string; journalId?: string | null; erro?: string }> {
+  const valor = Math.round(Math.abs(Number(t.amount) || 0) * 100) / 100;
+  if (valor <= 0) return { ok: false, erro: "O valor tem de ser maior que zero." };
+  if (!t.counterparty?.trim()) {
+    return { ok: false, erro: t.kind === "payable" ? "Diga a quem se deve." : "Diga quem deve." };
+  }
+  if (!t.resultAccount?.trim()) {
+    return { ok: false, erro: "Escolha a conta contábil do valor." };
+  }
+
+  const { data: criado, error } = await sb().from("ledger_items").insert({
+    client_id: t.clientId, kind: t.kind, source_module: "manual",
+    document_id: null,
+    document_ref: (t.documentRef ?? "").trim() || null,
+    counterparty: t.counterparty.trim(),
+    issue_date: t.issueDate, due_date: t.dueDate,
+    original_amount: valor,
+    account_code: (t.controlAccount ?? "").trim() || null,
+    notes: t.notes?.trim() || null,
+  }).select("id").single();
+  if (error || !criado) return { ok: false, erro: error?.message || "Nao criou o titulo." };
+  const id = (criado as any).id as string;
+
+  const integra = await integracoesDo(t.clientId);
+  if (!integra.documents_to_accounting) return { ok: true, id, journalId: null };
+
+  try {
+    const linhas = postManualTitle(
+      t.kind, valor, t.resultAccount.trim(), t.counterparty, t.notes,
+      CONTAS_PADRAO, t.controlAccount
+    );
+    const journalId = await gravar(t.clientId, {
+      entryDate: t.issueDate, postingDate: t.issueDate, sourceModule: "manual",
+      documentId: id, documentRef: (t.documentRef ?? "").trim() || null,
+      description: t.counterparty, userId: t.userId,
+    }, linhas);
+    await sb().from("ledger_items").update({ journal_id: journalId }).eq("id", id);
+    return { ok: true, id, journalId };
+  } catch (e: any) {
+    // Ver o comentario acima: titulo que nao vingou nao fica.
+    await sb().from("ledger_items").delete().eq("id", id);
+    return { ok: false, erro: e.message };
+  }
 }
