@@ -14,5 +14,7 @@ export async function DELETE(_req: NextRequest, { params }: { params: { id: stri
   const guard = await requireRole("admin");
   if ("error" in guard) return guard.error;
 
-  return NextResponse.json({ ok: await deleteSalesEntry(params.id) });
+  const r = await deleteSalesEntry(params.id);
+  if (!r.ok) return NextResponse.json({ error: r.erro }, { status: 409 });
+  return NextResponse.json({ ok: true });
 }

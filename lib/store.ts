@@ -1,4 +1,5 @@
 import { randomUUID } from "crypto";
+import { impedimentoParaApagar } from "@/lib/financial/devolver";
 import { getServerSupabase } from "@/lib/supabase";
 import { computeLines } from "@/lib/vat";
 import { diffFields, recordAudit, type Actor, type AuditAction } from "@/lib/reviewStore";
@@ -500,14 +501,36 @@ export async function updateInvoice(
  * call and the rows in a single statement, so a 50-invoice cleanup is two
  * round-trips instead of a hundred. Returns how many rows were removed.
  */
-export async function deleteInvoices(ids: string[]): Promise<number> {
-  if (!ids.length) return 0;
+export async function deleteInvoices(
+  ids: string[]
+): Promise<{ apagadas: number; integradas: { id: string; erro: string }[] }> {
+  if (!ids.length) return { apagadas: 0, integradas: [] };
 
-  const { data: rows } = await sb().from("invoices").select("id,document_path").in("id", ids);
-  const found = (rows ?? []).map((r: any) => r.id as string);
-  if (!found.length) return 0;
+  const { data: rows } = await sb().from("invoices")
+    .select("id,document_path,client_id").in("id", ids);
+  const todas = (rows ?? []) as any[];
+  if (!todas.length) return { apagadas: 0, integradas: [] };
 
-  const paths = (rows ?? []).map((r: any) => r.document_path).filter(Boolean) as string[];
+  /*
+   * No lote, a nota integrada é SALTADA e as outras seguem.
+   *
+   * Recusar o lote inteiro por causa de uma faria a pessoa perder o trabalho
+   * das outras 49; apagar tudo em silêncio esconderia o problema. As que
+   * ficaram voltam com o motivo, para a tela poder dizer quais e porquê.
+   */
+  const integradas: { id: string; erro: string }[] = [];
+  const livres: any[] = [];
+  for (const r of todas) {
+    const impedimento = r.client_id
+      ? await impedimentoParaApagar(String(r.client_id), r.id, "purchase")
+      : null;
+    if (impedimento) integradas.push({ id: r.id, erro: impedimento });
+    else livres.push(r);
+  }
+  const found = livres.map((r) => r.id as string);
+  if (!found.length) return { apagadas: 0, integradas };
+
+  const paths = livres.map((r: any) => r.document_path).filter(Boolean) as string[];
   if (paths.length) {
     try { await sb().storage.from(BUCKET).remove(paths); } catch { /* keep going; rows still go */ }
   }
@@ -520,18 +543,30 @@ export async function deleteInvoices(ids: string[]): Promise<number> {
   await sb().from("inbox_items").update({ status: "pending", invoice_id: null, invoice_count: 0 }).in("invoice_id", found);
 
   const { error } = await sb().from("invoices").delete().in("id", found);
-  return error ? 0 : found.length;
+  return { apagadas: error ? 0 : found.length, integradas };
 }
 
-export async function deleteInvoice(id: string): Promise<boolean> {
-  const { data: inv } = await sb().from("invoices").select("document_path").eq("id", id).maybeSingle();
+/**
+ * Apaga UMA nota — se ela não estiver integrada.
+ *
+ * A trava vive aqui e não na tela: a rota de API responde a quem a chamar, e
+ * um guarda que depende de a tela se lembrar dele tem buraco. Ver
+ * `lib/financial/devolver.ts` para o porquê da ordem (devolver, depois apagar).
+ */
+export async function deleteInvoice(id: string): Promise<{ ok: boolean; erro?: string }> {
+  const { data: inv } = await sb().from("invoices")
+    .select("document_path,client_id").eq("id", id).maybeSingle();
+  if (inv?.client_id) {
+    const impedimento = await impedimentoParaApagar(String(inv.client_id), id, "purchase");
+    if (impedimento) return { ok: false, erro: impedimento };
+  }
   if (inv?.document_path) { try { await sb().storage.from(BUCKET).remove([inv.document_path]); } catch {} }
   // Mesma razão do deleteInvoices em lote: sem isto o item da fila fica
   // "saved" travado, sem ação nenhuma disponível, quando a nota que ele virou
   // é apagada.
   await sb().from("inbox_items").update({ status: "pending", invoice_id: null, invoice_count: 0 }).eq("invoice_id", id);
   const { error } = await sb().from("invoices").delete().eq("id", id);
-  return !error;
+  return error ? { ok: false, erro: error.message } : { ok: true };
 }
 
 /**
@@ -971,11 +1006,17 @@ export async function addSalesEntries(clientId: string, rows: Array<Partial<Sale
   const { data } = await sb().from("sales").insert(toInsert).select();
   return (data ?? []) as SalesEntry[];
 }
-export async function deleteSalesEntry(id: string): Promise<boolean> {
-  const { data: s } = await sb().from("sales").select("document_path").eq("id", id).maybeSingle();
+/** Apaga uma venda — mesma trava da nota de compra. */
+export async function deleteSalesEntry(id: string): Promise<{ ok: boolean; erro?: string }> {
+  const { data: s } = await sb().from("sales")
+    .select("document_path,client_id").eq("id", id).maybeSingle();
+  if (s?.client_id) {
+    const impedimento = await impedimentoParaApagar(String(s.client_id), id, "sale");
+    if (impedimento) return { ok: false, erro: impedimento };
+  }
   if (s?.document_path) { try { await sb().storage.from(BUCKET).remove([s.document_path]); } catch {} }
   const { error } = await sb().from("sales").delete().eq("id", id);
-  return !error;
+  return error ? { ok: false, erro: error.message } : { ok: true };
 }
 
 /** As linhas de uma venda, para a tela de revisão e a apuração por alíquota. */

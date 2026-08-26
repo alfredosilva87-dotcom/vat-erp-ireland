@@ -397,6 +397,14 @@ export type ResumoBackfill = {
   encargos: number;
   /** Quando a contabilidade não está integrada neste cliente. */
   semContabilidade?: boolean;
+  /**
+   * Documentos SALTADOS por ainda não terem sido conferidos.
+   *
+   * Não são erro — são trabalho por fazer, e por isso contam à parte. Misturá-
+   * los com os erros faria a lista de problemas crescer com coisas que não são
+   * problema, e é assim que se deixa de ler a lista.
+   */
+  porConferir: number;
 };
 
 /**
@@ -413,7 +421,9 @@ export type ResumoBackfill = {
 export async function backfillClient(
   clientId: string, ate?: string, userId?: string | null
 ): Promise<ResumoBackfill> {
-  const resumo: ResumoBackfill = { notas: 0, vendas: 0, banco: 0, jaEstavam: 0, erros: [], titulos: 0, encargos: 0 };
+  const resumo: ResumoBackfill = {
+    notas: 0, vendas: 0, banco: 0, jaEstavam: 0, erros: [], titulos: 0, encargos: 0, porConferir: 0,
+  };
   const limite = ate ?? new Date().toISOString().slice(0, 10);
 
   /*
@@ -427,11 +437,24 @@ export async function backfillClient(
   const integra = await integracoesDo(clientId);
   resumo.semContabilidade = !integra.documents_to_accounting;
 
-  let qi = sb().from("invoices").select("id,invoice_number,invoice_date")
+  /*
+   * SÓ o que foi conferido é que integra.
+   *
+   * Pedido do Alfredo em 2026-08-26, e a razão é a ordem do trabalho: integrar
+   * uma leitura que ninguém olhou põe no razão e em contas a pagar um número
+   * que ainda pode mudar. Quando muda, é preciso devolver o documento, corrigir
+   * e integrar de novo — três passos que a conferência antes evitava.
+   *
+   * `reviewed_at` e não `needs_review`: "não pede revisão" quer dizer que a
+   * leitura veio confiante, não que alguém a viu. A diferença entre as duas é
+   * exactamente o que uma auditoria pergunta.
+   */
+  let qi = sb().from("invoices").select("id,invoice_number,invoice_date,reviewed_at")
     .eq("client_id", clientId).order("invoice_date", { ascending: true });
   const { data: notas } = await qi;
   for (const n of ((notas ?? []) as any[])) {
     if (n.invoice_date && n.invoice_date > limite) continue;
+    if (!n.reviewed_at) { resumo.porConferir++; continue; }
     if (!integra.documents_to_accounting) {
       const t = await garantirTituloDeCompra(n.id);
       if (t.id && !t.jaExistia) resumo.titulos++;
@@ -443,10 +466,12 @@ export async function backfillClient(
     else resumo.notas++;
   }
 
-  const { data: vendas } = await sb().from("sales").select("id,doc_number,entry_date")
+  const { data: vendas } = await sb().from("sales").select("id,doc_number,entry_date,reviewed_at")
     .eq("client_id", clientId).order("entry_date", { ascending: true });
   for (const v of ((vendas ?? []) as any[])) {
     if (v.entry_date && v.entry_date > limite) continue;
+    // Mesma regra da compra — ver o comentário acima.
+    if (!v.reviewed_at) { resumo.porConferir++; continue; }
     if (!integra.documents_to_accounting) {
       const t = await garantirTituloDeVenda(v.id);
       if (t.id && !t.jaExistia) resumo.titulos++;

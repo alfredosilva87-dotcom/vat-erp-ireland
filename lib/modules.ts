@@ -39,6 +39,15 @@ export const MODULES: ModuleDef[] = [
       // O outro lado do mesmo modelo: o título de venda. Ver
       // components/financial/TitlesView.tsx — uma tela serve os dois.
       { seg: "receivable", key: "client.tabReceivable" },
+      /*
+       * O que NÃO chegou a pagar/receber.
+       *
+       * Mora no Financeiro e não em Compras ou Vendas porque a pergunta é
+       * financeira — "o que devia estar na minha lista e não está?" — e
+       * atravessa os dois lados. Numa das duas telas de origem só se veria
+       * metade, e é a metade que a pessoa já está a olhar.
+       */
+      { seg: "unposted", key: "client.tabUnposted" },
     ],
   },
   {

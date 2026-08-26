@@ -21,6 +21,8 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: "No invoices selected." }, { status: 400 });
   }
 
-  const deleted = await deleteInvoices(ids);
-  return NextResponse.json({ deleted });
+  // As integradas voltam com o motivo, para a tela dizer quais ficaram e
+  // porque — apagar as outras em silencio esconderia o problema.
+  const { apagadas, integradas } = await deleteInvoices(ids);
+  return NextResponse.json({ deleted: apagadas, blocked: integradas });
 }
