@@ -41,10 +41,20 @@ export type TituloDoRastro = {
   status: string;
 };
 
+export type PartidaDoRastro = {
+  accountCode: string;
+  accountName: string;
+  debit: number;
+  credit: number;
+  description: string | null;
+};
+
 export type Rastro = {
   posted: boolean;
   journalId: string | null;
   postedOn: string | null;
+  /** As partidas DESTE documento, e só dele. */
+  lines: PartidaDoRastro[];
   titles: TituloDoRastro[];
 };
 
@@ -144,6 +154,60 @@ export default function IntegrationTrace({
       )}
 
       {erro && <p className="mt-2 text-sm text-danger">{erro}</p>}
+
+      {/*
+        * O LANÇAMENTO DESTA NOTA, aqui na nota.
+        *
+        * Até agora, para ver como uma nota tinha sido contabilizada era preciso
+        * ir ao título — e lá aparecem TODAS as partidas penduradas nele: a do
+        * documento, mais cada baixa, mais cada encargo. Numa nota paga em três
+        * vezes são cinco lançamentos, e o da nota é um deles.
+        *
+        * Aqui é só o dela: a despesa, o VAT a recuperar e o fornecedor a pagar
+        * (ou clientes, receita e VAT a pagar, do lado da venda). É a resposta à
+        * pergunta que se faz com a nota aberta à frente.
+        */}
+      {rastro.lines.length > 0 && (
+        <table className="mt-3 w-full text-[12.5px]">
+          <thead>
+            <tr className="border-b border-line text-[10px] uppercase tracking-wide text-muted">
+              <th className="py-1 text-left font-medium">Conta</th>
+              <th className="py-1 text-right font-medium">Débito</th>
+              <th className="py-1 text-right font-medium">Crédito</th>
+            </tr>
+          </thead>
+          <tbody>
+            {rastro.lines.map((l, i) => (
+              <tr key={`${l.accountCode}-${i}`} className="border-b border-line/40">
+                <td className="py-1.5">
+                  <span className="font-mono text-[11.5px] text-muted">{l.accountCode}</span>{" "}
+                  {l.accountName}
+                </td>
+                <td className="py-1.5 text-right font-mono tabular-nums">
+                  {l.debit ? eur(l.debit) : ""}
+                </td>
+                <td className="py-1.5 text-right font-mono tabular-nums">
+                  {l.credit ? eur(l.credit) : ""}
+                </td>
+              </tr>
+            ))}
+            {/*
+              * O somatório fecha a leitura: quem confere um lançamento confere
+              * primeiro se ele bate, e fazer essa soma de cabeça em cinco
+              * linhas é onde se erra.
+              */}
+            <tr className="text-[11.5px] font-semibold">
+              <td className="py-1.5 text-right text-muted">soma</td>
+              <td className="py-1.5 text-right font-mono tabular-nums">
+                {eur(rastro.lines.reduce((s, l) => s + l.debit, 0))}
+              </td>
+              <td className="py-1.5 text-right font-mono tabular-nums">
+                {eur(rastro.lines.reduce((s, l) => s + l.credit, 0))}
+              </td>
+            </tr>
+          </tbody>
+        </table>
+      )}
 
       {nada ? (
         /*

@@ -44,12 +44,32 @@ export type TituloDoDocumento = {
   status: string;
 };
 
+export type PartidaDoDocumento = {
+  accountCode: string;
+  accountName: string;
+  debit: number;
+  credit: number;
+  description: string | null;
+};
+
 export type RastroDoDocumento = {
   /** Tem partida no razão. */
   posted: boolean;
   journalId: string | null;
   /** Data CONTÁBIL do lançamento — pode não ser a data da nota. */
   postedOn: string | null;
+  /**
+   * As partidas DESTE documento, e só dele.
+   *
+   * O painel do título mostra tudo o que está pendurado nele — a partida do
+   * documento, mais cada baixa, mais cada encargo. Numa nota paga em três
+   * vezes são cinco lançamentos, e quem abre a nota para ver "como é que isto
+   * foi contabilizado" tem de encontrar o primeiro no meio dos outros.
+   *
+   * Aqui é o lançamento da nota: a despesa, o VAT a recuperar e o fornecedor.
+   * O resto é história do título, e o sítio dela é o título.
+   */
+  lines: PartidaDoDocumento[];
   /** Os títulos que este documento abriu. Lista, e não um só, porque uma
    *  nota parcelada abre um título por parcela. */
   titles: TituloDoDocumento[];
@@ -91,10 +111,32 @@ export async function rastroDoDocumento(
   ]);
 
   const cabecalho = (lanc ?? [])[0] as any;
+
+  // As partidas só se leem quando há lançamento — poupa duas idas ao banco no
+  // caso comum de um documento ainda por contabilizar.
+  let lines: PartidaDoDocumento[] = [];
+  if (cabecalho?.id) {
+    const [{ data: partidas }, { data: plano }] = await Promise.all([
+      sb.from("journal_lines")
+        .select("account_code,debit,credit,description")
+        .eq("journal_id", cabecalho.id).order("line_no", { ascending: true }),
+      sb.from("chart_of_accounts").select("code,description").is("client_id", null),
+    ]);
+    const nome = new Map(((plano ?? []) as any[]).map((c) => [c.code, c.description]));
+    lines = ((partidas ?? []) as any[]).map((l) => ({
+      accountCode: l.account_code,
+      accountName: nome.get(l.account_code) ?? l.account_code,
+      debit: num(l.debit),
+      credit: num(l.credit),
+      description: l.description ?? null,
+    }));
+  }
+
   return {
     posted: Boolean(cabecalho),
     journalId: cabecalho?.id ?? null,
     postedOn: cabecalho?.posting_date ?? null,
+    lines,
     titles: ((titulos ?? []) as any[]).map((t) => ({
       id: t.id,
       kind: t.kind,
@@ -144,14 +186,14 @@ export async function rastroDeVarios(
     ]);
 
     for (const l of ((lancs ?? []) as any[])) {
-      const r = mapa.get(l.document_id) ?? { posted: false, journalId: null, postedOn: null, titles: [] };
+      const r = mapa.get(l.document_id) ?? { posted: false, journalId: null, postedOn: null, lines: [], titles: [] };
       r.posted = true;
       r.journalId = l.id;
       r.postedOn = l.posting_date;
       mapa.set(l.document_id, r);
     }
     for (const t of ((titulos ?? []) as any[])) {
-      const r = mapa.get(t.document_id) ?? { posted: false, journalId: null, postedOn: null, titles: [] };
+      const r = mapa.get(t.document_id) ?? { posted: false, journalId: null, postedOn: null, lines: [], titles: [] };
       r.titles.push({
         id: t.id, kind: t.kind, documentRef: t.document_ref ?? null,
         counterparty: t.counterparty ?? null, dueDate: t.due_date ?? null,
