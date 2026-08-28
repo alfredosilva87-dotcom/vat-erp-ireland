@@ -45,6 +45,7 @@ const GENERAL: PermScreen[] = [
   // Os tipos de encargo do título e a conta de cada um — referência global,
   // como o plano. Ver app/charges/page.tsx.
   { id: "geral.charges", labelKey: "nav.charges", href: "/charges" },
+  { id: "geral.obligations", labelKey: "nav.obligations", href: "/obligations" },
   { id: "geral.settings", labelKey: "nav.settings", href: "/settings" },
   { id: "geral.users", labelKey: "users.title", href: "/settings/users" },
 ];

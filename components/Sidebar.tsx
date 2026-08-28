@@ -50,6 +50,13 @@ const NAV: NavEntry[] = [
       { href: "/charges", key: "nav.charges", perm: "geral.charges" },
     ],
   },
+  /*
+   * A agenda fiscal fica no menu GERAL, e não dentro de um cliente.
+   *
+   * A pergunta que ela responde é "em que cliente tenho de mexer hoje?" — e
+   * essa não se faz de dentro de um cliente, faz-se antes de escolher um.
+   */
+  { href: "/obligations", key: "nav.obligations", icon: IconCalendar, perm: "geral.obligations" },
   {
     href: "/hr", key: "hr.title", icon: IconPeople, perm: "rh.painel",
     // A folha de uma empresa fica de fora: chega-se a ela pelo botão de cada
@@ -272,5 +279,6 @@ function IconStack() { return base(<><path d="M12 3l9 5-9 5-9-5 9-5Z" {...S} /><
 // que é a mesma ideia mas com a segunda figura só esboçada — de longe elas
 // confundiam-se, e ficam uma por cima da outra na barra.
 function IconPeople() { return base(<><circle cx="8.5" cy="8" r="3.2" {...S} /><path d="M3 20a5.5 5.5 0 0 1 11 0" {...S} /><path d="M16 5.4a3.2 3.2 0 0 1 0 5.2" {...S} /><path d="M18.2 20a5.5 5.5 0 0 0-2.2-4.4" {...S} /></>); }
+function IconCalendar() { return base(<><rect x="3.5" y="5" width="17" height="15" rx="2.5" {...S} /><path d="M3.5 9.5h17" {...S} /><path d="M8 3.5v3M16 3.5v3" {...S} /><circle cx="9" cy="14" r="1.1" fill="currentColor" stroke="none" /><circle cx="15" cy="14" r="1.1" fill="currentColor" stroke="none" /></>); }
 function IconShield() { return base(<><path d="M12 3l7 3v5.5c0 4.2-2.9 7.9-7 8.9-4.1-1-7-4.7-7-8.9V6l7-3Z" {...S} /><path d="m9.5 12 1.8 1.8 3.4-3.6" {...S} /></>); }
 function IconCog() { return base(<><circle cx="12" cy="12" r="3.2" {...S} /><path d="M19.4 15a1.7 1.7 0 0 0 .34 1.88l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.7 1.7 0 0 0-1.88-.34 1.7 1.7 0 0 0-1.03 1.56V21a2 2 0 1 1-4 0v-.09A1.7 1.7 0 0 0 8.9 19.3a1.7 1.7 0 0 0-1.88.34l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06A1.7 1.7 0 0 0 4.7 15a1.7 1.7 0 0 0-1.56-1.03H3a2 2 0 1 1 0-4h.09A1.7 1.7 0 0 0 4.7 8.9a1.7 1.7 0 0 0-.34-1.88l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06A1.7 1.7 0 0 0 9 4.6a1.7 1.7 0 0 0 1-1.56V3a2 2 0 1 1 4 0v.09a1.7 1.7 0 0 0 1.03 1.56 1.7 1.7 0 0 0 1.88-.34l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06A1.7 1.7 0 0 0 19.4 9v.09a1.7 1.7 0 0 0 1.56 1.03H21a2 2 0 1 1 0 4h-.09a1.7 1.7 0 0 0-1.51 1.03Z" {...S} /></>); }
