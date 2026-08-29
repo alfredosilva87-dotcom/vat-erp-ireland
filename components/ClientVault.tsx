@@ -1,0 +1,211 @@
+"use client";
+
+import { useCallback, useEffect, useRef, useState } from "react";
+import { TIPOS_DE_DOCUMENTO, type DocumentoDoCliente } from "@/lib/fiscal/cofreTipos";
+
+/**
+ * O cofre de documentos do cliente, dentro do cadastro dele.
+ *
+ * ---------------------------------------------------------------------------
+ * POR QUE AQUI E NÃO NUMA TELA PRÓPRIA
+ *
+ * Estes documentos — identidade, morada, pacto social — são cadastro, não
+ * movimento: entram uma vez e ficam. Uma tela própria seria mais uma aba que
+ * ninguém abre, e o sítio onde falta a identidade de um cliente é exatamente o
+ * ecrã onde se olha para o cliente.
+ * ---------------------------------------------------------------------------
+ *
+ * A validade é o que faz isto valer mais do que uma pasta partilhada: uma
+ * pasta não sabe que o passaporte caduca em março.
+ */
+
+const ROTULO = Object.fromEntries(TIPOS_DE_DOCUMENTO.map((t) => [t.valor, t.rotulo]));
+// `Set<string>` de propósito: `kind` vem do <select> como string, e estreitá-lo
+// aqui só para o `has` obrigaria a um cast que não protege nada.
+const CADUCA: Set<string> = new Set(TIPOS_DE_DOCUMENTO.filter((t) => t.caduca).map((t) => t.valor));
+
+function tamanho(bytes: number | null) {
+  if (!bytes) return "";
+  return bytes < 1024 * 1024
+    ? `${Math.round(bytes / 1024)} KB`
+    : `${(bytes / 1024 / 1024).toFixed(1)} MB`;
+}
+
+/** A cor da validade, e a frase que a acompanha. */
+function validade(d: DocumentoDoCliente): { chip: string; texto: string } | null {
+  if (d.validade === "sem_prazo") return null;
+  if (d.validade === "caducado") {
+    return { chip: "chip-danger", texto: `caducou há ${Math.abs(d.diasParaCaducar!)} dias` };
+  }
+  if (d.validade === "a_caducar") {
+    return { chip: "chip-warn", texto: `caduca em ${d.diasParaCaducar} dias` };
+  }
+  return { chip: "chip-ok", texto: `válido até ${d.expiresOn}` };
+}
+
+export default function ClientVault({ clientId }: { clientId: string }) {
+  const [docs, setDocs] = useState<DocumentoDoCliente[] | null>(null);
+  const [kind, setKind] = useState<string>("identity");
+  const [title, setTitle] = useState("");
+  const [expiresOn, setExpiresOn] = useState("");
+  const [enviando, setEnviando] = useState(false);
+  const [erro, setErro] = useState<string | null>(null);
+  const fileRef = useRef<HTMLInputElement>(null);
+
+  const carregar = useCallback(async () => {
+    const r = await fetch(`/api/clients/${clientId}/vault`);
+    const j = await r.json();
+    setDocs(j.documentos ?? []);
+  }, [clientId]);
+
+  useEffect(() => { void carregar(); }, [carregar]);
+
+  async function enviar() {
+    const file = fileRef.current?.files?.[0];
+    if (!file) { setErro("Escolha um ficheiro."); return; }
+    setEnviando(true);
+    setErro(null);
+    try {
+      const fd = new FormData();
+      fd.append("file", file);
+      fd.append("kind", kind);
+      if (title.trim()) fd.append("title", title.trim());
+      if (expiresOn) fd.append("expiresOn", expiresOn);
+      const r = await fetch(`/api/clients/${clientId}/vault`, { method: "POST", body: fd });
+      const j = await r.json();
+      if (!r.ok) { setErro(j.error || "Não deu para guardar."); return; }
+      setDocs(j.documentos ?? []);
+      setTitle("");
+      setExpiresOn("");
+      if (fileRef.current) fileRef.current.value = "";
+    } finally {
+      setEnviando(false);
+    }
+  }
+
+  const aExpirar = (docs ?? []).filter((d) => d.validade === "caducado" || d.validade === "a_caducar");
+
+  return (
+    <section className="rounded-xl2 border border-line bg-surface p-4">
+      <div className="flex flex-wrap items-baseline justify-between gap-2">
+        <h2 className="font-display text-sm font-semibold">Documentos do cliente</h2>
+        <p className="text-xs text-muted">
+          Identidade, comprovativo de morada, pacto social — o que o escritório tem de apresentar
+          quando alguém pergunta.
+        </p>
+      </div>
+
+      {/*
+        * O aviso vem ANTES da lista.
+        *
+        * Um documento caducado no meio de oito linhas é um documento que
+        * ninguém vê. Aqui em cima é a primeira coisa que se lê ao abrir o
+        * cadastro — que é quando ainda dá tempo de pedir o novo.
+        */}
+      {aExpirar.length > 0 && (
+        <p className="mt-3 rounded-lg border border-warn/40 bg-warn/10 px-3 py-2 text-xs">
+          {aExpirar.filter((d) => d.validade === "caducado").length > 0
+            ? "Há documento CADUCADO neste cliente."
+            : "Há documento a caducar nos próximos 60 dias."}{" "}
+          {aExpirar.map((d) => ROTULO[d.kind] ?? d.kind).join(", ")}.
+        </p>
+      )}
+
+      <div className="mt-3 flex flex-wrap items-end gap-2">
+        <label className="flex flex-col gap-1">
+          <span className="text-[11px] uppercase tracking-wide text-muted">Tipo</span>
+          <select className="input h-9 w-56" value={kind} onChange={(e) => setKind(e.target.value)}>
+            {TIPOS_DE_DOCUMENTO.map((t) => (
+              <option key={t.valor} value={t.valor}>{t.rotulo}</option>
+            ))}
+          </select>
+        </label>
+        <label className="flex flex-col gap-1">
+          <span className="text-[11px] uppercase tracking-wide text-muted">Descrição</span>
+          <input className="input h-9 w-56" placeholder="opcional"
+            value={title} onChange={(e) => setTitle(e.target.value)} />
+        </label>
+        {/*
+          * A validade só aparece nos tipos que caducam.
+          *
+          * Um pacto social não expira, e pedir uma data que não existe convida
+          * a inventar uma — que depois dispara um alarme falso.
+          */}
+        {CADUCA.has(kind) && (
+          <label className="flex flex-col gap-1">
+            <span className="text-[11px] uppercase tracking-wide text-muted">Válido até</span>
+            <input type="date" className="input h-9 w-40"
+              value={expiresOn} onChange={(e) => setExpiresOn(e.target.value)} />
+          </label>
+        )}
+        <label className="flex flex-col gap-1">
+          <span className="text-[11px] uppercase tracking-wide text-muted">Ficheiro</span>
+          <input ref={fileRef} type="file" className="input h-9 w-72 py-1.5 text-xs"
+            accept=".pdf,.png,.jpg,.jpeg,.heic,.webp" />
+        </label>
+        <button className="btn h-9 px-4 text-sm" disabled={enviando} onClick={enviar}>
+          {enviando ? "A guardar…" : "Guardar"}
+        </button>
+      </div>
+
+      {erro && <p className="mt-2 text-sm text-danger">{erro}</p>}
+
+      {docs === null ? (
+        <p className="mt-3 text-sm text-muted">A carregar…</p>
+      ) : docs.length === 0 ? (
+        <p className="mt-3 text-sm text-muted">
+          Nenhum documento guardado. Comece pela identidade do{" "}
+          titular e pelo comprovativo de morada.
+        </p>
+      ) : (
+        <table className="mt-3 w-full text-[13px]">
+          <thead>
+            <tr className="border-b border-line text-[10px] uppercase tracking-wide text-muted">
+              <th className="py-1 text-left font-medium">Tipo</th>
+              <th className="py-1 text-left font-medium">Ficheiro</th>
+              <th className="py-1 text-left font-medium">Validade</th>
+              <th className="py-1 text-right font-medium"></th>
+            </tr>
+          </thead>
+          <tbody>
+            {docs.map((d) => {
+              const v = validade(d);
+              return (
+                <tr key={d.id} className="border-b border-line/40">
+                  <td className="py-1.5">
+                    {ROTULO[d.kind] ?? d.kind}
+                    {d.title && <span className="ml-2 text-muted">{d.title}</span>}
+                  </td>
+                  <td className="py-1.5">
+                    <a className="underline" target="_blank" rel="noreferrer"
+                      href={`/api/clients/${clientId}/vault/${d.id}`}>
+                      {d.originalFilename || "documento"}
+                    </a>
+                    <span className="ml-2 text-[11px] text-muted">{tamanho(d.sizeBytes)}</span>
+                  </td>
+                  <td className="py-1.5">
+                    {v ? <span className={`${v.chip} text-[11px]`}>{v.texto}</span>
+                       : <span className="text-muted">—</span>}
+                  </td>
+                  <td className="py-1.5 text-right">
+                    <button
+                      className="btn-ghost h-7 px-2 text-[11px] text-danger"
+                      onClick={async () => {
+                        if (!confirm(`Apagar "${d.originalFilename || ROTULO[d.kind]}"? Não há como recuperar.`)) return;
+                        const r = await fetch(`/api/clients/${clientId}/vault/${d.id}`, { method: "DELETE" });
+                        if (!r.ok) { setErro((await r.json()).error || "Não deu para apagar."); return; }
+                        await carregar();
+                      }}
+                    >
+                      apagar
+                    </button>
+                  </td>
+                </tr>
+              );
+            })}
+          </tbody>
+        </table>
+      )}
+    </section>
+  );
+}

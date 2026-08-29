@@ -13,6 +13,7 @@
 import { useCallback, useEffect, useState } from "react";
 import ClientBranches from "@/components/ClientBranches";
 import ClientIntegrations from "@/components/ClientIntegrations";
+import ClientVault from "@/components/ClientVault";
 import ClientMailSetup from "@/components/ClientMailSetup";
 import ClientPhoneLinks from "@/components/ClientPhoneLinks";
 import { invalidateClient } from "@/lib/clientCache";
@@ -219,6 +220,13 @@ export default function ClientSettings({ params }: { params: { id: string } }) {
           </div>
         </div>
       </section>
+
+      {/*
+        * O cofre fica LOGO A SEGUIR aos dados da empresa, e antes das
+        * integrações: identidade, morada e pacto social são a mesma pergunta
+        * que os campos acima — quem é este cliente — só que em papel.
+        */}
+      <ClientVault clientId={params.id} />
 
       {/* O que este cliente alimenta automaticamente — ver lib/integrations.ts. */}
       <ClientIntegrations clientId={params.id} />
