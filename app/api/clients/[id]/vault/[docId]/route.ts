@@ -19,9 +19,14 @@ export async function GET(
   return new NextResponse(doc.bytes as any, {
     headers: {
       "Content-Type": doc.mime,
-      // `inline` para o PDF e a imagem abrirem no navegador: quem confere quer
-      // ver, não descarregar. O nome vai na mesma, para quando guardar.
-      "Content-Disposition": `inline; filename="${doc.filename.replace(/["\\]/g, "")}"`,
+      // `inline` SÓ para o PDF e a imagem: quem confere quer ver, não
+      // descarregar. Qualquer outra coisa vai como anexo — renderizada na
+      // origem do ERP, seria script a correr com a sessão de quem a abriu.
+      "Content-Disposition":
+        `${doc.inline ? "inline" : "attachment"}; filename="${doc.filename.replace(/["\\]/g, "")}"`,
+      // Sem isto o navegador adivinha o tipo pelo conteudo e pode render um
+      // ficheiro que nós marcámos como octet-stream justamente para não o ser.
+      "X-Content-Type-Options": "nosniff",
       "Cache-Control": "private, no-store",
     },
   });

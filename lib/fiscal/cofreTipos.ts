@@ -57,3 +57,34 @@ export function validadeDe(
   if (dias <= DIAS_AVISO_VALIDADE) return { validade: "a_caducar", dias };
   return { validade: "valido", dias };
 }
+
+/**
+ * Os tipos de ficheiro que o cofre aceita, e que pode mostrar no navegador.
+ *
+ * ---------------------------------------------------------------------------
+ * POR QUE UMA LISTA FECHADA E NÃO "qualquer ficheiro"
+ *
+ * O cofre serve os ficheiros para dentro da própria aplicação. Um HTML enviado
+ * como `text/html` seria RENDERIZADO na origem do ERP, com os cookies de sessão
+ * de quem o abrisse ao alcance do script — e o atacante nem precisaria de
+ * entrar: bastava que alguém com acesso ao cliente carregasse o ficheiro por
+ * engano, ou que uma conta comprometida o deixasse lá à espera.
+ *
+ * Um comprovativo de morada é um PDF ou uma fotografia. Não há caso legítimo
+ * para um ficheiro executável ou marcado neste cofre, e a lista fecha por isso.
+ * ---------------------------------------------------------------------------
+ *
+ * O `accept` do <input> não conta como defesa: é uma sugestão ao seletor de
+ * ficheiros do navegador, e qualquer pedido feito à mão o ignora. A guarda tem
+ * de estar no servidor.
+ */
+export const MIMES_ACEITES: readonly string[] = [
+  "application/pdf",
+  "image/png", "image/jpeg", "image/webp", "image/heic", "image/heif",
+];
+
+export function mimeAceite(mime: string | null | undefined): boolean {
+  // O navegador manda `image/jpeg; charset=...` às vezes; conta o tipo, não o resto.
+  const limpo = (mime ?? "").split(";")[0].trim().toLowerCase();
+  return MIMES_ACEITES.includes(limpo);
+}

@@ -73,5 +73,30 @@ console.log("\n== os tipos que a tela oferece ==");
      "pacto social e registo fiscal NAO pedem validade", caducam);
 }
 
+console.log("\n== o que o cofre aceita, e o que recusa ==");
+{
+  // Um HTML servido pelo cofre seria renderizado na ORIGEM do ERP, com a sessao
+  // de quem o abrisse ao alcance do script. Nao ha comprovativo de morada em
+  // HTML, entao a lista fecha.
+  ok(C.mimeAceite("application/pdf"), "PDF entra");
+  ok(C.mimeAceite("image/jpeg") && C.mimeAceite("image/png"), "foto entra");
+  ok(C.mimeAceite("image/heic"), "HEIC entra — e o que o iPhone tira");
+
+  ok(!C.mimeAceite("text/html"), "HTML NAO entra");
+  ok(!C.mimeAceite("image/svg+xml"), "SVG NAO entra — e imagem, mas leva script dentro");
+  ok(!C.mimeAceite("application/xhtml+xml"), "XHTML NAO entra");
+  ok(!C.mimeAceite("text/javascript"), "javascript NAO entra");
+  ok(!C.mimeAceite(null) && !C.mimeAceite("") && !C.mimeAceite(undefined),
+     "sem tipo declarado NAO entra");
+
+  // O navegador manda "image/jpeg; charset=..." as vezes, e ha quem mande
+  // maiusculas. Conta o tipo, e nao o que vem colado.
+  ok(C.mimeAceite("image/jpeg; charset=binary"), "aceita com parametro colado");
+  ok(C.mimeAceite("APPLICATION/PDF"), "aceita em maiusculas");
+  // E o contrario tem de continuar a falhar: nao basta CONTER um tipo aceite.
+  ok(!C.mimeAceite("text/html; x=application/pdf"),
+     "HTML disfarçado com 'application/pdf' no parametro continua recusado");
+}
+
 console.log(`\n=========== ${pass} passaram, ${fail} falharam ===========\n`);
 process.exit(fail ? 1 : 0);

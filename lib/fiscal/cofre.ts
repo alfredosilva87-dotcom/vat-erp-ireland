@@ -1,6 +1,6 @@
 import "server-only";
 import { getServerSupabase } from "@/lib/supabase";
-import { validadeDe, type DocumentoDoCliente } from "./cofreTipos";
+import { validadeDe, mimeAceite, type DocumentoDoCliente } from "./cofreTipos";
 
 /**
  * O cofre de documentos DO CLIENTE.
@@ -24,7 +24,7 @@ import { validadeDe, type DocumentoDoCliente } from "./cofreTipos";
  */
 
 export {
-  TIPOS_DE_DOCUMENTO, DIAS_AVISO_VALIDADE, validadeDe,
+  TIPOS_DE_DOCUMENTO, DIAS_AVISO_VALIDADE, MIMES_ACEITES, validadeDe, mimeAceite,
   type TipoDeDocumento, type DocumentoDoCliente,
 } from "./cofreTipos";
 
@@ -76,6 +76,17 @@ export async function guardarDocumento(
   const sb = getServerSupabase();
 
   /*
+   * A recusa acontece ANTES de o ficheiro tocar no armazenamento.
+   *
+   * O cofre serve os ficheiros para dentro da aplicação: um HTML aceite aqui
+   * seria renderizado na origem do ERP, com a sessão de quem o abrisse ao
+   * alcance do script. Ver MIMES_ACEITES em cofreTipos.ts.
+   */
+  if (!mimeAceite(d.mimeType)) {
+    return { ok: false, erro: `Só se aceita PDF ou imagem. Este ficheiro é ${d.mimeType || "de tipo desconhecido"}.` };
+  }
+
+  /*
    * O caminho no armazenamento leva o id do cliente e um id próprio.
    *
    * Nunca o nome original: dois clientes com "passaporte.pdf" escreveriam um
@@ -115,7 +126,7 @@ export async function guardarDocumento(
 
 export async function baixarDocumento(
   clientId: string, docId: string
-): Promise<{ bytes: Buffer; mime: string; filename: string } | null> {
+): Promise<{ bytes: Buffer; mime: string; filename: string; inline: boolean } | null> {
   const sb = getServerSupabase();
   // O cliente entra na consulta: sem ele, o id de um documento de outro
   // escritorio seria descarregado por quem tivesse o id.
@@ -126,10 +137,23 @@ export async function baixarDocumento(
 
   const { data, error } = await sb.storage.from(BUCKET).download((doc as any).storage_path);
   if (error || !data) return null;
+
+  /*
+   * Segunda trava, na saída.
+   *
+   * A entrada já filtra, mas isto é o que decide o que o NAVEGADOR faz com os
+   * bytes — e as duas coisas devem valer por si. Um ficheiro gravado antes
+   * desta regra, ou por outro caminho, não deve ganhar direito a renderizar
+   * só por estar guardado.
+   */
+  const guardado = (doc as any).mime_type as string | null;
+  const seguro = mimeAceite(guardado);
   return {
     bytes: Buffer.from(await data.arrayBuffer()),
-    mime: (doc as any).mime_type || "application/octet-stream",
+    mime: seguro ? (guardado as string) : "application/octet-stream",
     filename: (doc as any).original_filename || "documento",
+    /** Só o que é seguro abre no navegador; o resto descarrega. */
+    inline: seguro,
   };
 }
 
