@@ -26,6 +26,9 @@ const CADUCA: Set<string> = new Set(TIPOS_DE_DOCUMENTO.filter((t) => t.caduca).m
 
 function tamanho(bytes: number | null) {
   if (!bytes) return "";
+  // Abaixo de 1 KB o arredondamento dava "0 KB", que se le como ficheiro
+  // partido. Vale mais dizer os bytes crus.
+  if (bytes < 1024) return `${bytes} B`;
   return bytes < 1024 * 1024
     ? `${Math.round(bytes / 1024)} KB`
     : `${(bytes / 1024 / 1024).toFixed(1)} MB`;
@@ -83,7 +86,9 @@ export default function ClientVault({ clientId }: { clientId: string }) {
     }
   }
 
-  const aExpirar = (docs ?? []).filter((d) => d.validade === "caducado" || d.validade === "a_caducar");
+  const caducados = (docs ?? []).filter((d) => d.validade === "caducado");
+  const aCaducar = (docs ?? []).filter((d) => d.validade === "a_caducar");
+  const aExpirar = [...caducados, ...aCaducar];
 
   return (
     <section className="rounded-xl2 border border-line bg-surface p-4">
@@ -103,12 +108,28 @@ export default function ClientVault({ clientId }: { clientId: string }) {
         * cadastro — que é quando ainda dá tempo de pedir o novo.
         */}
       {aExpirar.length > 0 && (
-        <p className="mt-3 rounded-lg border border-warn/40 bg-warn/10 px-3 py-2 text-xs">
-          {aExpirar.filter((d) => d.validade === "caducado").length > 0
-            ? "Há documento CADUCADO neste cliente."
-            : "Há documento a caducar nos próximos 60 dias."}{" "}
-          {aExpirar.map((d) => ROTULO[d.kind] ?? d.kind).join(", ")}.
-        </p>
+        <div className="mt-3 space-y-1 rounded-lg border border-warn/40 bg-warn/10 px-3 py-2 text-xs">
+          {/*
+            * As duas frases são SEPARADAS de propósito.
+            *
+            * Juntá-las numa só — "há documento caducado: morada, identidade" —
+            * carimba de caducado um documento que ainda vale, e quem lê pede ao
+            * cliente um papel que ele não precisa de trocar. São dois estados
+            * com duas ações diferentes: um é urgente, o outro é agenda.
+            */}
+          {caducados.length > 0 && (
+            <p>
+              <strong>Caducado:</strong>{" "}
+              {caducados.map((d) => ROTULO[d.kind] ?? d.kind).join(", ")}.
+            </p>
+          )}
+          {aCaducar.length > 0 && (
+            <p>
+              <strong>A caducar:</strong>{" "}
+              {aCaducar.map((d) => `${ROTULO[d.kind] ?? d.kind} (${d.diasParaCaducar} dias)`).join(", ")}.
+            </p>
+          )}
+        </div>
       )}
 
       <div className="mt-3 flex flex-wrap items-end gap-2">
