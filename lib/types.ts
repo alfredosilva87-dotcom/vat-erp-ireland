@@ -308,6 +308,16 @@ export interface Client {
   address: string | null;
   notes: string | null;
   created_at: string;
+  /**
+   * `sole_trader` ou `limited_company`. NULO é legítimo: cliente por
+   * classificar. Decide as obrigações e os limiares — ver lib/fiscal/formaJuridica.ts.
+   */
+  legal_form?: "sole_trader" | "limited_company" | null;
+  /** O nome comercial, quando difere do que está no registo. */
+  trading_name?: string | null;
+  director?: string | null;
+  /** Número do CRO. Existe no banco desde a migração 018 e faltava no tipo. */
+  cro?: string | null;
 }
 
 export interface ClientWithStats extends Client {

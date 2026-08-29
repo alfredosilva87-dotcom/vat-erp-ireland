@@ -17,6 +17,7 @@ import ClientMailSetup from "@/components/ClientMailSetup";
 import ClientPhoneLinks from "@/components/ClientPhoneLinks";
 import { invalidateClient } from "@/lib/clientCache";
 import type { Client } from "@/lib/types";
+import { FORMAS } from "@/lib/fiscal/formaJuridica";
 
 const ACTIVITIES = [
   { code: "GENERIC", label: "Generic business" },
@@ -69,6 +70,8 @@ export default function ClientSettings({ params }: { params: { id: string } }) {
         body: JSON.stringify({
           name: client.name, activity_code: client.activity_code,
           activity_label: activity?.label || client.activity_label,
+          trading_name: client.trading_name, legal_form: client.legal_form || null,
+          director: client.director, cro: client.cro,
           vat_number: client.vat_number, tax_reg_no: client.tax_reg_no,
           email: client.email, phone: client.phone, address: client.address, notes: client.notes,
           related_categories: client.related_categories,
@@ -121,6 +124,45 @@ export default function ClientSettings({ params }: { params: { id: string } }) {
               onChange={(e) => set("activity_code", e.target.value)}>
               {ACTIVITIES.map((a) => <option key={a.code} value={a.code}>{a.label}</option>)}
             </select>
+          </F>
+          {/*
+            * A FORMA JURÍDICA é o campo que decide o resto.
+            *
+            * Sole trader entrega Form 11; sociedade entrega CT1 e as contas no
+            * CRO. Sem ele, um calendário de obrigações mostraria a declaração
+            * errada — e um alerta que não se aplica ensina a fechar o aviso sem
+            * ler. Ver lib/fiscal/formaJuridica.ts.
+            *
+            * "por classificar" é uma opção de verdade e não um placeholder: é
+            * o estado de todos os clientes que já existiam, e adivinhar um
+            * valor faria o sistema deixar de cobrar as contas anuais de uma
+            * sociedade, em silêncio.
+            */}
+          <F label="Forma jurídica">
+            <select className="input" value={client.legal_form ?? ""}
+              onChange={(e) => {
+                // O `value` de um <select> é string; o campo só aceita as duas
+                // formas ou nulo, e é aqui que se estreita.
+                const v = e.target.value;
+                set("legal_form", v === "sole_trader" || v === "limited_company" ? v : null);
+              }}>
+              <option value="">por classificar</option>
+              {FORMAS.map((f) => (
+                <option key={f.valor} value={f.valor}>{f.rotulo} ({f.curto})</option>
+              ))}
+            </select>
+          </F>
+          <F label="Nome comercial">
+            <input className="input" placeholder="se for diferente da razão social"
+              value={client.trading_name ?? ""} onChange={(e) => set("trading_name", e.target.value)} />
+          </F>
+          <F label={client.legal_form === "sole_trader" ? "Titular" : "Diretor"}>
+            <input className="input" value={client.director ?? ""}
+              onChange={(e) => set("director", e.target.value)} />
+          </F>
+          <F label="Número do CRO">
+            <input className="input font-mono" placeholder="só sociedades"
+              value={client.cro ?? ""} onChange={(e) => set("cro", e.target.value)} />
           </F>
           <F label="Número de VAT">
             <input className="input font-mono" placeholder="IE1234567X"
