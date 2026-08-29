@@ -1292,6 +1292,19 @@ const en = {
   "agenda.andMore": "and {n} more",
   "agenda.allClear": "No client has anything pending. Untick above to see them all.",
   "agenda.none": "No obligations recorded yet.",
+  "vatLimit.title": "VAT registration threshold",
+  "vatLimit.passedChip": "{n} already over",
+  "vatLimit.window": "Turnover from {de} to {ate} · {n} client(s) with no VAT number",
+  "vatLimit.why": "A business that goes over the threshold and does not register owes Revenue the VAT on sales it has already made without charging it. The thresholds are €{servicos} for services and €{bens} for goods; this reading uses the tighter of the two, because the system cannot know which one applies to each business.",
+  "vatLimit.colClient": "Client",
+  "vatLimit.col12m": "12 months",
+  "vatLimit.colUse": "of threshold",
+  "vatLimit.colState": "Situation",
+  "vatLimit.chipPassed": "over",
+  "vatLimit.chipNear": "approaching",
+  "vatLimit.passouAmbos": "Over both thresholds (€{bens} goods, €{servicos} services). Registering for VAT is mandatory.",
+  "vatLimit.passouServicos": "Over the SERVICES threshold (€{servicos}). If the activity is supplying services, registration is already mandatory.",
+  "vatLimit.aproxima": "Already used {n}% of the services threshold. Worth deciding on registration before going over — after that, the VAT on sales made without charging it comes out of the client's own pocket.",
 } as const;
 
 export type Dict = Record<keyof typeof en, string>;

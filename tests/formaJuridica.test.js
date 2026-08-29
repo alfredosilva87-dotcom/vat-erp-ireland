@@ -82,5 +82,30 @@ console.log("\n== o limiar de VAT ==");
   ok(n.faturamento === 0, "negativo tambem", n);
 }
 
+console.log("\n== o motivo, para a tela poder traduzir a frase ==");
+{
+  // `estado` sozinho nao chega: os dois "passou" pedem conversas diferentes.
+  // Passar os dois limiares nao deixa duvida; passar so o de servicos depende
+  // de a actividade ser prestacao de servicos, e quem decide e o contabilista.
+  const ambos = F.avisoDeLimiarVat(90000, false);
+  ok(ambos.estado === "passou" && ambos.motivo === "passouAmbos",
+     "acima dos 85.000: passou os dois", ambos.motivo);
+
+  const servicos = F.avisoDeLimiarVat(50000, false);
+  ok(servicos.estado === "passou" && servicos.motivo === "passouServicos",
+     "entre 42.500 e 85.000: passou so o de servicos", servicos.motivo);
+
+  ok(F.avisoDeLimiarVat(35000, false).motivo === "aproxima", "aos 35.000: aproxima");
+  ok(F.avisoDeLimiarVat(1000, false).motivo === "abaixo", "aos 1.000: abaixo");
+
+  // A tela monta a chave de traducao com o motivo (`vatLimit.${motivo}`), entao
+  // um motivo fora da lista dava uma frase em branco no ecra e nao um erro.
+  const conhecidos = ["abaixo", "aproxima", "passouServicos", "passouAmbos"];
+  const todos = [0, 1000, 34000, 42500, 50000, 85000, 200000]
+    .map((v) => F.avisoDeLimiarVat(v, false).motivo);
+  ok(todos.every((m) => conhecidos.includes(m)),
+     "nenhum faturamento produz motivo desconhecido", todos);
+}
+
 console.log(`\n=========== ${pass} passaram, ${fail} falharam ===========\n`);
 process.exit(fail === 0 ? 0 : 1);

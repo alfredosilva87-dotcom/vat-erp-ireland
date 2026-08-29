@@ -109,7 +109,9 @@ export type LinhaDeLimiar = {
   faturamento: number;
   usoDoMenorLimiar: number;
   estado: "passou" | "aproxima";
-  mensagem: string;
+  motivo: "aproxima" | "passouServicos" | "passouAmbos";
+  limiarServicos: number;
+  limiarBens: number;
 };
 
 /**
@@ -187,7 +189,9 @@ export async function limiarDeTodos(
       faturamento: aviso.faturamento,
       usoDoMenorLimiar: aviso.usoDoMenorLimiar,
       estado: aviso.estado,
-      mensagem: aviso.mensagem,
+      motivo: aviso.motivo as LinhaDeLimiar["motivo"],
+      limiarServicos: aviso.limiarServicos,
+      limiarBens: aviso.limiarBens,
     });
   }
 

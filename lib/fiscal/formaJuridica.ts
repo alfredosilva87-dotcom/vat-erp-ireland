@@ -113,6 +113,17 @@ export type AvisoDeLimiar = {
   /** Percentagem do limiar de SERVIÇOS já usada — é o mais apertado dos dois. */
   usoDoMenorLimiar: number;
   estado: "ok" | "aproxima" | "passou";
+  /**
+   * QUAL dos casos, para a tela poder escrever a frase na língua de quem lê.
+   *
+   * `estado` não chega: os dois "passou" pedem conversas diferentes — passar os
+   * dois limiares não deixa dúvida nenhuma, passar só o de serviços depende de
+   * a atividade ser prestação de serviços, e quem decide isso é o contabilista.
+   *
+   * `mensagem` continua a existir para quem consome a API fora da tela, mas é
+   * texto fixo em português: uma tela traduzida nunca a deve mostrar.
+   */
+  motivo: "abaixo" | "aproxima" | "passouServicos" | "passouAmbos";
   mensagem: string;
 };
 
@@ -144,21 +155,21 @@ export function avisoDeLimiarVat(
   };
 
   if (f >= LIMIARES_VAT.bens) {
-    return { ...base, estado: "passou",
+    return { ...base, estado: "passou", motivo: "passouAmbos",
       mensagem: `Passou os dois limiares (€${LIMIARES_VAT.bens.toLocaleString("en-IE")} em bens, `
         + `€${LIMIARES_VAT.servicos.toLocaleString("en-IE")} em serviços). O registo para VAT é obrigatório.` };
   }
   if (f >= LIMIARES_VAT.servicos) {
-    return { ...base, estado: "passou",
+    return { ...base, estado: "passou", motivo: "passouServicos",
       mensagem: `Passou o limiar de SERVIÇOS (€${LIMIARES_VAT.servicos.toLocaleString("en-IE")}). `
         + "Se a atividade é prestação de serviços, o registo para VAT já é obrigatório." };
   }
   // 80% é onde ainda dá tempo de tratar do registo antes de faturar a mais.
   if (uso >= 0.8) {
-    return { ...base, estado: "aproxima",
+    return { ...base, estado: "aproxima", motivo: "aproxima",
       mensagem: `Já usou ${base.usoDoMenorLimiar}% do limiar de serviços. `
         + "Convém decidir o registo antes de o ultrapassar — depois, o IVA das vendas feitas sem o cobrar sai do bolso do cliente." };
   }
-  return { ...base, estado: "ok",
+  return { ...base, estado: "ok", motivo: "abaixo",
     mensagem: `${base.usoDoMenorLimiar}% do limiar de serviços. Sem obrigação de registo por faturamento.` };
 }

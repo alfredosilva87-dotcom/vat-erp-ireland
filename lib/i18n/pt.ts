@@ -1293,6 +1293,19 @@ const pt: Dict = {
   "agenda.andMore": "e mais {n}",
   "agenda.allClear": "Nenhum cliente tem pendência. Desmarque acima para ver todos.",
   "agenda.none": "Ainda não há obrigações registadas.",
+  "vatLimit.title": "Limiar de registo de VAT",
+  "vatLimit.passedChip": "{n} já passou",
+  "vatLimit.window": "Faturamento de {de} a {ate} · {n} cliente(s) sem número de VAT",
+  "vatLimit.why": "Quem passa o limiar e não se regista deve à Revenue o IVA das vendas que já fez sem o cobrar. Os limiares são €{servicos} em serviços e €{bens} em bens; a leitura usa o mais apertado dos dois, porque o sistema não sabe qual dos dois se aplica a cada negócio.",
+  "vatLimit.colClient": "Cliente",
+  "vatLimit.col12m": "12 meses",
+  "vatLimit.colUse": "do limiar",
+  "vatLimit.colState": "Situação",
+  "vatLimit.chipPassed": "passou",
+  "vatLimit.chipNear": "aproxima",
+  "vatLimit.passouAmbos": "Passou os dois limiares (€{bens} em bens, €{servicos} em serviços). O registo para VAT é obrigatório.",
+  "vatLimit.passouServicos": "Passou o limiar de SERVIÇOS (€{servicos}). Se a atividade é prestação de serviços, o registo para VAT já é obrigatório.",
+  "vatLimit.aproxima": "Já usou {n}% do limiar de serviços. Convém decidir o registo antes de o ultrapassar — depois, o IVA das vendas feitas sem o cobrar sai do bolso do cliente.",
 };
 
 export default pt;

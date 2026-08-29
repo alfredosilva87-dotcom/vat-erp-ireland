@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
+import { useT } from "@/lib/i18n";
 
 /**
  * Quem está a passar o limiar de registo de VAT.
@@ -26,13 +27,25 @@ import Link from "next/link";
 type Linha = {
   clientId: string; clientCode: string | null; clientName: string;
   faturamento: number; usoDoMenorLimiar: number;
-  estado: "passou" | "aproxima"; mensagem: string;
+  estado: "passou" | "aproxima";
+  /*
+   * A frase vem do MOTIVO e não do servidor.
+   *
+   * A rota devolve uma `mensagem` pronta, mas em português fixo — e esta tela
+   * pode estar em inglês. O motivo é um código; a frase monta-se aqui, na
+   * língua de quem está a ler.
+   */
+  motivo: "aproxima" | "passouServicos" | "passouAmbos";
+  limiarServicos: number; limiarBens: number;
 };
 
 const eur = (n: number) =>
   n.toLocaleString("en-IE", { style: "currency", currency: "EUR", maximumFractionDigits: 0 });
+/** Só o número, para as frases que já trazem o € escrito. */
+const milhar = (n: number) => n.toLocaleString("en-IE");
 
 export default function LimiarVat() {
+  const { t } = useT();
   const [d, setD] = useState<{ linhas: Linha[]; clientesOlhados: number; desde: string; ate: string } | null>(null);
   const [erro, setErro] = useState<string | null>(null);
 
@@ -55,33 +68,40 @@ export default function LimiarVat() {
   if (!d || d.linhas.length === 0) return null;
 
   const passaram = d.linhas.filter((l) => l.estado === "passou");
+  // Os limiares vêm nas linhas, e não numa constante da tela: se a lei mudar,
+  // muda em lib/fiscal/formaJuridica.ts e chega aqui sozinha.
+  const limiares = {
+    servicos: d.linhas[0]?.limiarServicos ?? 0,
+    bens: d.linhas[0]?.limiarBens ?? 0,
+  };
 
   return (
     <section className="card p-4">
       <div className="flex flex-wrap items-baseline justify-between gap-2">
         <h2 className="font-display text-sm font-semibold">
-          Limiar de registo de VAT
-          {passaram.length > 0 && <span className="chip-danger ml-2 text-[11px]">{passaram.length} já passou</span>}
+          {t("vatLimit.title")}
+          {passaram.length > 0 && (
+            <span className="chip-danger ml-2 text-[11px]">
+              {t("vatLimit.passedChip", { n: passaram.length })}
+            </span>
+          )}
         </h2>
         <p className="text-xs text-muted">
-          Faturamento de <span className="tnum">{d.desde}</span> a <span className="tnum">{d.ate}</span> ·
-          {" "}{d.clientesOlhados} clientes sem número de VAT
+          {t("vatLimit.window", { de: d.desde, ate: d.ate, n: d.clientesOlhados })}
         </p>
       </div>
 
       <p className="mt-1 text-xs text-muted">
-        Quem passa o limiar e não se regista deve à Revenue o IVA das vendas que já fez sem o cobrar.
-        Os limiares são €42.500 em serviços e €85.000 em bens; a leitura usa o mais apertado dos dois,
-        porque o sistema não sabe qual dos dois se aplica a cada negócio.
+        {t("vatLimit.why", { servicos: milhar(limiares.servicos), bens: milhar(limiares.bens) })}
       </p>
 
       <table className="mt-3 w-full text-[13px]">
         <thead>
           <tr className="border-b border-line text-[10px] uppercase tracking-wide text-muted">
-            <th className="py-1 text-left font-medium">Cliente</th>
-            <th className="py-1 text-right font-medium">12 meses</th>
-            <th className="py-1 text-right font-medium">do limiar</th>
-            <th className="py-1 text-left font-medium">Situação</th>
+            <th className="py-1 text-left font-medium">{t("vatLimit.colClient")}</th>
+            <th className="py-1 text-right font-medium">{t("vatLimit.col12m")}</th>
+            <th className="py-1 text-right font-medium">{t("vatLimit.colUse")}</th>
+            <th className="py-1 text-left font-medium">{t("vatLimit.colState")}</th>
           </tr>
         </thead>
         <tbody>
@@ -97,9 +117,15 @@ export default function LimiarVat() {
               <td className="py-1.5 text-right font-mono tabular-nums">{l.usoDoMenorLimiar}%</td>
               <td className="py-1.5">
                 <span className={`${l.estado === "passou" ? "chip-danger" : "chip-warn"} text-[11px]`}>
-                  {l.estado === "passou" ? "passou" : "aproxima"}
+                  {t(l.estado === "passou" ? "vatLimit.chipPassed" : "vatLimit.chipNear")}
                 </span>
-                <span className="ml-2 text-xs text-muted">{l.mensagem}</span>
+                <span className="ml-2 text-xs text-muted">
+                  {t(`vatLimit.${l.motivo}` as const, {
+                    n: l.usoDoMenorLimiar,
+                    servicos: milhar(l.limiarServicos),
+                    bens: milhar(l.limiarBens),
+                  })}
+                </span>
               </td>
             </tr>
           ))}
