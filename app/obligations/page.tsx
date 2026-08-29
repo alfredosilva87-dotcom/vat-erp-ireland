@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useState } from "react";
 import Link from "next/link";
 import { useT } from "@/lib/i18n";
+import LimiarVat from "@/components/fiscal/LimiarVat";
 
 /**
  * A agenda fiscal do escritório inteiro.
@@ -91,6 +92,15 @@ export default function AgendaFiscal() {
           <Cartao rotulo={t("agenda.cardOk")} valor={d.resumo.emDia} tom="ok" />
         </div>
       )}
+
+      {/*
+        * O limiar vem ANTES da tabela de prazos.
+        *
+        * É o único aviso desta tela cujo custo é dinheiro do cliente e não uma
+        * coima com tabela — e, ao contrário dos prazos, não tem data que o
+        * empurre para a frente sozinho. Ver components/fiscal/LimiarVat.tsx.
+        */}
+      <LimiarVat />
 
       <div className="card overflow-hidden">
         <div className="overflow-x-auto">

@@ -103,6 +103,11 @@ const EXEMPT = {
     "O token do link e a credencial, e o guarda de empresa nao se aplica porque a rota roda na " +
     "passagem na nuvem, que nao tem a tabela de empresas. Ela SO ESCREVE: valida o link, recusa " +
     "por forma, prazo, tipo, tamanho e teto de envios, e nao devolve nada do que ja esta la.",
+  "app/api/obligations/vat-threshold/route.ts":
+    "rota de LISTA, irma da agenda: usa visibleClientIds para escolher os clientes e so " +
+    "varre as vendas desses ids. Nao recebe cliente no caminho porque a pergunta e 'qual " +
+    "deles esta a passar o limiar' — e o cliente que interessa e justamente aquele em que " +
+    "ninguem estava a pensar.",
   "app/api/obligations/agenda/route.ts":
     "rota de LISTA de todos os clientes: usa visibleClientIds para escolher quais, e " +
     "so le obligations/recurring_obligations desses ids. Nao ha um cliente a guardar " +
