@@ -175,3 +175,93 @@ export async function apagarDocumento(
   try { await sb.storage.from(BUCKET).remove([(doc as any).storage_path]); } catch { /* orfao */ }
   return { ok: true };
 }
+
+/**
+ * Vários documentos de uma vez, num ZIP arrumado por tipo.
+ *
+ * ---------------------------------------------------------------------------
+ * POR QUE ARRUMADO, E NÃO TUDO NA RAIZ
+ *
+ * Quem descarrega o cofre de um cliente está quase sempre a montar um dossiê
+ * para alguém de fora — o banco, a Revenue, um auditor. Doze ficheiros soltos
+ * chamados `passaporte.pdf` e `scan_0012.pdf` obrigam essa pessoa a abrir cada
+ * um para saber o que é.
+ *
+ * Dentro do ZIP cada tipo tem a sua pasta, e o nome leva o tipo à frente. O
+ * dossiê sai pronto a entregar em vez de sair pronto a organizar.
+ * ---------------------------------------------------------------------------
+ */
+export async function zipDeDocumentos(
+  clientId: string, docIds: string[]
+): Promise<{ bytes: Buffer; nome: string; incluidos: number } | { erro: string }> {
+  if (!docIds.length) return { erro: "Escolha ao menos um documento." };
+
+  const sb = getServerSupabase();
+  // O cliente entra na consulta, como em toda a leitura do cofre: um id de
+  // outro escritorio na lista nao pode vir dentro do ZIP.
+  const { data: docs } = await sb.from("client_documents")
+    .select("id,kind,storage_path,original_filename,title")
+    .eq("client_id", clientId).in("id", docIds);
+  if (!docs?.length) return { erro: "Nenhum dos documentos foi encontrado." };
+
+  const { data: cliente } = await sb.from("clients")
+    .select("client_code,name").eq("id", clientId).maybeSingle();
+
+  const JSZip = (await import("jszip")).default;
+  const zip = new JSZip();
+  const usados = new Set<string>();
+  let incluidos = 0;
+
+  for (const d of (docs as any[])) {
+    const { data, error } = await sb.storage.from(BUCKET).download(d.storage_path);
+    // Um ficheiro em falta NÃO deita o ZIP inteiro abaixo: os outros valem, e
+    // quem pediu prefere onze documentos a uma mensagem de erro.
+    if (error || !data) continue;
+
+    const pasta = ROTULO_DE_PASTA[d.kind] ?? "outros";
+    const base = nomeLimpo(d.title || d.original_filename || "documento");
+    // Dois documentos do mesmo tipo com o mesmo nome sobrepunham-se dentro do
+    // ZIP, e o segundo desaparecia sem aviso.
+    let nome = `${pasta}/${base}`;
+    for (let n = 2; usados.has(nome.toLowerCase()); n++) nome = `${pasta}/${semExtensao(base)}-${n}${extensaoDe(base)}`;
+    usados.add(nome.toLowerCase());
+
+    zip.file(nome, Buffer.from(await data.arrayBuffer()));
+    incluidos++;
+  }
+
+  if (!incluidos) return { erro: "Nenhum dos ficheiros pôde ser lido do armazenamento." };
+
+  const bytes = await zip.generateAsync({ type: "nodebuffer", compression: "DEFLATE" });
+  const etiqueta = nomeLimpo((cliente as any)?.client_code || (cliente as any)?.name || "cliente");
+  return {
+    bytes,
+    nome: `documentos-${etiqueta}-${new Date().toISOString().slice(0, 10)}.zip`,
+    incluidos,
+  };
+}
+
+/** A pasta de cada tipo dentro do ZIP. */
+const ROTULO_DE_PASTA: Record<string, string> = {
+  identity: "1-identidade",
+  address: "2-morada",
+  incorporation: "3-constituicao",
+  tax: "4-registo-fiscal",
+  other: "5-outros",
+};
+
+/**
+ * Um nome que sobrevive a qualquer sistema de ficheiros.
+ *
+ * O nome vem do que alguém escreveu no cadastro, e vai para dentro de um ZIP
+ * que se abre em Windows, Mac e Linux. Barras, dois pontos e acentos partem
+ * num deles ou noutro — e um `..` no nome sairia da pasta ao descomprimir.
+ */
+function nomeLimpo(s: string): string {
+  const limpo = s.normalize("NFD").replace(/[\u0300-\u036f]/g, "")
+    .replace(/[^A-Za-z0-9._-]+/g, "-")
+    .replace(/^[.-]+/, "").replace(/-+/g, "-").slice(0, 80);
+  return limpo || "documento";
+}
+const extensaoDe = (n: string) => (n.match(/\.[A-Za-z0-9]{1,8}$/)?.[0] ?? "");
+const semExtensao = (n: string) => n.slice(0, n.length - extensaoDe(n).length);

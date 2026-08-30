@@ -48,6 +48,8 @@ function validade(d: DocumentoDoCliente): { chip: string; texto: string } | null
 
 export default function ClientVault({ clientId }: { clientId: string }) {
   const [docs, setDocs] = useState<DocumentoDoCliente[] | null>(null);
+  const [marcados, setMarcados] = useState<Set<string>>(new Set());
+  const [zipando, setZipando] = useState(false);
   const [kind, setKind] = useState<string>("identity");
   const [title, setTitle] = useState("");
   const [expiresOn, setExpiresOn] = useState("");
@@ -84,6 +86,52 @@ export default function ClientVault({ clientId }: { clientId: string }) {
     } finally {
       setEnviando(false);
     }
+  }
+
+  /**
+   * O ZIP chega como bytes e não como um endereço, então o navegador precisa de
+   * uma âncora temporária para o gravar. É feio, mas é o preço de a rota ser um
+   * POST — e ela é um POST porque uma dúzia de uuids não cabe numa query string.
+   */
+  async function baixarSelecionados() {
+    if (!marcados.size) return;
+    setZipando(true);
+    setErro(null);
+    try {
+      const r = await fetch(`/api/clients/${clientId}/vault/zip`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ ids: [...marcados] }),
+      });
+      if (!r.ok) { setErro((await r.json()).error || "Não deu para montar o ZIP."); return; }
+
+      const incluidos = Number(r.headers.get("X-Documentos-Incluidos") || 0);
+      const nome = /filename="([^"]+)"/.exec(r.headers.get("Content-Disposition") || "")?.[1] || "documentos.zip";
+      const blob = await r.blob();
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url; a.download = nome;
+      document.body.appendChild(a); a.click(); a.remove();
+      URL.revokeObjectURL(url);
+
+      // Um ZIP com onze de doze ficheiros não pode parecer completo: se algum
+      // não veio do armazenamento, quem montou o dossiê tem de saber ANTES de
+      // o entregar ao banco.
+      if (incluidos && incluidos < marcados.size) {
+        setErro(`O ZIP levou ${incluidos} de ${marcados.size} documentos — os outros não foram lidos do armazenamento.`);
+      }
+      setMarcados(new Set());
+    } finally {
+      setZipando(false);
+    }
+  }
+
+  function alternar(id: string) {
+    setMarcados((m) => {
+      const novo = new Set(m);
+      if (novo.has(id)) novo.delete(id); else novo.add(id);
+      return novo;
+    });
   }
 
   const caducados = (docs ?? []).filter((d) => d.validade === "caducado");
@@ -171,6 +219,27 @@ export default function ClientVault({ clientId }: { clientId: string }) {
 
       {erro && <p className="mt-2 text-sm text-danger">{erro}</p>}
 
+      {/*
+        * A barra só existe quando há selecção.
+        *
+        * Um botão "descarregar seleccionados" sempre visível e quase sempre
+        * desativado é ruído permanente para uma acção ocasional.
+        */}
+      {marcados.size > 0 && (
+        <div className="mt-3 flex flex-wrap items-center gap-3 rounded-lg border border-line bg-surface-2 px-3 py-2">
+          <span className="text-xs text-muted">
+            {marcados.size} de {docs?.length ?? 0} seleccionados
+          </span>
+          <button className="btn h-8 px-3 text-xs" disabled={zipando} onClick={baixarSelecionados}>
+            {zipando ? "A montar o ZIP…" : "Baixar seleccionados (.zip)"}
+          </button>
+          <button className="btn-ghost h-8 px-3 text-xs" onClick={() => setMarcados(new Set())}>
+            limpar
+          </button>
+          <span className="text-[11px] text-muted">Vai arrumado por tipo, uma pasta para cada.</span>
+        </div>
+      )}
+
       {docs === null ? (
         <p className="mt-3 text-sm text-muted">A carregar…</p>
       ) : docs.length === 0 ? (
@@ -182,6 +251,16 @@ export default function ClientVault({ clientId }: { clientId: string }) {
         <table className="mt-3 w-full text-[13px]">
           <thead>
             <tr className="border-b border-line text-[10px] uppercase tracking-wide text-muted">
+              <th className="w-8 py-1 text-left font-medium">
+                {/* Marcar tudo é o gesto mais comum: o dossiê completo. */}
+                <input
+                  type="checkbox"
+                  className="h-3.5 w-3.5 accent-[rgb(var(--c-brand))]"
+                  checked={marcados.size > 0 && marcados.size === docs.length}
+                  ref={(el) => { if (el) el.indeterminate = marcados.size > 0 && marcados.size < docs.length; }}
+                  onChange={(e) => setMarcados(e.target.checked ? new Set(docs.map((d) => d.id)) : new Set())}
+                />
+              </th>
               <th className="py-1 text-left font-medium">Tipo</th>
               <th className="py-1 text-left font-medium">Ficheiro</th>
               <th className="py-1 text-left font-medium">Validade</th>
@@ -193,6 +272,14 @@ export default function ClientVault({ clientId }: { clientId: string }) {
               const v = validade(d);
               return (
                 <tr key={d.id} className="border-b border-line/40">
+                  <td className="py-1.5">
+                    <input
+                      type="checkbox"
+                      className="h-3.5 w-3.5 accent-[rgb(var(--c-brand))]"
+                      checked={marcados.has(d.id)}
+                      onChange={() => alternar(d.id)}
+                    />
+                  </td>
                   <td className="py-1.5">
                     {ROTULO[d.kind] ?? d.kind}
                     {d.title && <span className="ml-2 text-muted">{d.title}</span>}
@@ -208,7 +295,18 @@ export default function ClientVault({ clientId }: { clientId: string }) {
                     {v ? <span className={`${v.chip} text-[11px]`}>{v.texto}</span>
                        : <span className="text-muted">—</span>}
                   </td>
-                  <td className="py-1.5 text-right">
+                  <td className="py-1.5 text-right whitespace-nowrap">
+                    {/*
+                      * Baixar é um LINK e não um botão com fetch: o navegador
+                      * grava o ficheiro sozinho, com a barra de progresso dele,
+                      * e um PDF de 12 MB não passa pela memória da página.
+                      */}
+                    <a
+                      className="btn-ghost inline-flex h-7 items-center px-2 text-[11px]"
+                      href={`/api/clients/${clientId}/vault/${d.id}?download=1`}
+                    >
+                      baixar
+                    </a>
                     <button
                       className="btn-ghost h-7 px-2 text-[11px] text-danger"
                       onClick={async () => {
