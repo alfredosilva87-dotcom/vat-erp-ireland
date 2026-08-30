@@ -1291,6 +1291,8 @@ const en = {
   "agenda.inDays": "in {n} day(s)",
   "agenda.andMore": "and {n} more",
   "agenda.allClear": "No client has anything pending. Untick above to see them all.",
+  "client.tabInvoices": "Invoices",
+  "client.tabCustomers": "Customers",
   "agenda.none": "No obligations recorded yet.",
   "vatLimit.title": "VAT registration threshold",
   "vatLimit.passedChip": "{n} already over",

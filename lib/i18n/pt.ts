@@ -1292,6 +1292,8 @@ const pt: Dict = {
   "agenda.inDays": "daqui a {n} dia(s)",
   "agenda.andMore": "e mais {n}",
   "agenda.allClear": "Nenhum cliente tem pendência. Desmarque acima para ver todos.",
+  "client.tabInvoices": "Faturas",
+  "client.tabCustomers": "Clientes",
   "agenda.none": "Ainda não há obrigações registadas.",
   "vatLimit.title": "Limiar de registo de VAT",
   "vatLimit.passedChip": "{n} já passou",

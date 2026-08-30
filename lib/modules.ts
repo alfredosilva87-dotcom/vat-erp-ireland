@@ -18,7 +18,21 @@ export const MODULES: ModuleDef[] = [
   {
     key: "vendas",
     labelKey: "modules.vendas",
-    items: [{ seg: "sales", key: "client.tabSales" }],
+    items: [
+      { seg: "sales", key: "client.tabSales" },
+      /*
+       * Emitir e REGISTAR sao coisas diferentes, e ficam lado a lado.
+       *
+       * "Vendas" e o que ja aconteceu — notas lidas, digitadas, importadas.
+       * "Faturas" e o que a empresa esta a emitir agora. Sao o mesmo modulo
+       * porque uma fatura emitida VIRA uma venda (ver lib/invoicing/service.ts),
+       * e separa-las faria parecer que sao dois registos da mesma coisa.
+       */
+      { seg: "invoices", key: "client.tabInvoices" },
+      // Os clientes DO cliente. Vive em Vendas e nao em Cadastro porque so
+      // existe para emitir: quem o abre esta a preparar uma fatura.
+      { seg: "customers", key: "client.tabCustomers" },
+    ],
   },
   {
     key: "compras",
