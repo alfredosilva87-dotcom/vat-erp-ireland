@@ -14,6 +14,7 @@ import { useCallback, useEffect, useState } from "react";
 import ClientBranches from "@/components/ClientBranches";
 import ClientIntegrations from "@/components/ClientIntegrations";
 import ClientVault from "@/components/ClientVault";
+import ClientInvoiceBranding from "@/components/ClientInvoiceBranding";
 import ClientMailSetup from "@/components/ClientMailSetup";
 import ClientPhoneLinks from "@/components/ClientPhoneLinks";
 import { invalidateClient } from "@/lib/clientCache";
@@ -226,6 +227,9 @@ export default function ClientSettings({ params }: { params: { id: string } }) {
         * integrações: identidade, morada e pacto social são a mesma pergunta
         * que os campos acima — quem é este cliente — só que em papel.
         */}
+      {/* O que sai impresso nas faturas deste cliente. */}
+      <ClientInvoiceBranding clientId={params.id} />
+
       <ClientVault clientId={params.id} />
 
       {/* O que este cliente alimenta automaticamente — ver lib/integrations.ts. */}

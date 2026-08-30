@@ -72,7 +72,9 @@ export async function createClient(input: Partial<Client>): Promise<Client> {
 }
 export async function updateClient(id: string, patch: Partial<Client>): Promise<Client | null> {
   const row: any = {};
-  for (const k of ["name","trading_name","legal_form","director","vat_number","tax_reg_no","cro","activity_code","activity_label","default_credit_unmatched","related_categories","email","phone","address","notes"])
+  // Lista branca, e não `...patch`: o corpo vem do navegador, e sem ela um
+  // pedido feito à mão escrevia qualquer coluna da tabela — `company_id` incluído.
+  for (const k of ["name","trading_name","legal_form","director","vat_number","tax_reg_no","cro","activity_code","activity_label","default_credit_unmatched","related_categories","email","phone","address","notes","invoice_footer","invoice_bank_account_id"])
     if (k in patch) row[k] = (patch as any)[k];
   const { data } = await sb().from("clients").update(row).eq("id", id).select().maybeSingle();
   return (data as Client) ?? null;

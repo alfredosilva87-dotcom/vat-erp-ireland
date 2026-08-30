@@ -318,6 +318,10 @@ export interface Client {
   director?: string | null;
   /** Número do CRO. Existe no banco desde a migração 018 e faltava no tipo. */
   cro?: string | null;
+  /** O que sai impresso nas faturas emitidas — ver components/ClientInvoiceBranding.tsx. */
+  logo_path?: string | null;
+  invoice_footer?: string | null;
+  invoice_bank_account_id?: string | null;
 }
 
 export interface ClientWithStats extends Client {
