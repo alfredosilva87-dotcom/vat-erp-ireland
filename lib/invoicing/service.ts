@@ -4,6 +4,10 @@ import {
   calcularInvoice, vencimentoDosTermos, problemasParaEmitir,
   type LinhaDaInvoice, type ProblemaDaInvoice,
 } from "./calculo";
+import { postSaleDoc } from "@/lib/accounting/service";
+import { garantirTituloDeVenda } from "@/lib/financial/titles";
+import { integracoesDo } from "@/lib/integrations";
+import { devolverDocumento, estadoDaIntegracao } from "@/lib/financial/devolver";
 
 /**
  * Emitir uma invoice — e o elo que a faz virar venda.
@@ -298,8 +302,28 @@ export async function guardarRascunho(
   return { ok: true, id: invoiceId! };
 }
 
+/**
+ * O título a receber leva o vencimento DA FATURA, e não o estimado.
+ *
+ * `garantirTituloDeVenda` põe sempre 30 dias e a nota "vencimento estimado",
+ * porque uma venda digitada não traz prazo nenhum. Uma fatura emitida traz: é
+ * a condição de pagamento que ficou impressa no documento que o cliente tem na
+ * mão. Deixar o estimado faria o aging cobrar no dia errado — e discordar do
+ * papel, que é pior do que não ter data.
+ */
+async function alinharVencimentoDoTitulo(
+  saleId: string, dueDate: string | null, termos: string | null
+): Promise<void> {
+  if (!dueDate) return;
+  const sb = getServerSupabase();
+  await sb.from("ledger_items").update({
+    due_date: dueDate,
+    notes: termos ? `Condições: ${termos}` : "Vencimento da fatura emitida",
+  }).eq("document_id", saleId).eq("source_module", "sale");
+}
+
 export type ResultadoDaEmissao =
-  | { ok: true; invoice: InvoiceEmitida }
+  | { ok: true; invoice: InvoiceEmitida; aviso?: string }
   | { ok: false; erro?: string; problemas?: ProblemaDaInvoice[] };
 
 /**
@@ -311,7 +335,7 @@ export type ResultadoDaEmissao =
  * passa a `issued` depois de ela existir.
  */
 export async function emitirInvoice(
-  clientId: string, id: string
+  clientId: string, id: string, userId?: string | null
 ): Promise<ResultadoDaEmissao> {
   const sb = getServerSupabase();
 
@@ -388,7 +412,53 @@ export async function emitirInvoice(
     return { ok: false, erro: eFim.message };
   }
 
-  return { ok: true, invoice: (await lerInvoice(clientId, id))! };
+  /*
+   * A INTEGRAÇÃO ACONTECE AQUI, e não à espera do lote.
+   *
+   * -------------------------------------------------------------------------
+   * Uma venda que o escritório DIGITA fica à espera do "Contabilizar" — é
+   * trabalho de conferência, e faz sentido correr em lote depois de alguém
+   * olhar para os documentos.
+   *
+   * Uma fatura que a empresa EMITE não. Ela não precisa de ser conferida por
+   * ninguém: acabou de ser escrita aqui, linha a linha, por quem a está a
+   * mandar. Deixá-la à espera do lote significaria emitir a fatura, mandá-la
+   * ao cliente, e o contas a receber não saber que ela existe até alguém se
+   * lembrar de correr a contabilização — que é exactamente a cobrança que se
+   * perde.
+   * -------------------------------------------------------------------------
+   *
+   * Segue a MESMA regra do lote (ver `backfillClient`): com contabilidade
+   * ligada, `postSaleDoc` escreve a partida e o título; sem ela, só o título.
+   * Assim uma fatura emitida e uma venda digitada acabam no mesmo estado, e a
+   * conferência de integração não distingue as duas.
+   */
+  const integra = await integracoesDo(clientId);
+  let avisoDaIntegracao: string | undefined;
+  try {
+    const r = integra.documents_to_accounting
+      ? await postSaleDoc(saleId, userId ?? null)
+      : { erro: undefined as string | undefined };
+    if ("erro" in r && r.erro) avisoDaIntegracao = r.erro;
+    // Sem contabilidade, o título tem de nascer à mesma — é o que o lote faz.
+    if (!integra.documents_to_accounting) {
+      const tt = await garantirTituloDeVenda(saleId);
+      if (tt.ignorado) avisoDaIntegracao = tt.ignorado;
+    }
+    await alinharVencimentoDoTitulo(saleId, inv.dueDate, inv.paymentTerms);
+  } catch (e: any) {
+    /*
+     * A fatura JÁ ESTÁ EMITIDA quando se chega aqui — tem número gasto e venda
+     * gravada. Rebentar agora deixaria a tela a dizer que falhou uma coisa que
+     * aconteceu, e alguém emitiria a mesma fatura outra vez.
+     *
+     * O aviso sobe junto com a fatura, e a tela de "não integrados" apanha o
+     * resto: é a mesma rede que já existe para as notas de compra.
+     */
+    avisoDaIntegracao = e?.message || String(e);
+  }
+
+  return { ok: true, invoice: (await lerInvoice(clientId, id))!, aviso: avisoDaIntegracao };
 }
 
 /**
@@ -409,19 +479,46 @@ export async function anularInvoice(
 
   if (inv.saleId) {
     /*
-     * A venda só sai se ainda não tiver sido contabilizada nem baixada.
+     * ANULAR É O MESMO GESTO QUE DEVOLVER UMA NOTA — não um atalho.
      *
-     * `deleteSalesEntry` já sabe verificar isso (é a mesma trava do "devolver"),
-     * e reusá-la é o que impede esta rota de ser um atalho para apagar uma
-     * venda que o razão e o contas a receber ainda referenciam.
+     * -------------------------------------------------------------------------
+     * A fatura emitida abriu título a receber e foi ao razão. Anular tem de
+     * desfazer as duas coisas, e pela mesma ordem e com as mesmas travas que o
+     * botão "Devolver" de uma nota de compra ou venda usa. É a regra que o
+     * Alfredo pediu quando falámos de devolver documento: o que é excluído
+     * volta à origem, e nada sai por baixo.
+     *
+     * A trava que interessa está dentro de `devolverDocumento`: se o título já
+     * tiver BAIXA (recebimento no banco) ou ENCARGO, recusa e diz qual. Não se
+     * anula uma fatura que já foi recebida sem primeiro desfazer o recebimento
+     * — senão o banco ficava com um crédito sem origem.
+     * -------------------------------------------------------------------------
+     */
+    const estado = await estadoDaIntegracao(clientId, inv.saleId, "sale");
+    if (estado.temTitulo || estado.temLancamento) {
+      const d = await devolverDocumento(clientId, inv.saleId, "sale");
+      if (!d.ok) {
+        return {
+          ok: false,
+          erro: `${d.erro} Depois de desfeito, volte aqui e anule a fatura.`,
+        };
+      }
+    }
+
+    /*
+     * Só depois de o título e a partida saírem é que a VENDA sai.
+     *
+     * `deleteSalesEntry` volta a conferir por conta própria — inclusive os
+     * movimentos de banco, que o devolver não trata. Duas travas para a mesma
+     * coisa não é excesso: esta rota apaga um documento fiscal, e a segunda é
+     * a que apanha o caso em que a primeira não olhou.
      */
     const { deleteSalesEntry } = await import("@/lib/store");
     const r = await deleteSalesEntry(inv.saleId);
     if (!r.ok) {
       return {
         ok: false,
-        erro: `Não dá para anular enquanto a venda estiver integrada: ${r.erro} `
-          + "Devolva o documento primeiro, em Vendas.",
+        erro: `A venda desta fatura não pôde ser apagada: ${r.erro}`,
       };
     }
   }

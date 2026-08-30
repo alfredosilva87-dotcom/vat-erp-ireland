@@ -144,6 +144,10 @@ export default function InvoiceEditor({ params }: { params: { id: string; invoic
       // lista, e não um parágrafo, para se ver de uma vez tudo o que falta.
       if (r.status === 422) { setProblemas(j.problemas ?? []); setErro(j.error); return; }
       if (!r.ok) { setErro(j.error || "Não emitiu."); return; }
+      // A fatura foi emitida; se a integraçao tropeçou, isso e um AVISO e nao
+      // um erro — mostrar a vermelho faria parecer que a emissao falhou, e
+      // alguem emitiria a mesma fatura outra vez.
+      if (j.aviso) setEnviado(`Fatura emitida. Atenção na integração: ${j.aviso}`);
       await carregar();
     } finally { setOcupado(null); }
   }
