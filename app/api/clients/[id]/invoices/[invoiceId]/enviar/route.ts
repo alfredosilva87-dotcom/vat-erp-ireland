@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { requireClient, denied } from "@/lib/access";
 import { lerInvoice, emitenteDoCliente, marcarEnviada } from "@/lib/invoicing/service";
-import { pdfDaInvoice } from "@/lib/invoicing/pdf";
+import { pdfDaInvoice, nomeDoFicheiro } from "@/lib/invoicing/pdf";
 import { enviarPorEmail } from "@/lib/invoicing/envio";
 
 export const runtime = "nodejs";
@@ -44,7 +44,9 @@ export async function POST(req: NextRequest, { params }: { params: { id: string;
 
   const r = await enviarPorEmail({
     para, assunto, corpo,
-    anexo: { nome: `${inv.number}.pdf`, bytes },
+    // O anexo leva o mesmo nome do descarregado: quem recebe e quem enviou
+    // ficam a olhar para o mesmo ficheiro.
+    anexo: { nome: nomeDoFicheiro(inv.number, inv.customerName), bytes },
     // A resposta vai para o cliente e não para o escritório.
     responderA: emitente.linhas.find((l) => l.includes("@")) ?? null,
   });

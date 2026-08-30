@@ -88,5 +88,49 @@ console.log("\n== o SMTP diz O QUE falta, e nao so que falta ==");
   Object.assign(process.env, guardado);
 }
 
+console.log("\n== o nome do ficheiro da fatura ==");
+{
+  ok(E.nomeDoFicheiro("INV-2026-0001", "Alfredo Junior SA") === "INV-2026-0001 - Alfredo Junior SA.pdf",
+     "numero primeiro, cliente depois", E.nomeDoFicheiro("INV-2026-0001", "Alfredo Junior SA"));
+
+  // O numero vem a frente para os ficheiros ordenarem por sequencia na pasta,
+  // que e como se procura uma fatura.
+  const a = E.nomeDoFicheiro("INV-2026-0002", "Zeta Ltd");
+  const b = E.nomeDoFicheiro("INV-2026-0010", "Alfa Ltd");
+  ok(a < b, "ordenam por numero e nao por cliente", [a, b]);
+
+  ok(E.nomeDoFicheiro("INV-2026-0001", null) === "INV-2026-0001.pdf",
+     "sem cliente, so o numero");
+  ok(E.nomeDoFicheiro("INV-2026-0001", "   ") === "INV-2026-0001.pdf",
+     "cliente em branco nao deixa um traco solto");
+  ok(E.nomeDoFicheiro("INV-2026-0001", "X", true) === "rascunho - X.pdf",
+     "rascunho nao usa o numero, que ainda nao e definitivo");
+}
+
+console.log("\n== e sobrevive ao sistema de ficheiros e ao cabecalho ==");
+{
+  // `/` e `:` partem o caminho num sistema ou noutro.
+  ok(!/[\/\\:]/.test(E.nomeDoFicheiro("INV-1", "A/B: C\\D")),
+     "barras e dois pontos saem", E.nomeDoFicheiro("INV-1", "A/B: C\\D"));
+
+  // As ASPAS partem o proprio Content-Disposition, que e o cabecalho que decide
+  // o nome do ficheiro descarregado — sairia truncado, ou com o resto do
+  // cabecalho la dentro.
+  ok(!E.nomeDoFicheiro("INV-1", 'Ac"me "Ltd').includes('"'),
+     "aspas saem, senao partem o Content-Disposition");
+
+  // Acentos: um nome irlandes ou portugues tem-nos, e alguns sistemas de
+  // ficheiros normalizam-nos de forma diferente.
+  ok(E.nomeDoFicheiro("INV-1", "Niamh Ó Faoláin") === "INV-1 - Niamh O Faolain.pdf",
+     "acentos viram a letra base", E.nomeDoFicheiro("INV-1", "Niamh Ó Faoláin"));
+
+  // Um nome muito longo nao pode estourar o limite de caminho.
+  const longo = E.nomeDoFicheiro("INV-1", "A".repeat(200));
+  ok(longo.length < 90, "nome comprido e cortado", longo.length);
+
+  ok(E.nomeDoFicheiro("INV-1", "  Alfa   Beta  ") === "INV-1 - Alfa Beta.pdf",
+     "espacos a mais colapsam");
+}
+
 console.log(`\n=========== ${pass} passaram, ${fail} falharam ===========\n`);
 process.exit(fail ? 1 : 0);

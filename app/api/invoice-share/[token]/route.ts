@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { invoicePorToken } from "@/lib/invoicing/envio";
 import { lerInvoice, emitenteDoCliente } from "@/lib/invoicing/service";
-import { pdfDaInvoice } from "@/lib/invoicing/pdf";
+import { pdfDaInvoice, nomeDoFicheiro } from "@/lib/invoicing/pdf";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -46,7 +46,7 @@ export async function GET(_req: NextRequest, { params }: { params: { token: stri
   return new NextResponse(bytes as any, {
     headers: {
       "Content-Type": "application/pdf",
-      "Content-Disposition": `inline; filename="${inv.number}.pdf"`,
+      "Content-Disposition": `inline; filename="${nomeDoFicheiro(inv.number, inv.customerName)}"`,
       "X-Content-Type-Options": "nosniff",
       "X-Robots-Tag": "noindex, nofollow, noarchive",
       "Cache-Control": "private, no-store",

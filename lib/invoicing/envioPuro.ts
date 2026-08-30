@@ -72,3 +72,42 @@ export function configSmtp(): { ok: true; cfg: ConfigSmtp } | { ok: false; falta
     },
   };
 }
+
+/**
+ * Como o ficheiro da fatura se deve chamar.
+ *
+ * ---------------------------------------------------------------------------
+ * O NÚMERO SOZINHO NÃO CHEGA
+ *
+ * `INV-2026-0001.pdf` diz tudo a quem está dentro do sistema e nada a quem não
+ * está. Quem descarrega quatro faturas fica com quatro ficheiros que só se
+ * distinguem pelo último dígito, e tem de abrir cada um para saber de quem é —
+ * o mesmo problema que o ZIP do cofre de documentos já tinha resolvido.
+ *
+ * O número vem PRIMEIRO para os ficheiros ordenarem por sequência dentro da
+ * pasta, que é como se procura uma fatura.
+ * ---------------------------------------------------------------------------
+ */
+export function nomeDoFicheiro(
+  numero: string, cliente: string | null | undefined, rascunho = false
+): string {
+  const base = rascunho ? "rascunho" : limparParaFicheiro(numero) || "fatura";
+  const quem = limparParaFicheiro(cliente ?? "");
+  return quem ? `${base} - ${quem}.pdf` : `${base}.pdf`;
+}
+
+/**
+ * Um nome que sobrevive a Windows, Mac e Linux — e ao cabeçalho HTTP.
+ *
+ * O nome do cliente vem do cadastro, escrito por uma pessoa: pode ter barras,
+ * dois pontos, acentos e aspas. `/` e `:` partem o caminho num sistema ou
+ * noutro; e as ASPAS partem o próprio `Content-Disposition`, que é o cabeçalho
+ * que decide o nome do ficheiro descarregado — um nome com aspas faria o
+ * navegador guardar a fatura com um nome truncado, ou com o resto do cabeçalho
+ * lá dentro.
+ */
+function limparParaFicheiro(s: string): string {
+  return s.normalize("NFD").replace(/[̀-ͯ]/g, "")
+    .replace(/[^A-Za-z0-9 ._-]+/g, " ")
+    .replace(/\s+/g, " ").trim().slice(0, 60);
+}

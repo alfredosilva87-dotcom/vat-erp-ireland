@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { requireClient, denied } from "@/lib/access";
 import { lerInvoice, emitenteDoCliente } from "@/lib/invoicing/service";
-import { pdfDaInvoice } from "@/lib/invoicing/pdf";
+import { pdfDaInvoice, nomeDoFicheiro } from "@/lib/invoicing/pdf";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -19,7 +19,8 @@ export async function GET(req: NextRequest, { params }: { params: { id: string; 
   if (!emitente) return NextResponse.json({ error: "Cliente não encontrado." }, { status: 404 });
 
   const bytes = await pdfDaInvoice(inv, emitente);
-  const nome = `${inv.status === "draft" ? "rascunho" : inv.number}.pdf`;
+  // O nome leva o cliente — ver nomeDoFicheiro em lib/invoicing/pdf.ts.
+  const nome = nomeDoFicheiro(inv.number, inv.customerName, inv.status === "draft");
 
   return new NextResponse(bytes as any, {
     headers: {

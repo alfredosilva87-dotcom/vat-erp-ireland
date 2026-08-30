@@ -3,6 +3,9 @@ import { Folha, A4, MARGEM, LARGURA } from "@/lib/accounting/pdfKit";
 import type { InvoiceEmitida } from "./service";
 import { calcularInvoice } from "./calculo";
 
+// O nome do ficheiro vive em envioPuro.ts, que se compila sozinho para os testes.
+export { nomeDoFicheiro } from "./envioPuro";
+
 /**
  * A invoice em PDF — o documento que sai da empresa.
  *
@@ -75,7 +78,19 @@ export async function pdfDaInvoice(
   // ------------------------------------------------------------- cabeçalho
   let y = A4.h - MARGEM - 10;
 
-  const LADO = 42;
+  /*
+   * O QUADRADO DO LOGÓTIPO.
+   *
+   * Começou em 42pt e o Alfredo reparou logo: o logótipo saía pequeno demais
+   * para o que é — a primeira coisa que quem recebe a fatura vê, e a única que
+   * identifica a empresa antes de se ler o nome. 72pt é o limite do que cabe
+   * sem empurrar a grelha de datas para baixo do bloco BILL TO.
+   *
+   * O monograma (quando não há logótipo) fica MENOR, a 52pt: duas letras num
+   * quadrado de 72 leem-se como um erro de desenho, e o monograma é o estado
+   * provisório — não deve competir com o nome ao lado.
+   */
+  const LADO = emitente.logo ? 72 : 52;
   let xTexto = MARGEM;
   if (emitente.logo) {
     try {
@@ -95,14 +110,21 @@ export async function pdfDaInvoice(
   }
   if (!emitente.logo) {
     s.faixa(MARGEM, y - LADO, LADO, LADO, "accent");
-    s.textoCentrado(iniciais(emitente.nome), MARGEM + LADO / 2, y - LADO / 2 - 6, {
-      size: 17, bold: true, c: "surface",
+    s.textoCentrado(iniciais(emitente.nome), MARGEM + LADO / 2, y - LADO / 2 - 7, {
+      size: 21, bold: true, c: "surface",
     });
     xTexto = MARGEM + LADO + 14;
   }
 
-  s.texto(emitente.nome, xTexto, y - 14, { size: 17, bold: true, c: "text", max: 34 });
-  let yE = y - 30;
+  /*
+   * O nome encosta ao TOPO do quadrado, seja qual for o tamanho dele.
+   *
+   * Com uma medida fixa, aumentar o logótipo deixava o nome a flutuar a meio e
+   * o bloco a parecer desalinhado — que é o defeito mais visível de um
+   * cabeçalho, porque é a primeira linha que se lê.
+   */
+  s.texto(emitente.nome, xTexto, y - 15, { size: 17, bold: true, c: "text", max: 34 });
+  let yE = y - 32;
   for (const linha of emitente.linhas.slice(0, 6)) {
     s.texto(linha, xTexto, yE, { size: 8.5, c: "muted", max: 46 });
     yE -= 11;
