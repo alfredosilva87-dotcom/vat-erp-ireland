@@ -156,5 +156,33 @@ console.log("\n== linhas em branco nao contam ==");
   ok(t.length === 0, "as linhas em branco sao ignoradas e a fatura passa", t);
 }
 
+console.log("\n== o modelo de referencia somava o IVA duas vezes ==");
+{
+  // O modelo que serviu de desenho punha na coluna AMOUNT o valor COM IVA
+  // (2214, 3075, 1168.50, 369), somava a coluna como SUBTOTAL (6826.50) e
+  // acrescentava o IVA outra vez -> 8103.00. O total certo e 6826.50.
+  //
+  // Este teste existe para o PDF nunca voltar a esse desenho: se alguem puser a
+  // coluna a mostrar o bruto, o subtotal deixa de fechar com ela.
+  const t = I.calcularInvoice([
+    { description: "Consulting Services", quantity: 15, unitPrice: 120, vatRate: 23 },
+    { description: "Software License", quantity: 1, unitPrice: 2500, vatRate: 23 },
+    { description: "Implementation Support", quantity: 10, unitPrice: 95, vatRate: 23 },
+    { description: "Cloud Hosting", quantity: 1, unitPrice: 300, vatRate: 23 },
+  ]);
+  ok(t.net === 5550, "subtotal (liquido) = 5550.00", t.net);
+  ok(t.vat === 1276.5, "IVA a 23% = 1276.50", t.vat);
+  ok(t.gross === 6826.5, "total = 6826.50, e NAO os 8103.00 do modelo", t.gross);
+
+  // A coluna impressa e a dos liquidos, entao tem de somar o subtotal exacto.
+  const coluna = t.linhas.reduce((s, l) => s + l.net, 0);
+  ok(coluna === t.net, "a coluna AMOUNT somada fecha com o SUBTOTAL", { coluna, subtotal: t.net });
+
+  // E a armadilha: somar a coluna do BRUTO daria o subtotal errado do modelo.
+  const colunaBruta = t.linhas.reduce((s, l) => s + l.gross, 0);
+  ok(colunaBruta === 6826.5 && colunaBruta !== t.net,
+     "somar a coluna com IVA daria 6826.50 — que o modelo chamava de subtotal", colunaBruta);
+}
+
 console.log(`\n=========== ${pass} passaram, ${fail} falharam ===========\n`);
 process.exit(fail ? 1 : 0);

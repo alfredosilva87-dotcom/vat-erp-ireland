@@ -333,7 +333,8 @@ export default function InvoiceEditor({ params }: { params: { id: string; invoic
                 <th className="w-28 py-1 text-right font-medium">Preço unit.</th>
                 <th className="w-24 py-1 text-right font-medium">VAT %</th>
                 <th className="w-28 py-1 text-right font-medium">IVA</th>
-                <th className="w-28 py-1 text-right font-medium">Total</th>
+                {/* Líquido, sem IVA: a coluna tem de fechar com o subtotal. */}
+                <th className="w-28 py-1 text-right font-medium">Valor s/ IVA</th>
                 {editavel && <th className="w-8" />}
               </tr>
             </thead>
@@ -369,7 +370,7 @@ export default function InvoiceEditor({ params }: { params: { id: string; invoic
                     </td>
                     <td className="py-2.5 text-right font-mono tabular-nums text-muted">{c ? eur(c.vat) : "—"}</td>
                     <td className="py-2.5 text-right font-mono tabular-nums font-semibold">
-                      {c ? eur(c.net + c.vat) : "—"}
+                      {c ? eur(c.net) : "—"}
                     </td>
                     {editavel && (
                       <td className="py-2.5 text-right">

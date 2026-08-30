@@ -178,7 +178,7 @@ export async function pdfDaInvoice(
     s.textoDireita("UNIT PRICE", COLS.preco, yc, { size: 7.5, bold: true, c: "surface" });
     s.textoDireita("VAT %", COLS.taxa, yc, { size: 7.5, bold: true, c: "surface" });
     s.textoDireita("VAT AMOUNT", COLS.iva, yc, { size: 7.5, bold: true, c: "surface" });
-    s.textoDireita("AMOUNT", COLS.total, yc, { size: 7.5, bold: true, c: "surface" });
+    s.textoDireita("AMOUNT (EX VAT)", COLS.total, yc, { size: 7.5, bold: true, c: "surface" });
     s.avanca(ALTURA_CAB);
   };
 
@@ -206,7 +206,16 @@ export async function pdfDaInvoice(
     s.textoDireita(eur(l.unitPrice), COLS.preco, yv, { size: 9, c: "text" });
     s.textoDireita(`${l.vatRate}%`, COLS.taxa, yv, { size: 9, c: "text" });
     s.textoDireita(eur(l.vat), COLS.iva, yv, { size: 9, c: "text" });
-    s.textoDireita(eur(l.net + l.vat), COLS.total, yv, { size: 9, bold: true, c: "text" });
+    /*
+     * A coluna AMOUNT leva o LÍQUIDO, sem IVA.
+     *
+     * O modelo que serviu de referência punha aqui o valor com IVA, e depois
+     * somava a coluna como SUBTOTAL e acrescentava o IVA outra vez — o total
+     * dele saía 8.103,00 quando o correcto é 6.826,50. Com o líquido, a coluna
+     * fecha com o subtotal e o comprador consegue conferir de cima a baixo, que
+     * é como uma fatura é conferida de facto.
+     */
+    s.textoDireita(eur(l.net), COLS.total, yv, { size: 9, bold: true, c: "text" });
 
     s.avanca(alturaLinha);
     s.regua(s.y, "border", 0.5);
@@ -244,7 +253,8 @@ export async function pdfDaInvoice(
   s.avanca(18);
   const yRodape = s.y;
 
-  if (emitente.banco?.iban) {
+  const temBanco = Boolean(emitente.banco?.iban);
+  if (temBanco) {
     s.texto("BANK DETAILS", MARGEM, yRodape, { size: 8, bold: true, c: "accent", max: 16 });
     let yb = yRodape - 14;
     if (emitente.banco.nome) { s.texto(emitente.banco.nome, MARGEM, yb, { size: 8.5, c: "text", max: 40 }); yb -= 11; }
@@ -257,10 +267,12 @@ export async function pdfDaInvoice(
     }
   }
 
-  const xNota = MARGEM + LARGURA / 2 + 8;
+  // Sem dados bancários a metade esquerda fica vazia, e a nota sozinha do lado
+  // direito lê-se como se estivesse deslocada. Nesse caso encosta-se à margem.
+  const xNota = temBanco ? MARGEM + LARGURA / 2 + 8 : MARGEM;
   s.texto("Thank you for your business.", xNota, yRodape, { size: 8.5, bold: true, c: "accent", max: 34 });
   if (inv.notes?.trim()) {
-    s.paragrafo(inv.notes.trim(), xNota, yRodape - 14, LARGURA / 2 - 8, { size: 8, c: "text" });
+    s.paragrafo(inv.notes.trim(), xNota, yRodape - 14, temBanco ? LARGURA / 2 - 8 : LARGURA, { size: 8, c: "text" });
   }
 
   if (emitente.rodapeLegal?.trim()) {
