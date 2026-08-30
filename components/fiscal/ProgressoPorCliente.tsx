@@ -91,7 +91,14 @@ export default function ProgressoPorCliente({ linhas }: { linhas: Linha[] }) {
               <span className="w-20 shrink-0 text-right font-mono text-[11.5px] tabular-nums text-muted">
                 {l.entregues}/{l.total}
               </span>
-              <span className="w-16 shrink-0 text-right text-[11px]">
+              {/*
+                * Largura suficiente para o chip NÃO partir em duas linhas.
+                *
+                * Com `w-16` saía "13" numa linha e "atrasadas" na seguinte, e
+                * uma lista de barras com alturas diferentes lê-se pior do que
+                * uma lista alinhada — o olho perde a horizontal.
+                */}
+              <span className="w-28 shrink-0 whitespace-nowrap text-right text-[11px]">
                 {l.atrasadas > 0
                   ? <span className="chip-danger text-[10px]">{l.atrasadas} atrasada{l.atrasadas > 1 ? "s" : ""}</span>
                   : pendentes > 0

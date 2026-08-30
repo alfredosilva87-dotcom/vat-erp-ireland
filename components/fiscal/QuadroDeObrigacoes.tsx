@@ -36,17 +36,28 @@ type Linha = {
 };
 
 /** O pior estado de um cliente numa dada obrigação. */
-type Estado = "atrasada" | "vence" | "prazo" | "entregue";
+type Estado = "atrasada" | "vence" | "prazo" | "nenhuma";
 
 const SINAL: Record<Estado, { d: string; classe: string; titulo: string }> = {
   // Um X para o atraso, um ! para o que vence já, um relógio para o que espera,
-  // e o visto para o entregue. Formas diferentes e não só cores diferentes:
-  // um em cada doze homens não distingue o vermelho do verde, e este quadro
-  // seria ilegível para essa pessoa se a cor fosse o único sinal.
+  // e um traço para o que não tem nada pendente. Formas diferentes e não só
+  // cores diferentes: um em cada doze homens não distingue o vermelho do verde,
+  // e este quadro seria ilegível para essa pessoa se a cor fosse o único sinal.
   atrasada: { d: "M7 7l6 6M13 7l-6 6", classe: "text-danger", titulo: "atrasada" },
   vence: { d: "M10 5.5v5M10 13.6v.2", classe: "text-warning", titulo: "vence nos próximos dias" },
   prazo: { d: "M10 5.6v4.6l3 1.8", classe: "text-muted", titulo: "dentro do prazo" },
-  entregue: { d: "M6 10.4l2.8 2.8L14 7.6", classe: "text-ok", titulo: "entregue" },
+  /*
+   * Sem pendência desenha um TRAÇO, e não um visto.
+   *
+   * A agenda só devolve o que está POR ENTREGAR. Um cliente que já entregou e um
+   * que nunca teve esta obrigação chegam aqui exactamente iguais, e não há como
+   * separá-los com o que a rota manda. Um visto verde diria que um sole trader
+   * entregou o CT1 — que ele nem devia ter — e é um erro que ninguém vai
+   * conferir, porque verde não se confere.
+   *
+   * O traço diz "nada a tratar aqui", que é a única coisa que se sabe mesmo.
+   */
+  nenhuma: { d: "M6.5 10h7", classe: "text-muted opacity-40", titulo: "nada pendente" },
 };
 
 export default function QuadroDeObrigacoes({ linhas }: { linhas: Linha[] }) {
@@ -74,15 +85,9 @@ export default function QuadroDeObrigacoes({ linhas }: { linhas: Linha[] }) {
       for (const tipo of colunas) {
         const dela = l.pendentes.filter((o) => o.tipo === tipo);
         if (!dela.length) {
-          /*
-           * Sem pendência NÃO é automaticamente "entregue".
-           *
-           * Um cliente que nunca teve esta obrigação e um que já a entregou
-           * chegam aqui iguais — a agenda só devolve o que está por entregar.
-           * Marcar os dois com o visto diria que um sole trader entregou o CT1,
-           * que ele nem devia ter. Fica em branco, que é honesto.
-           */
-          porTipo[tipo] = { estado: "entregue" };
+          // Ver o comentário em SINAL.nenhuma: aqui não se sabe se foi entregue
+          // ou se nunca existiu, e o desenho não pode fingir que sabe.
+          porTipo[tipo] = { estado: "nenhuma" };
           continue;
         }
         const pior = dela.reduce((p, o) =>
