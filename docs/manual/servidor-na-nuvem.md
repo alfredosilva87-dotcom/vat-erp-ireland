@@ -94,6 +94,11 @@ configuração que decide o papel — não há três códigos.
 | `RELAY_SUPABASE_SERVICE_ROLE_KEY` | **novo** | para o telemóvel |
 | `PHONE_CAPTURE_URL` | **novo** — para montar o link inteiro | para o telemóvel |
 | `MAIL_IMAP_HOST` … `MAIL_INBOX_ADDRESS` | entrada por e-mail (IMAP) | só se usar |
+| `MAIL_SMTP_HOST` | **novo** — servidor de saída, para enviar faturas | só para enviar fatura |
+| `MAIL_SMTP_USER` | **novo** — a conta que envia | só para enviar fatura |
+| `MAIL_SMTP_PASSWORD` | **novo** — a senha dessa conta | só para enviar fatura |
+| `MAIL_SMTP_PORT` | 587 por omissão; 465 liga o TLS sozinho | não |
+| `MAIL_SMTP_FROM` | se o remetente tiver de diferir da conta | não |
 | `LICENSE_PUBLIC_KEY` | confere a licença; há uma embutida no código | não |
 | `SUPABASE_INTERNAL_URL` | só no self-host, rede interna do Docker | não |
 
@@ -121,6 +126,30 @@ link no telemóvel dos clientes deixa de funcionar em silêncio. Já aconteceu e
 três da passagem. Ver `docs/manual/install-server.html`, passo 3.
 
 ---
+
+
+### Enviar faturas por e-mail (SMTP)
+
+São as **três primeiras** da lista acima, e mais nada. O resto do emissor de
+faturas — o PDF, o link para partilhar, o botão do WhatsApp — já funciona sem
+nenhuma delas.
+
+Enquanto faltarem, o botão *Enviar por e-mail* **recusa e diz quais faltam**. Não
+responde "enviado" sem ter enviado, que é o comportamento que faria alguém
+descobrir o problema pelo cliente a ligar a perguntar pela fatura.
+
+| servidor | `MAIL_SMTP_HOST` |
+|---|---|
+| Google Workspace | `smtp.gmail.com` |
+| Microsoft 365 | `smtp.office365.com` |
+| Zoho | `smtp.zoho.eu` |
+
+**A armadilha que apanha toda a gente uma vez:** no Gmail e no Microsoft 365 com
+verificação em dois passos, a senha normal da conta é **recusada**. Tem de ser
+uma *senha de aplicação*, gerada nas definições de segurança da conta.
+
+O porto não precisa de ser dito: 587 é o padrão, e se puser 465 o TLS liga-se
+sozinho.
 
 ## 3. Quando mudar para o servidor a sério
 
