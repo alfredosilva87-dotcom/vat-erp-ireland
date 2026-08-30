@@ -25,6 +25,28 @@ export function getServerSupabase() {
   }
   return createClient(url, serviceKey, {
     auth: { persistSession: false },
+    global: {
+      /*
+       * TODA a leitura do banco é `no-store`. Isto não é afinação — é correcção.
+       *
+       * O supabase-js usa `fetch` por baixo, e o Next.js 14 GUARDA os `fetch`
+       * feitos no servidor. Numa rota com sessão isso não se nota, porque ler o
+       * cookie já a torna dinâmica; numa rota SEM cookies — como a fatura
+       * partilhada — o resultado fica em cache e o banco deixa de ser
+       * consultado.
+       *
+       * Foi assim que se apanhou: uma fatura anulada continuava a abrir pelo
+       * link, e revogar o link também não o fechava. O banco estava certo nos
+       * dois casos; o que respondia era a cache. Num sistema contábil, uma
+       * leitura que não vê a escrita que acabou de acontecer é das falhas mais
+       * caras que há — não dá erro, dá um número desactualizado com ar de
+       * verdade.
+       *
+       * Fica no cliente e não em cada rota de propósito: uma regra que depende
+       * de alguém se lembrar de a repetir na rota nova não é uma regra.
+       */
+      fetch: (input, init) => fetch(input, { ...init, cache: "no-store" }),
+    },
   });
 }
 
