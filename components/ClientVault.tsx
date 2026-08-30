@@ -156,7 +156,7 @@ export default function ClientVault({ clientId }: { clientId: string }) {
         * cadastro — que é quando ainda dá tempo de pedir o novo.
         */}
       {aExpirar.length > 0 && (
-        <div className="mt-3 space-y-1 rounded-lg border border-warn/40 bg-warn/10 px-3 py-2 text-xs">
+        <div className="mt-3 space-y-1 rounded-lg border border-warning/40 bg-warning/10 px-3 py-2 text-xs">
           {/*
             * As duas frases são SEPARADAS de propósito.
             *

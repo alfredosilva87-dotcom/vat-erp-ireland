@@ -88,7 +88,7 @@ export default function CustomersPage({ params }: { params: { id: string } }) {
       </div>
 
       {erro && !editando && <p className="text-sm text-danger">{erro}</p>}
-      {aviso && <p className="rounded-lg border border-warn/40 bg-warn/10 px-3 py-2 text-sm">{aviso}</p>}
+      {aviso && <p className="rounded-lg border border-warning/40 bg-warning/10 px-3 py-2 text-sm">{aviso}</p>}
 
       {editando && (
         <section className="card rise p-5">

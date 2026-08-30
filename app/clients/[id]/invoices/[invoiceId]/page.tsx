@@ -227,7 +227,7 @@ export default function InvoiceEditor({ params }: { params: { id: string; invoic
 
       {erro && <p className="rounded-lg border border-danger/40 bg-danger/10 px-3 py-2 text-sm text-danger">{erro}</p>}
       {problemas.length > 0 && (
-        <ul className="space-y-1 rounded-lg border border-warn/40 bg-warn/10 px-4 py-3 text-sm">
+        <ul className="space-y-1 rounded-lg border border-warning/40 bg-warning/10 px-4 py-3 text-sm">
           {problemas.map((p, i) => <li key={i}>• {p.mensagem}</li>)}
         </ul>
       )}

@@ -4,6 +4,9 @@ import { useCallback, useEffect, useState } from "react";
 import Link from "next/link";
 import { useT } from "@/lib/i18n";
 import LimiarVat from "@/components/fiscal/LimiarVat";
+import Rosca from "@/components/fiscal/Rosca";
+import ProgressoPorCliente from "@/components/fiscal/ProgressoPorCliente";
+import QuadroDeObrigacoes from "@/components/fiscal/QuadroDeObrigacoes";
 
 /**
  * A agenda fiscal do escritório inteiro.
@@ -83,15 +86,38 @@ export default function AgendaFiscal() {
         </div>
       </div>
 
+      {/*
+        * OS INDICADORES SAO ROSCAS, e nao numeros soltos.
+        *
+        * "4 clientes com atraso" nao diz nada sozinho: 4 em 5 e uma crise, 4 em
+        * 200 e uma terca-feira. O numero obrigava quem le a ir buscar o total ao
+        * cartao do lado e a fazer a divisao de cabeca — e a maior parte das
+        * vezes ninguem faz, e fica a impressao errada.
+        *
+        * Os tres sao fracoes DO MESMO TODO (o total de clientes), entao lêem-se
+        * uns contra os outros sem esforco. Ver components/fiscal/Rosca.tsx.
+        */}
       {d && (
-        <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
-          <Cartao rotulo={t("agenda.cardClients")} valor={d.resumo.clientes} />
-          <Cartao rotulo={t("agenda.cardLate")} valor={d.resumo.comAtraso} tom="danger"
+        <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+          <Rosca tom="danger" rotulo={t("agenda.cardLate")}
+            valor={d.resumo.comAtraso} total={d.resumo.clientes}
             nota={t("agenda.cardLateSub", { n: d.resumo.obrigacoesAtrasadas })} />
-          <Cartao rotulo={t("agenda.cardWeek")} valor={d.resumo.vencemEm7} tom="warn" />
-          <Cartao rotulo={t("agenda.cardOk")} valor={d.resumo.emDia} tom="ok" />
+          <Rosca tom="warning" rotulo={t("agenda.cardWeek")}
+            valor={d.resumo.vencemEm7} total={d.resumo.clientes} />
+          <Rosca tom="success" rotulo={t("agenda.cardOk")}
+            valor={d.resumo.emDia} total={d.resumo.clientes} />
         </div>
       )}
+
+      {/* Quanto de cada cliente ja esta entregue — ver o componente. */}
+      {d && <ProgressoPorCliente linhas={d.linhas} />}
+
+      {/*
+        * O quadro le-se POR COLUNA: uma declaracao de cada vez, em todos os
+        * clientes. E a pergunta de quem fecha um prazo — "o VAT3 ja esta
+        * entregue em toda a gente?" — e a tabela por cliente nao a responde.
+        */}
+      {d && <QuadroDeObrigacoes linhas={d.linhas} />}
 
       {/*
         * O limiar vem ANTES da tabela de prazos.
