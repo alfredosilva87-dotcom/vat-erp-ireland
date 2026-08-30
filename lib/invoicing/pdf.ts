@@ -79,51 +79,78 @@ export async function pdfDaInvoice(
   let y = A4.h - MARGEM - 10;
 
   /*
-   * O QUADRADO DO LOGÓTIPO.
+   * A CAIXA DO LOGÓTIPO É DEITADA, e não quadrada.
    *
-   * Começou em 42pt e o Alfredo reparou logo: o logótipo saía pequeno demais
-   * para o que é — a primeira coisa que quem recebe a fatura vê, e a única que
-   * identifica a empresa antes de se ler o nome. 72pt é o limite do que cabe
-   * sem empurrar a grelha de datas para baixo do bloco BILL TO.
+   * -------------------------------------------------------------------------
+   * Começou quadrada, 42pt de lado, e o logótipo do Alfredo saiu minúsculo.
+   * A causa não era o tamanho: era a FORMA. Um logótipo de empresa é quase
+   * sempre deitado — a marca ao lado do nome, três ou quatro vezes mais largo
+   * do que alto. Encaixado num quadrado, é a LARGURA que bate no limite, e a
+   * altura fica no que sobrar: um logótipo 4:1 metido num quadrado de 72
+   * desenha-se com 18pt de altura, e some.
    *
-   * O monograma (quando não há logótipo) fica MENOR, a 52pt: duas letras num
-   * quadrado de 72 leem-se como um erro de desenho, e o monograma é o estado
-   * provisório — não deve competir com o nome ao lado.
+   * Aumentar o quadrado não resolvia — só o fazia bater no limite mais tarde.
+   * A caixa passa a ser deitada, e um logótipo quadrado continua a sair
+   * quadrado porque a altura é que o limita nesse caso.
+   * -------------------------------------------------------------------------
    */
-  const LADO = emitente.logo ? 72 : 52;
-  let xTexto = MARGEM;
+  const CAIXA = { w: 140, h: 68 };
+  /** O quadrado do monograma, quando não há logótipo — ver abaixo. */
+  const MONOGRAMA = 52;
+
+  let larguraUsada = MONOGRAMA;
   if (emitente.logo) {
     try {
       const img = emitente.logo.mime.includes("png")
         ? await s.pdf.embedPng(emitente.logo.bytes)
         : await s.pdf.embedJpg(emitente.logo.bytes);
-      // Encaixa no quadrado sem esticar: um logótipo deformado é pior do que
-      // nenhum, e as proporções que chegam aqui são imprevisíveis.
-      const escala = Math.min(LADO / img.width, LADO / img.height);
+      // Cabe na caixa sem esticar: um logótipo deformado é pior do que nenhum,
+      // e as proporções que chegam aqui são imprevisíveis.
+      const escala = Math.min(CAIXA.w / img.width, CAIXA.h / img.height);
       const l = img.width * escala, a = img.height * escala;
-      s.pagina.drawImage(img, { x: MARGEM + (LADO - l) / 2, y: y - LADO + (LADO - a) / 2, width: l, height: a });
-      xTexto = MARGEM + LADO + 14;
+      // Encostado à ESQUERDA e não centrado na caixa: centrar deixaria um
+      // logótipo estreito a flutuar longe da margem, desalinhado de tudo o que
+      // vem por baixo.
+      s.pagina.drawImage(img, { x: MARGEM, y: y - CAIXA.h + (CAIXA.h - a) / 2, width: l, height: a });
+      larguraUsada = l;
     } catch {
       // Um ficheiro que o pdf-lib não lê não pode impedir a fatura de sair.
       emitente.logo = null;
     }
   }
   if (!emitente.logo) {
-    s.faixa(MARGEM, y - LADO, LADO, LADO, "accent");
-    s.textoCentrado(iniciais(emitente.nome), MARGEM + LADO / 2, y - LADO / 2 - 7, {
+    /*
+     * O monograma é MENOR do que a caixa do logótipo, de propósito.
+     *
+     * É o estado provisório — quase ninguém carrega o logótipo no primeiro dia
+     * — e não deve competir com o nome ao lado. Duas letras num rectângulo de
+     * 140 leem-se como um erro de desenho.
+     */
+    s.faixa(MARGEM, y - MONOGRAMA - 8, MONOGRAMA, MONOGRAMA, "accent");
+    s.textoCentrado(iniciais(emitente.nome), MARGEM + MONOGRAMA / 2, y - MONOGRAMA / 2 - 15, {
       size: 21, bold: true, c: "surface",
     });
-    xTexto = MARGEM + LADO + 14;
+    larguraUsada = MONOGRAMA;
   }
 
+  const xTexto = MARGEM + larguraUsada + 14;
+
   /*
-   * O nome encosta ao TOPO do quadrado, seja qual for o tamanho dele.
+   * O NOME ENCOLHE ATÉ CABER.
    *
-   * Com uma medida fixa, aumentar o logótipo deixava o nome a flutuar a meio e
-   * o bloco a parecer desalinhado — que é o defeito mais visível de um
-   * cabeçalho, porque é a primeira linha que se lê.
+   * O espaço que lhe resta depende do logótipo, que pode ser estreito ou tomar
+   * a caixa toda — e "Dublin Green Landscaping Ltd" a 17pt ao lado de um
+   * logótipo largo passaria por cima da grelha de datas. Em vez de cortar o
+   * nome da empresa (que numa fatura não se corta), escolhe-se o maior tamanho
+   * que ainda cabe.
    */
-  s.texto(emitente.nome, xTexto, y - 15, { size: 17, bold: true, c: "text", max: 34 });
+  const xLimite = A4.w - MARGEM - 196;
+  const disponivel = xLimite - xTexto;
+  const tamanhoDoNome = [17, 15.5, 14, 12.5, 11].find(
+    (t) => s.larguraDe(emitente.nome, t, true, 40) <= disponivel
+  ) ?? 10;
+
+  s.texto(emitente.nome, xTexto, y - 15, { size: tamanhoDoNome, bold: true, c: "text", max: 40 });
   let yE = y - 32;
   for (const linha of emitente.linhas.slice(0, 6)) {
     s.texto(linha, xTexto, yE, { size: 8.5, c: "muted", max: 46 });
