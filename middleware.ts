@@ -39,6 +39,25 @@ function isPublicCapturePath(pathname: string): boolean {
 }
 
 /**
+ * A FATURA PARTILHADA, que se abre sem sessão.
+ *
+ * Fica FORA de `isPublicCapturePath` de propósito, apesar de as duas serem
+ * "públicas". Aquela lista tem duas funções: liberar de sessão E dizer o que a
+ * implantação da passagem (`RELAY_ONLY`) serve. A passagem existe para receber
+ * documentos do telefone e mais nada — pôr a fatura lá dentro faria uma
+ * implantação que aponta para outro banco passar a servir faturas, que é
+ * exactamente o alargamento de superfície que a trava evita.
+ *
+ * Quem recebe a fatura é o cliente do NOSSO cliente: não tem conta, não vai
+ * criar uma, e o WhatsApp não aceita anexo por link. O que a torna aceitável
+ * está em lib/invoicing/envio.ts — token de 32 bytes, opt-in, uma fatura só,
+ * morre com a anulação, e revogável.
+ */
+function ehFaturaPartilhada(pathname: string): boolean {
+  return pathname.startsWith("/api/invoice-share/");
+}
+
+/**
  * Escrita permitida mesmo com a licença vencida.
  *
  * Entrar, sair, recuperar senha — e ATIVAR uma licença nova, que é a porta de
@@ -110,7 +129,9 @@ export async function middleware(req: NextRequest) {
     // alcançáveis sem sessão — a página de login mostra o logo, e o navegador
     // busca o manifesto para decidir se o app é instalável antes de qualquer
     // login existir. Ver lib/phoneIntake.ts para por que a captura não tem senha.
-    isPublicCapturePath(pathname)
+    isPublicCapturePath(pathname) ||
+    // A fatura que o cliente do nosso cliente abre — ver acima.
+    ehFaturaPartilhada(pathname)
   ) {
     return NextResponse.next();
   }
