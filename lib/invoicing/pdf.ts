@@ -167,7 +167,15 @@ export async function pdfDaInvoice(
   s.y = Math.min(yFim1, yFim2) - 16;
 
   // ------------------------------------------------------------- a tabela
-  const COLS = { desc: MARGEM + 6, qtd: MARGEM + 250, preco: MARGEM + 320, taxa: MARGEM + 380, iva: MARGEM + 440, total: A4.w - MARGEM - 6 };
+  /*
+   * As colunas sao posicoes da BORDA DIREITA de cada uma, e o espaco entre elas
+   * tem de caber o CABECALHO, que e mais largo do que os numeros.
+   *
+   * Ficaram apertadas a primeira vez e "VAT AMOUNT" colou-se a "AMOUNT (EX VAT)"
+   * no PDF impresso — os numeros cabiam, os titulos e que nao. Estas medidas
+   * deixam ~16pt de folga entre o titulo mais largo e a coluna anterior.
+   */
+  const COLS = { desc: MARGEM + 6, qtd: MARGEM + 235, preco: MARGEM + 315, taxa: MARGEM + 372, iva: MARGEM + 440, total: A4.w - MARGEM - 6 };
   const ALTURA_CAB = 22;
 
   const cabecalhoDaTabela = () => {
@@ -178,7 +186,7 @@ export async function pdfDaInvoice(
     s.textoDireita("UNIT PRICE", COLS.preco, yc, { size: 7.5, bold: true, c: "surface" });
     s.textoDireita("VAT %", COLS.taxa, yc, { size: 7.5, bold: true, c: "surface" });
     s.textoDireita("VAT AMOUNT", COLS.iva, yc, { size: 7.5, bold: true, c: "surface" });
-    s.textoDireita("AMOUNT (EX VAT)", COLS.total, yc, { size: 7.5, bold: true, c: "surface" });
+    s.textoDireita("NET AMOUNT", COLS.total, yc, { size: 7.5, bold: true, c: "surface" });
     s.avanca(ALTURA_CAB);
   };
 
