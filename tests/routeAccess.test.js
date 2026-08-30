@@ -103,6 +103,14 @@ const EXEMPT = {
     "O token do link e a credencial, e o guarda de empresa nao se aplica porque a rota roda na " +
     "passagem na nuvem, que nao tem a tabela de empresas. Ela SO ESCREVE: valida o link, recusa " +
     "por forma, prazo, tipo, tamanho e teto de envios, e nao devolve nada do que ja esta la.",
+  "app/api/invoice-share/[token]/route.ts":
+    "PUBLICA por desenho: quem recebe a fatura e o cliente do NOSSO cliente — nao tem conta no ERP, " +
+    "nao vai criar uma, e o WhatsApp nao aceita anexo por link. Sem esta rota o envio por WhatsApp " +
+    "nao existe. O token sao 32 bytes aleatorios que so nascem quando alguem escolhe partilhar " +
+    "AQUELA fatura; serve uma fatura so, nunca o cliente; rascunho nao gera token; anular a fatura " +
+    "fecha o link; e revoga-se a mao. So LE, e responde 404 igual para token invalido, fatura " +
+    "anulada e link revogado — mensagens diferentes diriam a quem experimenta tokens qual chegou " +
+    "a existir.",
   "app/api/obligations/vat-threshold/route.ts":
     "rota de LISTA, irma da agenda: usa visibleClientIds para escolher os clientes e so " +
     "varre as vendas desses ids. Nao recebe cliente no caminho porque a pergunta e 'qual " +
