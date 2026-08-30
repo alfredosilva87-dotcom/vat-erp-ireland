@@ -81,7 +81,7 @@ export default function CustomersPage({ params }: { params: { id: string } }) {
         <div className="flex items-center gap-3">
           <input className="input h-9 w-56" placeholder="procurar…"
             value={busca} onChange={(e) => setBusca(e.target.value)} />
-          <button className="btn h-9 px-4 text-sm" onClick={() => { setEditando({ ...VAZIO }); setErro(null); }}>
+          <button className="btn-primary h-9 px-4 text-sm" onClick={() => { setEditando({ ...VAZIO }); setErro(null); }}>
             Novo cliente
           </button>
         </div>
@@ -148,7 +148,7 @@ export default function CustomersPage({ params }: { params: { id: string } }) {
           {erro && <p className="mt-3 text-sm text-danger">{erro}</p>}
 
           <div className="mt-4 flex items-center gap-3">
-            <button className="btn h-9 px-4 text-sm" disabled={gravando} onClick={gravar}>
+            <button className="btn-primary h-9 px-4 text-sm" disabled={gravando} onClick={gravar}>
               {gravando ? "A gravar…" : "Gravar"}
             </button>
             <button className="btn-ghost h-9 px-4 text-sm" onClick={() => { setEditando(null); setErro(null); }}>

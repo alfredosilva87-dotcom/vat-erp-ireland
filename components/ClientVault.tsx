@@ -212,7 +212,7 @@ export default function ClientVault({ clientId }: { clientId: string }) {
           <input ref={fileRef} type="file" className="input h-9 w-72 py-1.5 text-xs"
             accept=".pdf,.png,.jpg,.jpeg,.heic,.webp" />
         </label>
-        <button className="btn h-9 px-4 text-sm" disabled={enviando} onClick={enviar}>
+        <button className="btn-primary h-9 px-4 text-sm" disabled={enviando} onClick={enviar}>
           {enviando ? "A guardar…" : "Guardar"}
         </button>
       </div>
@@ -230,7 +230,7 @@ export default function ClientVault({ clientId }: { clientId: string }) {
           <span className="text-xs text-muted">
             {marcados.size} de {docs?.length ?? 0} seleccionados
           </span>
-          <button className="btn h-8 px-3 text-xs" disabled={zipando} onClick={baixarSelecionados}>
+          <button className="btn-primary h-8 px-3 text-xs" disabled={zipando} onClick={baixarSelecionados}>
             {zipando ? "A montar o ZIP…" : "Baixar seleccionados (.zip)"}
           </button>
           <button className="btn-ghost h-8 px-3 text-xs" onClick={() => setMarcados(new Set())}>

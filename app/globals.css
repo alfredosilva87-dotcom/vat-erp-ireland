@@ -218,6 +218,23 @@ body {
   .input::placeholder {
     color: rgb(var(--c-muted) / 0.7);
   }
+  /*
+   * Um campo BLOQUEADO tem de parecer bloqueado.
+   *
+   * Nao havia regra nenhuma, entao um `disabled` ficava igual a um editavel —
+   * fundo branco, texto preto, tudo. Aparece numa fatura ja emitida, onde todos
+   * os campos estao trancados: a pessoa clica, escreve, nada acontece, e o
+   * defeito parece do sistema em vez de ser a regra a funcionar.
+   *
+   * O `cursor: not-allowed` diz antes do clique; o fundo e o texto dizem antes
+   * do cursor. E tira-se a sombra interna, que e o que dava a impressao de caixa
+   * onde se pode escrever.
+   */
+  .input:disabled {
+    @apply border-line/70 bg-surface-2 text-muted;
+    box-shadow: none;
+    cursor: not-allowed;
+  }
 
   /* O rail: degradê vertical em vez de cor chapada — o pé escurece de leve e
      é onde a onda entra. Ver components/RailWave.tsx. */

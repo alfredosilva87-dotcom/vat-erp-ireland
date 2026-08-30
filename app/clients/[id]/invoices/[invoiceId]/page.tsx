@@ -213,7 +213,7 @@ export default function InvoiceEditor({ params }: { params: { id: string; invoic
               <button className="btn-ghost h-9 px-3 text-sm" disabled={!!ocupado} onClick={gravar}>
                 {ocupado === "gravar" ? "A gravar…" : "Gravar"}
               </button>
-              <button className="btn h-9 px-4 text-sm" disabled={!!ocupado} onClick={emitir}>
+              <button className="btn-primary h-9 px-4 text-sm" disabled={!!ocupado} onClick={emitir}>
                 {ocupado === "emitir" ? "A emitir…" : "Emitir"}
               </button>
             </>
@@ -420,7 +420,7 @@ export default function InvoiceEditor({ params }: { params: { id: string; invoic
               <input className="input h-9 w-72" value={emailPara}
                 onChange={(e) => setEmailPara(e.target.value)} />
             </label>
-            <button className="btn h-9 px-4 text-sm" disabled={!!ocupado} onClick={enviarEmail}>
+            <button className="btn-primary h-9 px-4 text-sm" disabled={!!ocupado} onClick={enviarEmail}>
               {ocupado === "email" ? "A enviar…" : "Enviar por e-mail"}
             </button>
             <span className="text-xs text-muted">Vai com o PDF anexado.</span>

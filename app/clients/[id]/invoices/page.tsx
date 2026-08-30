@@ -73,7 +73,7 @@ export default function InvoicesPage({ params }: { params: { id: string } }) {
           <Link className="btn-ghost inline-flex h-9 items-center px-4 text-sm" href={`/clients/${params.id}/customers`}>
             Clientes
           </Link>
-          <button className="btn h-9 px-4 text-sm" disabled={criando} onClick={nova}>
+          <button className="btn-primary h-9 px-4 text-sm" disabled={criando} onClick={nova}>
             {criando ? "A criar…" : "Nova fatura"}
           </button>
         </div>
