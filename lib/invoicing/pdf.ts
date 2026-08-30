@@ -253,26 +253,28 @@ export async function pdfDaInvoice(
   s.avanca(18);
   const yRodape = s.y;
 
-  const temBanco = Boolean(emitente.banco?.iban);
-  if (temBanco) {
+  // Numa variável própria, e não `emitente.banco?.iban` repetido: o `iban` é o
+  // que decide se há bloco, e é ele que o resto do bloco assume existir.
+  const banco = emitente.banco?.iban ? emitente.banco : null;
+  if (banco) {
     s.texto("BANK DETAILS", MARGEM, yRodape, { size: 8, bold: true, c: "accent", max: 16 });
     let yb = yRodape - 14;
-    if (emitente.banco.nome) { s.texto(emitente.banco.nome, MARGEM, yb, { size: 8.5, c: "text", max: 40 }); yb -= 11; }
+    if (banco.nome) { s.texto(banco.nome, MARGEM, yb, { size: 8.5, c: "text", max: 40 }); yb -= 11; }
     s.texto("IBAN", MARGEM, yb, { size: 8, bold: true, c: "accent", max: 6 });
-    s.texto(emitente.banco.iban, MARGEM + 34, yb, { size: 8.5, c: "text", max: 34 });
+    s.texto(banco.iban!, MARGEM + 34, yb, { size: 8.5, c: "text", max: 34 });
     yb -= 11;
-    if (emitente.banco.bic) {
+    if (banco.bic) {
       s.texto("BIC", MARGEM, yb, { size: 8, bold: true, c: "accent", max: 6 });
-      s.texto(emitente.banco.bic, MARGEM + 34, yb, { size: 8.5, c: "text", max: 20 });
+      s.texto(banco.bic, MARGEM + 34, yb, { size: 8.5, c: "text", max: 20 });
     }
   }
 
   // Sem dados bancários a metade esquerda fica vazia, e a nota sozinha do lado
   // direito lê-se como se estivesse deslocada. Nesse caso encosta-se à margem.
-  const xNota = temBanco ? MARGEM + LARGURA / 2 + 8 : MARGEM;
+  const xNota = banco ? MARGEM + LARGURA / 2 + 8 : MARGEM;
   s.texto("Thank you for your business.", xNota, yRodape, { size: 8.5, bold: true, c: "accent", max: 34 });
   if (inv.notes?.trim()) {
-    s.paragrafo(inv.notes.trim(), xNota, yRodape - 14, temBanco ? LARGURA / 2 - 8 : LARGURA, { size: 8, c: "text" });
+    s.paragrafo(inv.notes.trim(), xNota, yRodape - 14, banco ? LARGURA / 2 - 8 : LARGURA, { size: 8, c: "text" });
   }
 
   if (emitente.rodapeLegal?.trim()) {
