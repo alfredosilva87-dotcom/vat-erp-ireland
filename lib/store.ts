@@ -719,7 +719,34 @@ export async function getObligations(clientId: string, year: number): Promise<Cl
   const faltam = esperadas.filter(
     (o) => !jaTem.has(`${o.kind}|${o.periodStart}|${o.periodEnd}`)
   );
-  if (!faltam.length) return existentes;
+
+  /*
+   * O ESPAÇO RESERVADO SAI quando o cadastro passa a dar a data certa.
+   *
+   * Uma sociedade sem fecho do exercício ganha um CT1 de Janeiro a Dezembro,
+   * sem prazo, a dizer que falta o campo. Quando alguém preenche "30 de Junho",
+   * o período esperado passa a ser Julho–Junho — e como a chave única inclui as
+   * datas, a linha certa nasce ao lado da provisória em vez de a substituir.
+   *
+   * Duas linhas do mesmo CT1 na agenda é pior do que nenhuma: uma delas está
+   * errada e não há nada no ecrã que diga qual.
+   *
+   * O recorte é apertado de propósito — só as que ainda estão em aberto, sem
+   * vencimento e fora do esperado. Nenhuma delas foi entregue nem tem prazo,
+   * então não há nada a perder; e uma obrigação com data foi confirmada pelo
+   * cadastro, ou escrita à mão, e essa não se toca.
+   */
+  const esperado = new Set(esperadas.map((o) => `${o.kind}|${o.periodStart}|${o.periodEnd}`));
+  const provisoriasAObsoletar = existentes.filter((o: any) =>
+    !ehDeVat(o.kind) && o.status === "open" && !o.due_date
+    && !esperado.has(`${o.kind}|${o.period_start}|${o.period_end}`)
+  );
+  if (provisoriasAObsoletar.length) {
+    await sb().from("obligations").delete()
+      .in("id", provisoriasAObsoletar.map((o: any) => o.id));
+  }
+
+  if (!faltam.length) return provisoriasAObsoletar.length ? await ler() : existentes;
 
   const rows: any[] = [];
   for (const o of faltam) {
