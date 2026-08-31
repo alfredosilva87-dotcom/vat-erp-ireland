@@ -16,6 +16,7 @@
 
 import { useCallback, useEffect, useState } from "react";
 import Link from "next/link";
+import { useT } from "@/lib/i18n";
 
 type Cliente = {
   id: string; name: string; vatNumber: string | null; email: string | null;
@@ -29,6 +30,7 @@ const VAZIO: Omit<Cliente, "id"> = {
 };
 
 export default function CustomersPage({ params }: { params: { id: string } }) {
+  const { t } = useT();
   const [lista, setLista] = useState<Cliente[] | null>(null);
   const [busca, setBusca] = useState("");
   const [editando, setEditando] = useState<Partial<Cliente> | null>(null);
@@ -45,7 +47,7 @@ export default function CustomersPage({ params }: { params: { id: string } }) {
   useEffect(() => { void carregar(); }, [carregar]);
 
   async function gravar() {
-    if (!editando?.name?.trim()) { setErro("O nome é obrigatório."); return; }
+    if (!editando?.name?.trim()) { setErro(t("cust.nameRequired")); return; }
     setGravando(true); setErro(null);
     try {
       const url = editando.id
@@ -57,7 +59,7 @@ export default function CustomersPage({ params }: { params: { id: string } }) {
         body: JSON.stringify(editando),
       });
       const j = await r.json();
-      if (!r.ok) { setErro(j.error || "Não gravou."); return; }
+      if (!r.ok) { setErro(j.error || t("common.notSaved")); return; }
       setEditando(null);
       await carregar();
     } finally { setGravando(false); }
@@ -73,16 +75,16 @@ export default function CustomersPage({ params }: { params: { id: string } }) {
     <div className="space-y-4">
       <div className="rise flex flex-wrap items-end justify-between gap-4">
         <div>
-          <h1 className="font-display text-3xl font-semibold tracking-tight">Clientes</h1>
+          <h1 className="font-display text-3xl font-semibold tracking-tight">{t("cust.title")}</h1>
           <p className="mt-1 text-muted">
-            A quem esta empresa emite faturas. Os dados daqui entram na fatura — morada, número de VAT e e-mail.
+            {t("cust.subtitle")}
           </p>
         </div>
         <div className="flex items-center gap-3">
-          <input className="input h-9 w-56" placeholder="procurar…"
+          <input className="input h-9 w-56" placeholder={t("cust.search")}
             value={busca} onChange={(e) => setBusca(e.target.value)} />
           <button className="btn-primary h-9 px-4 text-sm" onClick={() => { setEditando({ ...VAZIO }); setErro(null); }}>
-            Novo cliente
+            {t("cust.new")}
           </button>
         </div>
       </div>
@@ -93,29 +95,29 @@ export default function CustomersPage({ params }: { params: { id: string } }) {
       {editando && (
         <section className="card rise p-5">
           <h2 className="font-display text-sm font-semibold">
-            {editando.id ? "Editar cliente" : "Novo cliente"}
+            {editando.id ? t("cust.edit") : t("cust.new")}
           </h2>
           <div className="mt-3 grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-            <F label="Nome / razão social">
+            <F label={t("cust.name")}>
               <input className="input" value={editando.name ?? ""}
                 onChange={(e) => setEditando({ ...editando, name: e.target.value })} />
             </F>
-            <F label="Número de VAT">
+            <F label={t("cust.vat")}>
               <input className="input font-mono" placeholder="IE1234567X"
                 value={editando.vatNumber ?? ""}
                 onChange={(e) => setEditando({ ...editando, vatNumber: e.target.value })} />
             </F>
-            <F label="E-mail">
-              <input className="input" placeholder="para onde vai a fatura"
+            <F label={t("cust.email")}>
+              <input className="input" placeholder={t("cust.emailHint")}
                 value={editando.email ?? ""}
                 onChange={(e) => setEditando({ ...editando, email: e.target.value })} />
             </F>
-            <F label="Telefone">
+            <F label={t("cust.phone")}>
               <input className="input" placeholder="+353 87 123 4567"
                 value={editando.phone ?? ""}
                 onChange={(e) => setEditando({ ...editando, phone: e.target.value })} />
             </F>
-            <F label="País">
+            <F label={t("cust.country")}>
               <input className="input" value={editando.country ?? ""}
                 onChange={(e) => setEditando({ ...editando, country: e.target.value })} />
             </F>
@@ -127,19 +129,19 @@ export default function CustomersPage({ params }: { params: { id: string } }) {
               * mesma forma. Obrigar todas ao molde irlandês faz com que se
               * escreva a cidade no campo do condado — e é isso que sai impresso.
               */}
-            <F label="Morada de faturação" largo>
+            <F label={t("cust.billTo")} largo>
               <textarea className="input min-h-[76px] py-2" rows={3}
                 placeholder={"Rua e número\nLocalidade, código postal\nPaís"}
                 value={editando.address ?? ""}
                 onChange={(e) => setEditando({ ...editando, address: e.target.value })} />
             </F>
-            <F label="Morada de entrega (só se for diferente)" largo>
+            <F label={t("cust.shipTo")} largo>
               <textarea className="input min-h-[76px] py-2" rows={3}
-                placeholder="deixe vazio para não sair na fatura"
+                placeholder={t("cust.shipHint")}
                 value={editando.shipAddress ?? ""}
                 onChange={(e) => setEditando({ ...editando, shipAddress: e.target.value })} />
             </F>
-            <F label="Observações" largo>
+            <F label={t("cust.notes")} largo>
               <input className="input" value={editando.notes ?? ""}
                 onChange={(e) => setEditando({ ...editando, notes: e.target.value })} />
             </F>
@@ -149,17 +151,17 @@ export default function CustomersPage({ params }: { params: { id: string } }) {
 
           <div className="mt-4 flex items-center gap-3">
             <button className="btn-primary h-9 px-4 text-sm" disabled={gravando} onClick={gravar}>
-              {gravando ? "A gravar…" : "Gravar"}
+              {gravando ? t("common.saving") : t("common.save")}
             </button>
             <button className="btn-ghost h-9 px-4 text-sm" onClick={() => { setEditando(null); setErro(null); }}>
-              Cancelar
+              {t("common.cancel")}
             </button>
             {editando.id && (
               <label className="ml-auto flex cursor-pointer items-center gap-2 text-sm">
                 <input type="checkbox" className="accent-brand"
                   checked={editando.active !== false}
                   onChange={(e) => setEditando({ ...editando, active: e.target.checked })} />
-                Ativo
+                {t("cust.active")}
               </label>
             )}
           </div>
@@ -168,20 +170,20 @@ export default function CustomersPage({ params }: { params: { id: string } }) {
 
       <div className="card overflow-hidden">
         {lista === null ? (
-          <p className="p-5 text-sm text-muted">A carregar…</p>
+          <p className="p-5 text-sm text-muted">{t("common.loading")}</p>
         ) : filtrada.length === 0 ? (
           <p className="p-5 text-sm text-muted">
-            {busca ? "Nenhum cliente com esse texto." : "Ainda não há clientes. Crie o primeiro para poder emitir uma fatura."}
+            {busca ? t("cust.noneForSearch") : t("cust.none")}
           </p>
         ) : (
           <div className="overflow-x-auto">
             <table className="row-hover w-full text-[13px]">
               <thead>
                 <tr className="border-b border-line text-[10.5px] uppercase tracking-wide text-muted">
-                  <th className="px-3 py-2 text-left font-medium">Nome</th>
-                  <th className="px-3 py-2 text-left font-medium">VAT</th>
-                  <th className="px-3 py-2 text-left font-medium">E-mail</th>
-                  <th className="px-3 py-2 text-left font-medium">Morada</th>
+                  <th className="px-3 py-2 text-left font-medium">{t("cust.name")}</th>
+                  <th className="px-3 py-2 text-left font-medium">{t("cust.vat")}</th>
+                  <th className="px-3 py-2 text-left font-medium">{t("cust.email")}</th>
+                  <th className="px-3 py-2 text-left font-medium">{t("cust.colAddress")}</th>
                   <th className="px-3 py-2 text-right font-medium"></th>
                 </tr>
               </thead>
@@ -190,7 +192,7 @@ export default function CustomersPage({ params }: { params: { id: string } }) {
                   <tr key={c.id} className={`border-b border-line/40 ${c.active ? "" : "opacity-55"}`}>
                     <td className="px-3 py-2">
                       {c.name}
-                      {!c.active && <span className="chip ml-2 text-[10px]">inativo</span>}
+                      {!c.active && <span className="chip ml-2 text-[10px]">{t("cust.inactive")}</span>}
                     </td>
                     <td className="px-3 py-2 font-mono text-[12px] text-muted">{c.vatNumber || "—"}</td>
                     <td className="px-3 py-2 text-muted">{c.email || "—"}</td>
@@ -200,16 +202,16 @@ export default function CustomersPage({ params }: { params: { id: string } }) {
                     <td className="whitespace-nowrap px-3 py-2 text-right">
                       <Link className="btn-ghost inline-flex h-7 items-center px-2 text-[11px]"
                         href={`/clients/${params.id}/invoices/nova?customer=${c.id}`}>
-                        emitir fatura
+                        {t("cust.issueInvoice")}
                       </Link>
                       <button className="btn-ghost h-7 px-2 text-[11px]"
                         onClick={() => { setEditando(c); setErro(null); setAviso(null); }}>
-                        editar
+                        {t("common.edit")}
                       </button>
                       <button
                         className="btn-ghost h-7 px-2 text-[11px] text-danger"
                         onClick={async () => {
-                          if (!confirm(`Apagar "${c.name}"?`)) return;
+                          if (!confirm(t("cust.confirmDelete", { n: c.name }))) return;
                           const r = await fetch(`/api/clients/${params.id}/customers/${c.id}`, { method: "DELETE" });
                           const j = await r.json().catch(() => ({}));
                           await carregar();
@@ -219,7 +221,7 @@ export default function CustomersPage({ params }: { params: { id: string } }) {
                           if (!r.ok) setAviso(j.error || null); else setAviso(null);
                         }}
                       >
-                        apagar
+                        {t("common.delete")}
                       </button>
                     </td>
                   </tr>

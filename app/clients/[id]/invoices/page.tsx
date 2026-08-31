@@ -12,6 +12,7 @@
 import { useCallback, useEffect, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
+import { useT } from "@/lib/i18n";
 
 type Linha = {
   id: string; number: string; status: "draft" | "issued" | "sent" | "cancelled";
@@ -25,12 +26,14 @@ const eur = (n: number) =>
 const CHIP: Record<Linha["status"], string> = {
   draft: "chip", issued: "chip-ok", sent: "chip-ok", cancelled: "chip-danger",
 };
-const NOME: Record<Linha["status"], string> = {
-  draft: "rascunho", issued: "emitida", sent: "enviada", cancelled: "anulada",
+/** A chave de traducao de cada estado — o rotulo sai do dicionario. */
+const NOME: Record<Linha["status"], "inv.stDraft" | "inv.stIssued" | "inv.stSent" | "inv.stCancelled"> = {
+  draft: "inv.stDraft", issued: "inv.stIssued", sent: "inv.stSent", cancelled: "inv.stCancelled",
 };
 
 export default function InvoicesPage({ params }: { params: { id: string } }) {
   const router = useRouter();
+  const { t } = useT();
   const [lista, setLista] = useState<Linha[] | null>(null);
   const [criando, setCriando] = useState(false);
 
@@ -63,39 +66,36 @@ export default function InvoicesPage({ params }: { params: { id: string } }) {
     <div className="space-y-4">
       <div className="rise flex flex-wrap items-end justify-between gap-4">
         <div>
-          <h1 className="font-display text-3xl font-semibold tracking-tight">Faturas</h1>
+          <h1 className="font-display text-3xl font-semibold tracking-tight">{t("inv.title")}</h1>
           <p className="mt-1 text-muted">
-            Emitidas por esta empresa. Ao emitir, a fatura vira venda — entra no VAT, abre título a receber
-            e vai ao razão pelos caminhos de sempre.
+            {t("inv.subtitle")}
           </p>
         </div>
         <div className="flex items-center gap-3">
           <Link className="btn-ghost inline-flex h-9 items-center px-4 text-sm" href={`/clients/${params.id}/customers`}>
-            Clientes
+            {t("cust.title")}
           </Link>
           <button className="btn-primary h-9 px-4 text-sm" disabled={criando} onClick={nova}>
-            {criando ? "A criar…" : "Nova fatura"}
+            {criando ? t("inv.creating") : t("inv.new")}
           </button>
         </div>
       </div>
 
       {lista && lista.length > 0 && (
         <div className="grid gap-3 sm:grid-cols-3">
-          <Cartao rotulo="Emitidas" valor={String(emitidas.length)} />
-          <Cartao rotulo="Total emitido" valor={eur(porReceber)} tom="accent" />
-          <Cartao rotulo="Rascunhos" valor={String(lista.filter((l) => l.status === "draft").length)} />
+          <Cartao rotulo={t("inv.cardIssued")} valor={String(emitidas.length)} />
+          <Cartao rotulo={t("inv.cardTotal")} valor={eur(porReceber)} tom="accent" />
+          <Cartao rotulo={t("inv.cardDrafts")} valor={String(lista.filter((l) => l.status === "draft").length)} />
         </div>
       )}
 
       <div className="card overflow-hidden">
         {lista === null ? (
-          <p className="p-5 text-sm text-muted">A carregar…</p>
+          <p className="p-5 text-sm text-muted">{t("common.loading")}</p>
         ) : lista.length === 0 ? (
           <div className="p-6">
             <p className="text-sm text-muted">
-              Ainda não há faturas. Antes da primeira, vale a pena preencher em{" "}
-              <Link className="underline" href={`/clients/${params.id}/settings`}>Cadastro</Link>{" "}
-              o logótipo, a morada e a conta bancária — é o que aparece no PDF que o cliente recebe.
+              {t("inv.none")}
             </p>
           </div>
         ) : (
@@ -103,12 +103,12 @@ export default function InvoicesPage({ params }: { params: { id: string } }) {
             <table className="row-hover w-full text-[13px]">
               <thead>
                 <tr className="border-b border-line text-[10.5px] uppercase tracking-wide text-muted">
-                  <th className="px-3 py-2 text-left font-medium">Número</th>
-                  <th className="px-3 py-2 text-left font-medium">Cliente</th>
-                  <th className="px-3 py-2 text-left font-medium">Emissão</th>
-                  <th className="px-3 py-2 text-left font-medium">Vencimento</th>
-                  <th className="px-3 py-2 text-right font-medium">Total</th>
-                  <th className="px-3 py-2 text-left font-medium">Situação</th>
+                  <th className="px-3 py-2 text-left font-medium">{t("inv.colNumber")}</th>
+                  <th className="px-3 py-2 text-left font-medium">{t("inv.colCustomer")}</th>
+                  <th className="px-3 py-2 text-left font-medium">{t("inv.colIssue")}</th>
+                  <th className="px-3 py-2 text-left font-medium">{t("inv.colDue")}</th>
+                  <th className="px-3 py-2 text-right font-medium">{t("common.total")}</th>
+                  <th className="px-3 py-2 text-left font-medium">{t("inv.colStatus")}</th>
                 </tr>
               </thead>
               <tbody>
@@ -116,7 +116,7 @@ export default function InvoicesPage({ params }: { params: { id: string } }) {
                   <tr key={l.id} className={`border-b border-line/40 ${l.status === "cancelled" ? "opacity-55" : ""}`}>
                     <td className="px-3 py-2">
                       <Link className="font-mono text-[12px] underline" href={`/clients/${params.id}/invoices/${l.id}`}>
-                        {l.status === "draft" ? "(rascunho)" : l.number}
+                        {l.status === "draft" ? t("inv.draftMarker") : l.number}
                       </Link>
                     </td>
                     <td className="px-3 py-2">{l.customerName}</td>
@@ -124,8 +124,8 @@ export default function InvoicesPage({ params }: { params: { id: string } }) {
                     <td className="px-3 py-2 font-mono text-[12px] text-muted">{l.dueDate || "—"}</td>
                     <td className="px-3 py-2 text-right font-mono tabular-nums">{eur(l.gross)}</td>
                     <td className="px-3 py-2">
-                      <span className={`${CHIP[l.status]} text-[11px]`}>{NOME[l.status]}</span>
-                      {l.sentAt && <span className="ml-2 text-[11px] text-muted">enviada</span>}
+                      <span className={`${CHIP[l.status]} text-[11px]`}>{t(NOME[l.status])}</span>
+                      {l.sentAt && <span className="ml-2 text-[11px] text-muted">{t("inv.stSent")}</span>}
                     </td>
                   </tr>
                 ))}

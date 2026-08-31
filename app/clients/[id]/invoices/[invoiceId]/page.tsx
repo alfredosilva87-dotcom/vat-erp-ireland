@@ -21,6 +21,7 @@ import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { calcularInvoice, vencimentoDosTermos, porDentro } from "@/lib/invoicing/calculo";
 import { linkDeWhatsapp } from "@/lib/invoicing/envioPuro";
+import { useT } from "@/lib/i18n";
 
 type Item = {
   description: string; detail: string; quantity: number; unitPrice: number; vatRate: number;
@@ -49,6 +50,7 @@ const TAXAS = [0, 4.8, 9, 13.5, 23];
 export default function InvoiceEditor({ params }: { params: { id: string; invoiceId: string } }) {
   const router = useRouter();
   const query = useSearchParams();
+  const { t } = useT();
 
   const [inv, setInv] = useState<Invoice | null>(null);
   const [clientes, setClientes] = useState<Cliente[]>([]);
@@ -121,18 +123,14 @@ export default function InvoiceEditor({ params }: { params: { id: string; invoic
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ ...inv, items }),
       });
-      if (!r.ok) { setErro((await r.json()).error || "Não gravou."); return false; }
+      if (!r.ok) { setErro((await r.json()).error || t("common.notSaved")); return false; }
       return true;
     } finally { setOcupado(null); }
   }
 
   async function emitir() {
     if (!inv) return;
-    if (!confirm(
-      "Emitir esta fatura?\n\n"
-      + "Ganha número definitivo, vira uma venda (entra no VAT e abre título a receber) "
-      + "e deixa de poder ser editada. Para corrigir depois, só anulando e emitindo outra."
-    )) return;
+    if (!confirm(t("inv.confirmIssue"))) return;
 
     // Grava ANTES de emitir: o que está no ecrã tem de ser o que é emitido.
     if (!(await gravar())) return;
@@ -144,11 +142,11 @@ export default function InvoiceEditor({ params }: { params: { id: string; invoic
       // 422 traz a lista de impedimentos com o campo de cada um — mostra-se a
       // lista, e não um parágrafo, para se ver de uma vez tudo o que falta.
       if (r.status === 422) { setProblemas(j.problemas ?? []); setErro(j.error); return; }
-      if (!r.ok) { setErro(j.error || "Não emitiu."); return; }
+      if (!r.ok) { setErro(j.error || t("inv.notIssued")); return; }
       // A fatura foi emitida; se a integraçao tropeçou, isso e um AVISO e nao
       // um erro — mostrar a vermelho faria parecer que a emissao falhou, e
       // alguem emitiria a mesma fatura outra vez.
-      if (j.aviso) setEnviado(`Fatura emitida. Atenção na integração: ${j.aviso}`);
+      if (j.aviso) setEnviado(t("inv.issuedWithWarning", { n: j.aviso }));
       await carregar();
     } finally { setOcupado(null); }
   }
@@ -156,14 +154,14 @@ export default function InvoiceEditor({ params }: { params: { id: string; invoic
   async function gerarLink(): Promise<string | null> {
     const r = await fetch(`/api/clients/${params.id}/invoices/${params.invoiceId}/link`, { method: "POST" });
     const j = await r.json();
-    if (!r.ok) { setErro(j.error || "Não deu para criar o link."); return null; }
+    if (!r.ok) { setErro(j.error || t("inv.linkErr")); return null; }
     const url = `${location.origin}/api/invoice-share/${j.token}`;
     setLinkPublico(url);
     return url;
   }
 
   async function enviarEmail() {
-    if (!emailPara.trim()) { setErro("Escreva o endereço de e-mail."); return; }
+    if (!emailPara.trim()) { setErro(t("inv.customerEmail")); return; }
     setOcupado("email"); setErro(null); setEnviado(null);
     try {
       const r = await fetch(`/api/clients/${params.id}/invoices/${params.invoiceId}/enviar`, {
@@ -172,8 +170,8 @@ export default function InvoiceEditor({ params }: { params: { id: string; invoic
         body: JSON.stringify({ para: emailPara.trim() }),
       });
       const j = await r.json();
-      if (!r.ok) { setErro(j.error || "Não enviou."); return; }
-      setEnviado(`Enviada para ${j.para}.`);
+      if (!r.ok) { setErro(j.error || t("inv.notSentErr")); return; }
+      setEnviado(t("inv.sentTo", { n: j.para }));
       await carregar();
     } finally { setOcupado(null); }
   }
@@ -187,7 +185,7 @@ export default function InvoiceEditor({ params }: { params: { id: string; invoic
     window.open(linkDeWhatsapp(cliente?.phone ?? null, msg), "_blank", "noopener");
   }
 
-  if (!inv) return <p className="text-sm text-muted">A carregar…</p>;
+  if (!inv) return <p className="text-sm text-muted">{t("common.loading")}</p>;
 
   const pdfUrl = `/api/clients/${params.id}/invoices/${params.invoiceId}/pdf`;
 
@@ -196,35 +194,35 @@ export default function InvoiceEditor({ params }: { params: { id: string; invoic
       <div className="rise flex flex-wrap items-end justify-between gap-4">
         <div>
           <h1 className="font-display text-3xl font-semibold tracking-tight">
-            {inv.status === "draft" ? "Nova fatura" : inv.number}
+            {inv.status === "draft" ? t("inv.new") : inv.number}
           </h1>
           <p className="mt-1 text-muted">
             {inv.status === "draft"
-              ? "Rascunho — ainda não consome número nem entra na contabilidade."
+              ? t("inv.subDraft")
               : inv.status === "cancelled"
-                ? "Anulada. O número fica na sequência, para não abrir buraco."
-                : `Emitida. ${inv.sentTo ? `Enviada para ${inv.sentTo}.` : "Ainda não enviada."}`}
+                ? t("inv.subCancelled")
+                : `${t("inv.subIssued")} ${inv.sentTo ? t("inv.sentTo", { n: inv.sentTo }) : t("inv.notSent")}`}
           </p>
         </div>
         <div className="flex flex-wrap items-center gap-2">
           <Link className="btn-ghost inline-flex h-9 items-center px-3 text-sm" href={`/clients/${params.id}/invoices`}>
-            Voltar
+            {t("inv.back")}
           </Link>
           <a className="btn-ghost inline-flex h-9 items-center px-3 text-sm" href={pdfUrl} target="_blank" rel="noreferrer">
-            Ver PDF
+            {t("inv.viewPdf")}
           </a>
           {editavel ? (
             <>
               <button className="btn-ghost h-9 px-3 text-sm" disabled={!!ocupado} onClick={gravar}>
-                {ocupado === "gravar" ? "A gravar…" : "Gravar"}
+                {ocupado === "gravar" ? t("common.saving") : t("common.save")}
               </button>
               <button className="btn-primary h-9 px-4 text-sm" disabled={!!ocupado} onClick={emitir}>
-                {ocupado === "emitir" ? "A emitir…" : "Emitir"}
+                {ocupado === "emitir" ? t("inv.issuing") : t("inv.issue")}
               </button>
             </>
           ) : inv.status !== "cancelled" && (
             <a className="btn-ghost inline-flex h-9 items-center px-3 text-sm" href={`${pdfUrl}?download=1`}>
-              Baixar PDF
+              {t("inv.downloadPdf")}
             </a>
           )}
         </div>
@@ -240,34 +238,34 @@ export default function InvoiceEditor({ params }: { params: { id: string; invoic
 
       {/* ------------------------------------------------------ o destinatário */}
       <section className="card p-5">
-        <h2 className="font-display text-sm font-semibold">Para quem</h2>
+        <h2 className="font-display text-sm font-semibold">{t("inv.toWhom")}</h2>
         {editavel ? (
           <div className="mt-3 grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-            <F label="Cliente">
+            <F label={t("inv.colCustomer")}>
               <select className="input" value={inv.customerId ?? ""}
                 onChange={(e) => {
                   const c = clientes.find((x) => x.id === e.target.value);
                   if (c) escolherCliente(c);
                 }}>
-                <option value="">— escolha —</option>
+                <option value="">{t("inv.chooseCustomer")}</option>
                 {clientes.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
               </select>
             </F>
-            <F label="Referência do comprador">
-              <input className="input" placeholder="o PO dele, se pediu"
+            <F label={t("inv.customerRef")}>
+              <input className="input" placeholder={t("inv.customerRefHint")}
                 value={inv.customerRef ?? ""}
                 onChange={(e) => setInv({ ...inv, customerRef: e.target.value })} />
             </F>
-            <F label="E-mail">
+            <F label={t("cust.email")}>
               <input className="input" value={inv.customerEmail ?? ""}
                 onChange={(e) => setInv({ ...inv, customerEmail: e.target.value })} />
             </F>
-            <F label="Morada de faturação" largo>
+            <F label={t("inv.billTo")} largo>
               <textarea className="input min-h-[70px] py-2" rows={3}
                 value={inv.customerAddr ?? ""}
                 onChange={(e) => setInv({ ...inv, customerAddr: e.target.value })} />
             </F>
-            <F label="Morada de entrega (vazio = não sai na fatura)" largo>
+            <F label={t("inv.shipTo")} largo>
               <textarea className="input min-h-[70px] py-2" rows={3}
                 value={inv.customerShip ?? ""}
                 onChange={(e) => setInv({ ...inv, customerShip: e.target.value })} />
@@ -282,17 +280,17 @@ export default function InvoiceEditor({ params }: { params: { id: string; invoic
         )}
         {clientes.length === 0 && editavel && (
           <p className="mt-3 text-xs text-muted">
-            Ainda não há clientes cadastrados.{" "}
-            <Link className="underline" href={`/clients/${params.id}/customers`}>Criar o primeiro</Link>.
+            {t("inv.noCustomers")}{" "}
+            <Link className="underline" href={`/clients/${params.id}/customers`}>{t("inv.createFirst")}</Link>.
           </p>
         )}
       </section>
 
       {/* ---------------------------------------------------------- as datas */}
       <section className="card p-5">
-        <h2 className="font-display text-sm font-semibold">Datas e condições</h2>
+        <h2 className="font-display text-sm font-semibold">{t("inv.datesTitle")}</h2>
         <div className="mt-3 grid gap-3 sm:grid-cols-3">
-          <F label="Data de emissão">
+          <F label={t("inv.issueDate")}>
             <input type="date" className="input" disabled={!editavel} value={inv.issueDate}
               onChange={(e) => {
                 const d = e.target.value;
@@ -302,7 +300,7 @@ export default function InvoiceEditor({ params }: { params: { id: string; invoic
                 setInv({ ...inv, issueDate: d, dueDate: vencimentoDosTermos(d, inv.paymentTerms) ?? inv.dueDate });
               }} />
           </F>
-          <F label="Condições de pagamento">
+          <F label={t("inv.terms")}>
             <input className="input" disabled={!editavel} placeholder="30 dias"
               value={inv.paymentTerms ?? ""}
               onChange={(e) => {
@@ -310,7 +308,7 @@ export default function InvoiceEditor({ params }: { params: { id: string; invoic
                 setInv({ ...inv, paymentTerms: t, dueDate: vencimentoDosTermos(inv.issueDate, t) ?? inv.dueDate });
               }} />
           </F>
-          <F label="Vencimento">
+          <F label={t("inv.due")}>
             <input type="date" className="input" disabled={!editavel} value={inv.dueDate ?? ""}
               onChange={(e) => setInv({ ...inv, dueDate: e.target.value || null })} />
           </F>
@@ -320,11 +318,11 @@ export default function InvoiceEditor({ params }: { params: { id: string; invoic
       {/* --------------------------------------------------------- as linhas */}
       <section className="card p-5">
         <div className="flex items-baseline justify-between">
-          <h2 className="font-display text-sm font-semibold">Linhas</h2>
+          <h2 className="font-display text-sm font-semibold">{t("inv.lines")}</h2>
           {editavel && (
             <button className="btn-ghost h-8 px-3 text-xs"
               onClick={() => setItems([...items, { ...LINHA_VAZIA }])}>
-              + linha
+              {t("inv.addLine")}
             </button>
           )}
         </div>
@@ -333,13 +331,13 @@ export default function InvoiceEditor({ params }: { params: { id: string; invoic
           <table className="w-full text-[13px]">
             <thead>
               <tr className="border-b border-line text-[10px] uppercase tracking-wide text-muted">
-                <th className="py-1 text-left font-medium">Descrição</th>
-                <th className="w-20 py-1 text-right font-medium">Qtd</th>
-                <th className="w-28 py-1 text-right font-medium">Preço unit.</th>
+                <th className="py-1 text-left font-medium">{t("inv.colDesc")}</th>
+                <th className="w-20 py-1 text-right font-medium">{t("inv.colQty")}</th>
+                <th className="w-28 py-1 text-right font-medium">{t("inv.colUnit")}</th>
                 <th className="w-24 py-1 text-right font-medium">VAT %</th>
-                <th className="w-28 py-1 text-right font-medium">IVA</th>
+                <th className="w-28 py-1 text-right font-medium">{t("inv.colVat")}</th>
                 {/* Líquido, sem IVA: a coluna tem de fechar com o subtotal. */}
-                <th className="w-28 py-1 text-right font-medium">Valor s/ IVA</th>
+                <th className="w-28 py-1 text-right font-medium">{t("inv.colNet")}</th>
                 {editavel && <th className="w-8" />}
               </tr>
             </thead>
@@ -353,7 +351,7 @@ export default function InvoiceEditor({ params }: { params: { id: string; invoic
                       <input className="input h-8 w-full" placeholder="Consulting services"
                         disabled={!editavel} value={it.description}
                         onChange={(e) => troca(i, { description: e.target.value })} />
-                      <input className="input mt-1 h-7 w-full text-[11.5px]" placeholder="detalhe (opcional)"
+                      <input className="input mt-1 h-7 w-full text-[11.5px]" placeholder={t("inv.lineDetail")}
                         disabled={!editavel} value={it.detail}
                         onChange={(e) => troca(i, { detail: e.target.value })} />
                     </td>
@@ -396,12 +394,12 @@ export default function InvoiceEditor({ params }: { params: { id: string; invoic
             mostrar, e o que o comprador confere. */}
         <div className="mt-4 flex justify-end">
           <div className="w-full max-w-xs space-y-1.5 text-[13px]">
-            <Total rotulo="Subtotal" valor={eur(totais.net)} />
+            <Total rotulo={t("inv.subtotal")} valor={eur(totais.net)} />
             {totais.porTaxa.filter((g) => g.vat > 0).map((g) => (
               <Total key={g.rate} rotulo={`VAT ${g.rate}%`} valor={eur(g.vat)} />
             ))}
             <div className="mt-2 flex items-center justify-between rounded-lg bg-brand/10 px-3 py-2">
-              <span className="font-semibold">Total</span>
+              <span className="font-semibold">{t("common.total")}</span>
               <span className="font-mono text-lg font-semibold tabular-nums text-brand">{eur(totais.gross)}</span>
             </div>
           </div>
@@ -416,7 +414,7 @@ export default function InvoiceEditor({ params }: { params: { id: string; invoic
           <div className="mt-4 flex flex-wrap items-end gap-2 rounded-lg border border-line bg-surface-2 px-3 py-2.5">
             <label className="flex flex-col gap-1">
               <span className="text-[11px] uppercase tracking-wide text-muted">
-                O cliente vai pagar (com IVA)
+                {t("inv.grossUpLabel")}
               </span>
               <input
                 className="input h-9 w-40 text-right"
@@ -428,17 +426,16 @@ export default function InvoiceEditor({ params }: { params: { id: string; invoic
               />
             </label>
             <button className="btn-ghost h-9 px-4 text-sm" onClick={calcularPorDentro}>
-              Calcular por dentro
+              {t("inv.grossUp")}
             </button>
             <span className="max-w-md text-xs text-muted">
-              Ajusta os preços unitários para o total fechar nesse valor, repartindo pela proporção
-              que as linhas já têm. As quantidades não mudam.
+              {t("inv.grossUpHint")}
             </span>
           </div>
         )}
 
         <label className="mt-4 flex flex-col gap-1">
-          <span className="text-[11px] uppercase tracking-wide text-muted">Nota na fatura</span>
+          <span className="text-[11px] uppercase tracking-wide text-muted">{t("inv.noteOnInvoice")}</span>
           <input className="input" disabled={!editavel} value={inv.notes ?? ""}
             onChange={(e) => setInv({ ...inv, notes: e.target.value })} />
         </label>
@@ -447,23 +444,23 @@ export default function InvoiceEditor({ params }: { params: { id: string; invoic
       {/* ---------------------------------------------------------- o envio */}
       {(inv.status === "issued" || inv.status === "sent") && (
         <section className="card p-5">
-          <h2 className="font-display text-sm font-semibold">Enviar</h2>
+          <h2 className="font-display text-sm font-semibold">{t("inv.send")}</h2>
 
           <div className="mt-3 flex flex-wrap items-end gap-2">
             <label className="flex flex-col gap-1">
-              <span className="text-[11px] uppercase tracking-wide text-muted">E-mail do cliente</span>
+              <span className="text-[11px] uppercase tracking-wide text-muted">{t("inv.customerEmail")}</span>
               <input className="input h-9 w-72" value={emailPara}
                 onChange={(e) => setEmailPara(e.target.value)} />
             </label>
             <button className="btn-primary h-9 px-4 text-sm" disabled={!!ocupado} onClick={enviarEmail}>
-              {ocupado === "email" ? "A enviar…" : "Enviar por e-mail"}
+              {ocupado === "email" ? t("inv.sending") : t("inv.sendEmail")}
             </button>
-            <span className="text-xs text-muted">Vai com o PDF anexado.</span>
+            <span className="text-xs text-muted">{t("inv.emailHint")}</span>
           </div>
 
           <div className="mt-4 flex flex-wrap items-center gap-3 border-t border-line pt-4">
             <button className="btn-ghost h-9 px-4 text-sm" onClick={abrirWhatsapp}>
-              Abrir no WhatsApp
+              {t("inv.openWhatsapp")}
             </button>
             {/*
               * Diz-se o que ACONTECE, e não "enviar por WhatsApp".
@@ -473,13 +470,13 @@ export default function InvoiceEditor({ params }: { params: { id: string; invoic
               * "enviar" faria alguém fechar a janela a pensar que já foi.
               */}
             <span className="text-xs text-muted">
-              Abre a conversa com a mensagem e um link para o PDF — falta carregar em enviar lá.
+              {t("inv.whatsappHint")}
             </span>
           </div>
 
           <div className="mt-4 flex flex-wrap items-center gap-3 border-t border-line pt-4">
             <button className="btn-ghost h-9 px-4 text-sm" onClick={gerarLink}>
-              {linkPublico ? "Link criado" : "Criar link para partilhar"}
+              {linkPublico ? t("inv.linkMade") : t("inv.makeLink")}
             </button>
             {linkPublico && (
               <>
@@ -487,12 +484,12 @@ export default function InvoiceEditor({ params }: { params: { id: string; invoic
                   onFocus={(e) => e.currentTarget.select()} />
                 <button className="btn-ghost h-9 px-3 text-xs"
                   onClick={() => navigator.clipboard?.writeText(linkPublico)}>
-                  copiar
+                  {t("inv.copy")}
                 </button>
               </>
             )}
             <span className="text-xs text-muted">
-              Quem tiver o endereço vê esta fatura, sem entrar no sistema. Anular a fatura fecha o link.
+              {t("inv.linkHint")}
             </span>
           </div>
         </section>
@@ -504,19 +501,15 @@ export default function InvoiceEditor({ params }: { params: { id: string; invoic
             className="btn-ghost h-8 px-3 text-xs text-danger"
             onClick={async () => {
               const rascunho = inv.status === "draft";
-              if (!confirm(rascunho
-                ? "Apagar este rascunho?"
-                : "Anular esta fatura?\n\nO número fica na sequência (para não abrir buraco) e a venda é desfeita. "
-                  + "Só funciona se a venda ainda não tiver sido contabilizada nem baixada no banco."
-              )) return;
+              if (!confirm(rascunho ? t("inv.confirmDeleteDraft") : t("inv.confirmCancel"))) return;
               const r = await fetch(`/api/clients/${params.id}/invoices/${params.invoiceId}`, { method: "DELETE" });
               const j = await r.json().catch(() => ({}));
-              if (!r.ok) { setErro(j.error || "Não deu."); return; }
+              if (!r.ok) { setErro(j.error || t("inv.failed")); return; }
               if (rascunho) router.push(`/clients/${params.id}/invoices`);
               else await carregar();
             }}
           >
-            {inv.status === "draft" ? "Apagar rascunho" : "Anular fatura"}
+            {inv.status === "draft" ? t("inv.deleteDraft") : t("inv.cancelInvoice")}
           </button>
         </div>
       )}

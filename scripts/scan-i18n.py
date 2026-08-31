@@ -24,7 +24,12 @@ PT = r'\b(não|nao|você|voce|está|esta[rs]?|são|com|para|sem|por|uma?|dos?|da
 pt_re = re.compile(PT, re.I)
 rows=[]
 for root,dirs,files in os.walk('.'):
-    if any(x in root for x in ('node_modules','.next','.git','selfhost/docker','selfhost/backups')): continue
+    # Os WORKTREES sao copias do repositorio. Conta-los triplica o numero e
+    # enche a lista de ficheiros que ninguem vai editar — o suficiente para o
+    # numero deixar de ser util, que e o mesmo motivo por que os comentarios
+    # ficam de fora.
+    if any(x in root for x in ('node_modules','.next','.git','selfhost/docker',
+                               'selfhost/backups','.claude/worktrees','scripts')): continue
     for fn in files:
         if not fn.endswith(('.tsx','.ts')): continue
         p=os.path.join(root,fn)
@@ -36,6 +41,11 @@ for root,dirs,files in os.walk('.'):
         for m in re.finditer(r'"([^"\n]{4,120})"|\'([^\'\n]{4,120})\'|>\s*([^<>{}\n]{4,120})\s*<', code):
             s=(m.group(1) or m.group(2) or m.group(3) or '').strip()
             if not s or s.startswith(('@/','./','../','http')): continue
+            # Codigo apanhado por engano: expressoes, classes de CSS, chaves de
+            # traducao. Uma varredura com falsos positivos nao se le ate ao fim.
+            if re.search(r'[{}()\[\];]|&&|\|\||=>|\bconst\b|\breturn\b', s): continue
+            if re.match(r'^[a-z]+\.[a-zA-Z]', s): continue          # "agenda.title"
+            if re.search(r'\b(flex|grid|text-|bg-|border-|px-|py-|mt-|w-|h-)\b', s): continue
             if pt_re.search(s): hits.add(s)
         if hits:
             has_t = bool(re.search(r'useI18n|from "@/lib/i18n"', src))
