@@ -13,7 +13,7 @@ const MESSAGE: Record<string, { key: string; status: number }> = {
 
 export async function POST(req: NextRequest) {
   try {
-    const { email, password, company } = await req.json();
+    const { email, password, company, remember } = await req.json();
     if (!email || !password) {
       return NextResponse.json({ error: "Email and password are required." }, { status: 400 });
     }
@@ -29,7 +29,8 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: result.failure, messageKey: m.key }, { status: m.status });
     }
 
-    await createSession(result.user);
+    // Só `false` explícito encurta a sessão — ver `createSession`.
+    await createSession(result.user, remember !== false);
     return NextResponse.json({
       ok: true,
       user: {

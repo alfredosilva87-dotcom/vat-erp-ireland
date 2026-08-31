@@ -93,7 +93,7 @@ export async function verifyCredentials(
   };
 }
 
-export async function createSession(user: SessionUser) {
+export async function createSession(user: SessionUser, lembrar = true) {
   /*
    * A validade da licença viaja DENTRO da sessão (`lic`).
    *
@@ -118,12 +118,24 @@ export async function createSession(user: SessionUser) {
     .setIssuedAt()
     .setExpirationTime("7d")
     .sign(secret());
+  /*
+   * "LEMBRAR DE MIM" decide se o cookie SOBREVIVE ao fechar do navegador.
+   *
+   * O padrão é `true` de propósito: é exactamente o que este sistema sempre
+   * fez — sete dias —, e uma caixa nova não deve mudar o comportamento de
+   * quem nunca lhe tocou.
+   *
+   * Desmarcada, o cookie perde o `maxAge` e passa a ser de sessão: morre com o
+   * navegador. O TOKEN continua a valer sete dias — quem o tiver copiado tem-no
+   * na mesma —, então isto não é uma trava de segurança; é o computador
+   * partilhado do escritório do cliente a não ficar com a sessão aberta.
+   */
   cookies().set(SESSION_COOKIE, token, {
     httpOnly: true,
     sameSite: "lax",
     secure: process.env.NODE_ENV === "production",
     path: "/",
-    maxAge: 60 * 60 * 24 * 7,
+    ...(lembrar ? { maxAge: 60 * 60 * 24 * 7 } : {}),
   });
 }
 
