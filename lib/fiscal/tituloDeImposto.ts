@@ -102,6 +102,28 @@ export async function criarTituloDeImposto(p: PedidoDeTitulo): Promise<Resultado
     return { ok: false, erro: "Não há imposto a pagar neste período — o apurado é zero ou a recuperar." };
   }
 
+  /*
+   * O TÍTULO SÓ NASCE DEPOIS DO MÊS FECHADO.
+   *
+   * Pedido do Alfredo: "após mês fechado gera". A razão é que o apurado muda
+   * enquanto o período está aberto — uma nota que entra depois muda o IVA a
+   * pagar —, e um título com o valor de ontem seria pago com o valor de ontem.
+   * O fecho é o que faz do número um facto, e é só a partir daí que faz
+   * sentido pô-lo em contas a pagar.
+   *
+   * A mensagem diz QUAL mês falta, e não que "o período está aberto": quem
+   * carregou no botão está a tentar fazer uma coisa, e precisa do passo
+   * seguinte, não do diagnóstico.
+   */
+  const trava = await periodoTravado(p.clientId, p.de, p.ate);
+  if (!trava.fechado) {
+    return {
+      ok: false,
+      erro: `Falta fechar ${trava.primeiroAberto}. O imposto só vira título depois de o período estar fechado — `
+        + "enquanto está aberto, o apurado ainda muda.",
+    };
+  }
+
   const sb = getServerSupabase();
 
   /*
@@ -142,28 +164,6 @@ export async function criarTituloDeImposto(p: PedidoDeTitulo): Promise<Resultado
     .eq("document_ref", ref).maybeSingle();
   if (jaExiste) {
     return { ok: false, erro: `Já existe um título para ${ref}. Veja em contas a pagar.` };
-  }
-
-  /*
-   * O TÍTULO SÓ NASCE DEPOIS DO MÊS FECHADO.
-   *
-   * Pedido do Alfredo: "após mês fechado gera". A razão é que o apurado muda
-   * enquanto o período está aberto — uma nota que entra depois muda o IVA a
-   * pagar —, e um título com o valor de ontem seria pago com o valor de ontem.
-   * O fecho é o que faz do número um facto, e é só a partir daí que faz
-   * sentido pô-lo em contas a pagar.
-   *
-   * A mensagem diz QUAL mês falta, e não que "o período está aberto": quem
-   * carregou no botão está a tentar fazer uma coisa, e precisa do passo
-   * seguinte, não do diagnóstico.
-   */
-  const trava = await periodoTravado(p.clientId, p.de, p.ate);
-  if (!trava.fechado) {
-    return {
-      ok: false,
-      erro: `Falta fechar ${trava.primeiroAberto}. O imposto só vira título depois de o período estar fechado — `
-        + "enquanto está aberto, o apurado ainda muda.",
-    };
   }
 
   const hoje = new Date().toISOString().slice(0, 10);

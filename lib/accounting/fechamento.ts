@@ -115,12 +115,16 @@ async function mesAnteriorPorFechar(clientId: string, de: string): Promise<numbe
   anterior.setUTCDate(0); // o último dia do mês anterior
   const fim = anterior.toISOString().slice(0, 10);
 
+  const inicio = `${fim.slice(0, 7)}-01`;
+
+  // O recorte é o mês anterior, e não "tudo o que veio antes": um mês sem
+  // movimento nenhum não tem nada para trancar, e avisar sobre ele seria um
+  // aviso que não se pode resolver — o pior tipo, porque ensina a ignorar.
   const { count } = await sb().from("journal").select("id", { count: "exact", head: true })
-    .eq("client_id", clientId).lte("posting_date", fim);
+    .eq("client_id", clientId).gte("posting_date", inicio).lte("posting_date", fim);
   if (!count) return 0;
 
   const fechados = paraPuro(await periodosFechados(clientId));
-  const inicio = `${fim.slice(0, 7)}-01`;
   return fechados.some((p) => p.periodStart <= inicio && p.periodEnd >= fim) ? 0 : 1;
 }
 
