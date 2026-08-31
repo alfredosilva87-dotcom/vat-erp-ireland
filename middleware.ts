@@ -33,6 +33,12 @@ function isPublicCapturePath(pathname: string): boolean {
     pathname === "/icon.png" ||
     pathname === "/apple-icon.png" ||
     pathname === "/logo.png" ||
+    // O logótipo deitado. Faltava, e a consequencia era invisivel no codigo e
+    // obvia no ecra: a pagina de LOGIN nao tem sessao, entao o pedido da
+    // imagem era redirecionado para o proprio login e o navegador mostrava o
+    // texto alternativo dentro de uma caixa. Um 307 a uma imagem nao da erro
+    // em lado nenhum — so nao aparece.
+    pathname === "/logo-wordmark.png" ||
     pathname === "/icon-192.png" ||
     pathname === "/icon-512.png"
   );

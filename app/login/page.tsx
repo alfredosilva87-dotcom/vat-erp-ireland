@@ -81,20 +81,24 @@ export default function Login() {
           }}
         />
         {/*
-          * A MARCA, por extenso e centrada nesta coluna.
+          * A MARCA como estava — símbolo, nome e descritor em texto —, só que
+          * CENTRADA nesta coluna.
           *
-          * Substitui o simbolo pequeno com o nome escrito ao lado: o logótipo
-          * ja traz o nome e o descritor desenhados, e repeti-los em texto era
-          * dizer a mesma coisa duas vezes com dois tipos de letra.
+          * Tentei aqui o logótipo deitado e o Alfredo travou-o duas vezes: a
+          * primeira porque a placa branca à volta se lia como um cartão a
+          * flutuar, a segunda porque a imagem nem sequer carregava (a
+          * middleware redirecionava-a — ver `logo-wordmark.png` lá).
           *
-          * A cor do texto desta coluna continua a ser `text-night-*` e nunca
-          * `text-white`: no tema claro `--c-night` e BRANCO — a barra lateral
-          * clara foi uma decisao de desenho — e o titulo estava branco sobre
-          * branco, invisivel para quem usa o tema padrao.
+          * Isto é o que ele pediu à letra: o de antes, centrado. E tem uma
+          * vantagem que a imagem não tem — o texto acompanha o tema e a língua,
+          * e não precisa de placa nenhuma para se ler no escuro.
           */}
-        <div className="relative flex justify-center">
-          {/* eslint-disable-next-line @next/next/no-img-element */}
-          <img src={MARCA.lockup} alt={MARCA.completo} className="brand-lockup max-w-[300px]" />
+        <div className="relative flex flex-col items-center gap-3 text-center">
+          <img src={MARCA.icone} alt={MARCA.nome} className="h-14 w-14 rounded-2xl shadow-brand" />
+          <div>
+            <div className="font-display text-2xl font-semibold tracking-tight text-night-ink">{MARCA.nome}</div>
+            <div className="mt-0.5 text-xs font-medium tracking-wide text-night-muted">{MARCA.descritor}</div>
+          </div>
         </div>
 
         <div className="relative">
@@ -118,15 +122,15 @@ export default function Login() {
       <div className="flex items-center justify-center px-6 py-12">
         <div className="w-full max-w-sm">
           {/*
-            * No telemovel a coluna da marca nao aparece, entao o logótipo vem
-            * para aqui — o mesmo ficheiro, mais pequeno.
-            *
-            * Aqui estava um quadrado com a letra "V", sobra da marca antiga
-            * que a procura por "VAT Reader" nao apanhou por ser so a letra.
+            * No telemóvel a coluna da marca não aparece, então ela vem para
+            * aqui — a mesma composição, mais pequena e centrada.
             */}
-          <div className="mb-8 flex justify-center lg:hidden">
-            {/* eslint-disable-next-line @next/next/no-img-element */}
-            <img src={MARCA.lockup} alt={MARCA.completo} className="brand-lockup max-w-[220px]" />
+          <div className="mb-8 flex flex-col items-center gap-2 text-center lg:hidden">
+            <img src={MARCA.icone} alt={MARCA.nome} className="h-12 w-12 rounded-xl shadow-brand" />
+            <div>
+              <div className="font-display text-lg font-semibold tracking-tight">{MARCA.nome}</div>
+              <div className="text-[11px] font-medium tracking-wide text-muted">{MARCA.descritor}</div>
+            </div>
           </div>
           <h2 className="font-display text-2xl font-semibold tracking-tight">{t("login.signIn")}</h2>
           <p className="mt-1 text-sm text-muted">{t("login.welcome")}</p>
