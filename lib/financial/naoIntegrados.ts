@@ -57,6 +57,15 @@ export type DocumentoNaoIntegrado = {
   motivo: MotivoNaoIntegrado;
   /** Tem partida no razão mas não tem título — meia-integração. */
   meiaIntegracao: boolean;
+  /*
+   * QUAL das duas metades existe.
+   *
+   * "Meia-integração" diz que está partido e não diz por onde. Quem lê tem de
+   * abrir as duas telas para descobrir de que lado falta — e é justamente o
+   * lado que falta que decide o que fazer a seguir.
+   */
+  temTitulo: boolean;
+  temLancamento: boolean;
 };
 
 export type ResumoNaoIntegrados = {
@@ -133,6 +142,7 @@ export async function documentosNaoIntegrados(clientId: string): Promise<ResumoN
       itens.push({
         id, origem, documentRef: ref, contraparte, data, valor,
         motivo: "integrado_sem_conferir", meiaIntegracao: false,
+        temTitulo, temLancamento,
       });
       return;
     }
@@ -162,6 +172,7 @@ export async function documentosNaoIntegrados(clientId: string): Promise<ResumoN
        * configuração, ter um e não ter o outro é o comportamento correcto.
        */
       meiaIntegracao: esperaTitulo && esperaLancamento && temTitulo !== temLancamento,
+      temTitulo, temLancamento,
     });
   };
 

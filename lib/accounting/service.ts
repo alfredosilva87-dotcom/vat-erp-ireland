@@ -408,9 +408,20 @@ export async function postBankTransaction(
 
 // ------------------------------------------------- contabilização retroativa
 
+/** De onde veio o erro — é o que decide para onde a tela manda quem clicar. */
+export type OrigemDoErro = "purchase" | "sale" | "bank" | "payroll";
+
 export type ResumoBackfill = {
   notas: number; vendas: number; banco: number;
-  jaEstavam: number; erros: { doc: string; erro: string }[];
+  jaEstavam: number;
+  /*
+   * O erro leva CONSIGO o caminho de volta ao documento.
+   *
+   * Só o número da nota obriga quem lê a ir procurá-la — e quem está a olhar
+   * uma lista de sete erros vai procurar sete vezes. Com a origem e o id, a
+   * tela monta o link e o erro passa a ser um sítio onde se clica.
+   */
+  erros: { doc: string; erro: string; origem: OrigemDoErro; id: string }[];
   /** Títulos criados — existem mesmo com a contabilidade desligada. */
   titulos: number;
   /** Encargos que estavam sem partida no razão e passaram a ter. */
@@ -485,7 +496,7 @@ export async function backfillClient(
     }
     const r = await postInvoice(n.id, userId);
     if (r.jaExistia) resumo.jaEstavam++;
-    else if (r.erro) resumo.erros.push({ doc: n.invoice_number || n.id, erro: r.erro });
+    else if (r.erro) resumo.erros.push({ doc: n.invoice_number || n.id, erro: r.erro, origem: "purchase", id: n.id });
     else resumo.notas++;
   }
 
@@ -502,7 +513,7 @@ export async function backfillClient(
     }
     const r = await postSaleDoc(v.id, userId);
     if (r.jaExistia) resumo.jaEstavam++;
-    else if (r.erro) resumo.erros.push({ doc: v.doc_number || v.id, erro: r.erro });
+    else if (r.erro) resumo.erros.push({ doc: v.doc_number || v.id, erro: r.erro, origem: "sale", id: v.id });
     else resumo.vendas++;
   }
 
@@ -527,7 +538,7 @@ export async function backfillClient(
       // ninguém classificou ainda. Poluir a lista de erros com isso
       // esconderia os erros de verdade.
       if (!/sem conta e sem documento/.test(r.erro)) {
-        resumo.erros.push({ doc: b.description || b.id, erro: r.erro });
+        resumo.erros.push({ doc: b.description || b.id, erro: r.erro, origem: "bank", id: b.id });
       }
     } else resumo.banco++;
   }
@@ -561,7 +572,7 @@ export async function backfillClient(
       const r = await contabilizarFolha(f.id, userId);
       if (r.journalId && !r.jaExistia) resumo.folhas++;
       else if (r.erro && !/nao integrada|sem valor/i.test(r.erro)) {
-        resumo.erros.push({ doc: `Folha ${f.issue_date ?? f.id}`, erro: r.erro });
+        resumo.erros.push({ doc: `Folha ${f.issue_date ?? f.id}`, erro: r.erro, origem: "payroll", id: f.id });
       }
     }
   }

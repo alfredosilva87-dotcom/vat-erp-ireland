@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
+import Link from "next/link";
 import { useT } from "@/lib/i18n";
 import OpeningTab from "@/components/accounting/OpeningTab";
 import DrillPanel from "@/components/accounting/DrillPanel";
@@ -62,24 +63,7 @@ export default function AccountingPage({ params }: { params: { id: string } }) {
   const [d, setD] = useState<Dados | null>(null);
   const [loading, setLoading] = useState(true);
   const [erro, setErro] = useState<string | null>(null);
-  const [contabilizando, setContabilizando] = useState(false);
   const [msg, setMsg] = useState<string | null>(null);
-  /*
-   * Os erros da contabilização, com documento e motivo.
-   *
-   * A API sempre os devolveu; a tela mostrava só a contagem. "1 falhou"
-   * não diz qual nem porquê, e sem isso a pessoa não tem por onde começar
-   * — tem de abrir os documentos um a um até achar o que não entrou.
-   */
-  const [errosDaCarga, setErrosDaCarga] = useState<{ doc: string; erro: string }[]>([]);
-  /*
-   * Que conta está aberta no detalhe, e com que recorte.
-   *
-   * `from` só existe no DRE: ali o número é o MOVIMENTO do período. No
-   * balanço o número é o saldo ACUMULADO, e passar um `from` mostraria
-   * um detalhe que não soma o valor clicado — o pior resultado possível
-   * numa tela cujo propósito é explicar o valor.
-   */
   const [detalhe, setDetalhe] = useState<{ conta: string; from?: string } | null>(null);
 
   const load = useCallback(async () => {
@@ -97,28 +81,6 @@ export default function AccountingPage({ params }: { params: { id: string } }) {
   }, [params.id, ano]);
 
   useEffect(() => { load(); }, [load]);
-
-  async function contabilizar() {
-    setContabilizando(true);
-    setMsg(null);
-    setErrosDaCarga([]);
-    try {
-      const r = await fetch(`/api/clients/${params.id}/accounting/backfill`, {
-        method: "POST", headers: { "Content-Type": "application/json" }, body: "{}",
-      });
-      const res = await r.json();
-      if (!r.ok) throw new Error(res.error || "Falhou.");
-      setMsg(t("acc.posted", {
-        n: res.notas + res.vendas, ja: res.jaEstavam, erros: res.erros.length,
-      }));
-      setErrosDaCarga(res.erros ?? []);
-      await load();
-    } catch (e: any) {
-      setMsg(e.message);
-    } finally {
-      setContabilizando(false);
-    }
-  }
 
   const eur = (v: number) =>
     (v < 0 ? "(" : "") + "€" +
@@ -156,9 +118,21 @@ export default function AccountingPage({ params }: { params: { id: string } }) {
               <option value="completa">{t("acc.viewFull")}</option>
             </select>
           </label>
-          <button className="btn-ghost" onClick={contabilizar} disabled={contabilizando}>
-            {contabilizando ? t("common.saving") : t("acc.postAll")}
-          </button>
+          {/*
+            * O botão de contabilizar MUDOU-SE para a Verificação.
+            *
+            * Pedido do Alfredo, e a lógica é dele: aqui é onde se LÊ o razão, e
+            * ali é onde se pergunta se ele está em dia. Um botão que escreve no
+            * meio dos botões que exportam relatórios convida ao clique
+            * distraído — e quando falha, os erros apareciam nesta tela, longe
+            * das outras verificações que explicam o mesmo problema.
+            *
+            * Fica o caminho, porque quem já sabia onde o botão estava tem de o
+            * encontrar ao primeiro olhar.
+            */}
+          <Link className="btn-ghost" href={`/clients/${params.id}/checkup`}>
+            {t("acc.postAllMoved")}
+          </Link>
           {/* Os arquivos saem da MESMA função que monta a tela — o papel
               entregue ao cliente não pode discordar do que está aqui. */}
           <a className="btn-ghost" href={`/api/clients/${params.id}/accounting/export.pdf?year=${ano}&view=${visao}`}>PDF</a>
@@ -168,23 +142,6 @@ export default function AccountingPage({ params }: { params: { id: string } }) {
 
       {erro && <p className="text-sm text-danger">{erro}</p>}
       {msg && <p className="text-sm text-muted">{msg}</p>}
-
-      {errosDaCarga.length > 0 && (
-        <div className="card border-l-4 border-l-warning p-4">
-          <h3 className="font-display text-sm font-semibold">
-            {t("acc.failedHeading")}
-          </h3>
-          <p className="mt-1 text-xs text-muted">{t("acc.failedHelp")}</p>
-          <ul className="mt-3 space-y-1.5 text-[13px]">
-            {errosDaCarga.map((e, i) => (
-              <li key={`${e.doc}-${i}`} className="flex flex-wrap gap-x-3">
-                <span className="font-mono text-[12px] font-semibold">{e.doc}</span>
-                <span className="text-muted">{e.erro}</span>
-              </li>
-            ))}
-          </ul>
-        </div>
-      )}
 
       {/*
         O veredito primeiro. Um balanço que não fecha não pode exigir

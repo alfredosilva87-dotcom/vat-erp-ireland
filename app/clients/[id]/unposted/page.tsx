@@ -26,6 +26,8 @@ type Item = {
   valor: number;
   motivo: string;
   meiaIntegracao: boolean;
+  temTitulo: boolean;
+  temLancamento: boolean;
 };
 
 type Resumo = { itens: Item[]; porMotivo: Record<string, number>; meiasIntegracoes: number };
@@ -133,7 +135,22 @@ export default function NaoIntegrados({ params }: { params: { id: string } }) {
                       {t(`unposted.${i.motivo}` as TKey)}
                     </span>
                     {i.meiaIntegracao && (
-                      <span className="chip-danger ml-2 text-[11px]">{t("unposted.half")}</span>
+                      <>
+                        <span className="chip-danger ml-2 text-[11px]">{t("unposted.half")}</span>
+                        {/*
+                          * QUAL das duas metades falta.
+                          *
+                          * "Meia-integração" diz que está partido e não diz por
+                          * onde — e é o lado que falta que decide o que fazer a
+                          * seguir. Sem isto, quem lê abre as duas telas para
+                          * descobrir o que a linha já sabia.
+                          */}
+                        <span className="ml-2 text-[11px] text-muted">
+                          {i.temLancamento
+                            ? t(i.origem === "purchase" ? "unposted.missPayable" : "unposted.missReceivable")
+                            : t("unposted.missLedger")}
+                        </span>
+                      </>
                     )}
                   </td>
                 </tr>
