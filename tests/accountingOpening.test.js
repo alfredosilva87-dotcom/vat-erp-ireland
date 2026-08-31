@@ -11,6 +11,16 @@
  * sobre o que fica de fora do de-para, que e onde mora o resto do erro.
  */
 const O = require("../.test-build/accounting/opening.js");
+/*
+ * Os codigos das contas vem de CONTAS_PADRAO, e nao escritos a mao.
+ *
+ * Estavam cravados ("1200", "2100", ...) e partiram todos de uma vez quando o
+ * plano de contas passou a ser o da pratica. O teste estava certo — o que
+ * estava errado era ele SABER o codigo. O que tem de garantir e que o cliente
+ * e debitado e o fornecedor creditado, seja qual for o codigo que esses papeis
+ * tenham no plano em vigor.
+ */
+const { CONTAS_PADRAO: C } = require("../.test-build/accounting/post.js");
 
 let pass = 0, fail = 0;
 const ok = (cond, label, extra) => {
@@ -105,12 +115,12 @@ console.log("\n== de-para: o que fica de fora e o que interessa ==");
     "310\tFornecedores\t0\t4300,00",
     "999\tConta que ninguem mapeou\t50,00\t0",
   ].join("\n"));
-  const mapa = { "100": "1100", "310": "2100" };
+  const mapa = { "100": C.bank, "310": C.tradeCreditors };
   const r = O.applyMapping(rows, mapa);
   ok(r.mapped.length === 2, "duas mapeadas", r.mapped.length);
   ok(r.unmapped.length === 1 && r.unmapped[0].external_code === "999",
      "a nao mapeada aparece, com codigo e nome", r.unmapped[0]);
-  ok(r.mapped[0].account_code === "1100", "e leva a conta de destino");
+  ok(r.mapped[0].account_code === C.bank, "e leva a conta de destino");
 }
 
 console.log("\n== duas contas do cliente na MESMA conta nossa ==");
@@ -127,8 +137,8 @@ console.log("\n== duas contas do cliente na MESMA conta nossa ==");
 console.log("\n== debito e credito na mesma conta somam pelo LIQUIDO ==");
 {
   const mapped = [
-    { external_code: "100", external_name: "Banco", debit: 1000, credit: 0,   line: 1, account_code: "1100" },
-    { external_code: "101", external_name: "Banco", debit: 0,    credit: 300, line: 2, account_code: "1100" },
+    { external_code: "100", external_name: "Banco", debit: 1000, credit: 0,   line: 1, account_code: C.bank },
+    { external_code: "101", external_name: "Banco", debit: 0,    credit: 300, line: 2, account_code: C.bank },
   ];
   const linhas = O.toOpeningLines(mapped);
   ok(linhas.length === 1 && linhas[0].debit === 700 && linhas[0].credit === 0,
@@ -138,8 +148,8 @@ console.log("\n== debito e credito na mesma conta somam pelo LIQUIDO ==");
 console.log("\n== conta que zera nao entra no razao ==");
 {
   const mapped = [
-    { external_code: "100", external_name: "X", debit: 500, credit: 0,   line: 1, account_code: "1100" },
-    { external_code: "101", external_name: "Y", debit: 0,   credit: 500, line: 2, account_code: "1100" },
+    { external_code: "100", external_name: "X", debit: 500, credit: 0,   line: 1, account_code: C.bank },
+    { external_code: "101", external_name: "Y", debit: 0,   credit: 500, line: 2, account_code: C.bank },
   ];
   ok(O.toOpeningLines(mapped).length === 0, "saldo liquido zero nao vira partida");
 }
@@ -153,7 +163,7 @@ console.log("\n== o lancamento de abertura fecha ==");
     "500\tCapital\t0\t100,00",
     "590\tLucros acumulados\t0\t16100,00",
   ].join("\n"));
-  const mapa = { "100": "1100", "150": "1600", "310": "2100", "500": "3100", "590": "3200" };
+  const mapa = { "100": C.bank, "150": "1600", "310": C.tradeCreditors, "500": "3100", "590": "3200" };
   const { mapped, unmapped } = O.applyMapping(rows, mapa);
   ok(unmapped.length === 0, "tudo mapeado");
   const linhas = O.toOpeningLines(mapped);

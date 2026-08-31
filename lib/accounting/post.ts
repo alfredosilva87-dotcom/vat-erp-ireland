@@ -47,17 +47,34 @@ export type ContasPadrao = {
   payrollLiability: string; // folha a pagar (passivo)
 };
 
+/**
+ * As contas para onde o motor lança quando ninguém escolheu outra.
+ *
+ * ---------------------------------------------------------------------------
+ * OS CÓDIGOS SÃO OS DO PLANO DA PRÁTICA (migração 037).
+ *
+ * Eram os do plano de arranque — 1200, 2100, 4100 — e mudaram com ele. As
+ * contas antigas não foram apagadas, ficaram INATIVAS, e as partidas que já
+ * existiam foram levadas para os códigos novos pela mesma migração.
+ *
+ * Se alguma destas deixar de existir no plano, o lançamento rebenta contra a
+ * chave estrangeira em vez de escrever para o vazio — que é o que se quer:
+ * um erro alto vale mais do que uma partida órfã.
+ * ---------------------------------------------------------------------------
+ */
 export const CONTAS_PADRAO: ContasPadrao = {
-  tradeCreditors: "2100",
-  tradeDebtors: "1200",
-  vatReceivable: "1300",
-  vatPayable: "2200",
-  bank: "1100",
-  revenue: "4100",
-  expenseFallback: "6990",
-  rounding: "9999",
-  wages: "6950",
-  payrollLiability: "2400",
+  // Os CONTROLOS, e não as contas de detalhe: é neles que o razão bate com o
+  // aging. `812`/`711` são "Purchase/Sales ledger control".
+  tradeCreditors: "812",
+  tradeDebtors: "711",
+  vatReceivable: "736",   // VAT repayable (activo)
+  vatPayable: "845",      // VAT control account (passivo)
+  bank: "771",            // Bank current account
+  revenue: "001",         // Sales
+  expenseFallback: "381", // General expenses
+  rounding: "999",        // Balance sheet suspense
+  wages: "301",           // Wages and salaries
+  payrollLiability: "871",// Wages and salaries control
 };
 
 /** Dinheiro em cêntimos inteiros — ver `arredondar`. */

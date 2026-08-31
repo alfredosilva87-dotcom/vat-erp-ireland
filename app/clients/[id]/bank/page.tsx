@@ -12,6 +12,7 @@
 import { useCallback, useEffect, useState } from "react";
 import Link from "next/link";
 import type { BankAccount, BankAccountBalance } from "@/lib/types";
+import { CONTAS_PADRAO } from "@/lib/accounting/post";
 
 type ContaDoPlano = { id: string; code: string; description: string; report_group: string | null };
 
@@ -161,7 +162,7 @@ export default function BankAccounts({ params }: { params: { id: string } }) {
 
                 <p className="mt-2 text-xs text-muted">
                   Conta do razão:{" "}
-                  <span className="font-mono text-ink">{a.account_code || "1100"}</span>
+                  <span className="font-mono text-ink">{a.account_code || CONTAS_PADRAO.bank}</span>
                   {!a.account_code && " (padrão)"}
                 </p>
 

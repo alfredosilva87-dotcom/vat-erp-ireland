@@ -110,6 +110,14 @@ export function balanceSheet(saldos: SaldoDeConta[], lucroAcumulado: number): {
 } {
   const tangivel = somaGrupo(saldos, "fixed_assets_tangible");
   const intangivel = somaGrupo(saldos, "fixed_assets_intangible");
+  /*
+   * Os investimentos em activo fixo — "Financial assets" na Schedule 3A.
+   *
+   * Faltava a linha, e o plano da prática tem catorze contas destas. Sem ela,
+   * uma conta com saldo desaparecia do balanço sem erro nenhum: `somaGrupo`
+   * ignora o que não reconhece, e o total do activo fixo vinha a menos.
+   */
+  const investimentos = somaGrupo(saldos, "fixed_assets_investments");
   const stocks = somaGrupo(saldos, "stocks");
   const debtors = somaGrupo(saldos, "debtors");
   const cash = somaGrupo(saldos, "cash");
@@ -120,7 +128,9 @@ export function balanceSheet(saldos: SaldoDeConta[], lucroAcumulado: number): {
   const reservas = somaGrupo(saldos, "reserves");
   const lucrosAcumulados = somaGrupo(saldos, "profit_loss_account");
 
-  const ativoFixo = r2(tangivel + intangivel);
+  // Os investimentos entram no total, senão a linha aparecia e não somava —
+  // que é pior do que não aparecer: o balanço deixaria de fechar.
+  const ativoFixo = r2(tangivel + intangivel + investimentos);
   const ativoCorrente = r2(stocks + debtors + cash);
   const ativoCorrenteLiquido = r2(ativoCorrente - dentro1Ano);
   const totalMenosCorrente = r2(ativoFixo + ativoCorrenteLiquido);
@@ -131,6 +141,7 @@ export function balanceSheet(saldos: SaldoDeConta[], lucroAcumulado: number): {
     { key: "fixed_assets", label: "Fixed assets", amount: ativoFixo, computed: true },
     { key: "fixed_assets_intangible", label: "Intangible assets", amount: intangivel, level: 1, accounts: contasDo(saldos, "fixed_assets_intangible") },
     { key: "fixed_assets_tangible", label: "Tangible assets", amount: tangivel, level: 1, accounts: contasDo(saldos, "fixed_assets_tangible") },
+    { key: "fixed_assets_investments", label: "Financial assets", amount: investimentos, level: 1, accounts: contasDo(saldos, "fixed_assets_investments") },
 
     { key: "current_assets", label: "Current assets", amount: ativoCorrente, computed: true },
     { key: "stocks", label: "Stocks", amount: stocks, level: 1, accounts: contasDo(saldos, "stocks") },

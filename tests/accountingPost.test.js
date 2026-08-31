@@ -17,6 +17,17 @@
  *   3. Diferenca de arredondamento sumindo em vez de aparecer.
  */
 const P = require("../.test-build/accounting/post.js");
+/*
+ * Os codigos das contas vem de CONTAS_PADRAO, e nao escritos a mao.
+ *
+ * Estavam cravados ("1200", "2100", ...) e partiram todos de uma vez quando o
+ * plano de contas passou a ser o da pratica. O teste estava certo — o que
+ * estava errado era ele saber o codigo. O que ele tem de garantir e que o
+ * CLIENTE e debitado e o FORNECEDOR creditado, seja qual for o codigo que
+ * esses papeis tenham no plano em vigor.
+ */
+const { CONTAS_PADRAO: C } = require("../.test-build/accounting/post.js");
+
 
 let pass = 0, fail = 0;
 const ok = (cond, label, extra) => {
@@ -37,8 +48,8 @@ console.log("\n== compra: o exemplo do desenho (1000 + 230 VAT) ==");
   );
   ok(P.balanceado(linhas), "o lancamento fecha", { d: P.somaDebito(linhas), c: P.somaCredito(linhas) });
   ok(conta(linhas, "6200").d === 1000, "despesa debitada em 1000", conta(linhas, "6200"));
-  ok(conta(linhas, "1300").d === 230, "VAT a recuperar debitado em 230", conta(linhas, "1300"));
-  ok(conta(linhas, "2100").c === 1230, "fornecedores creditado no BRUTO", conta(linhas, "2100"));
+  ok(conta(linhas, C.vatReceivable).d === 230, "VAT a recuperar debitado em 230", conta(linhas, C.vatReceivable));
+  ok(conta(linhas, C.tradeCreditors).c === 1230, "fornecedores creditado no BRUTO", conta(linhas, C.tradeCreditors));
   // Nenhuma conta de despesa pode ficar do lado credor numa compra.
   ok(conta(linhas, "6200").c === 0, "despesa nao tem credito numa compra");
 }
@@ -52,8 +63,8 @@ console.log("\n== compra: VAT NAO recuperavel vira custo ==");
     [{ net_amount: 100, vat_amount_on_invoice: 23, account_code: "6200", take_credit: false }]
   );
   ok(conta(linhas, "6200").d === 123, "despesa leva liquido + VAT = 123", conta(linhas, "6200"));
-  ok(conta(linhas, "1300").n === 0, "NAO ha partida em VAT a recuperar", conta(linhas, "1300"));
-  ok(conta(linhas, "2100").c === 123, "fornecedores continua no bruto");
+  ok(conta(linhas, C.vatReceivable).n === 0, "NAO ha partida em VAT a recuperar", conta(linhas, C.vatReceivable));
+  ok(conta(linhas, C.tradeCreditors).c === 123, "fornecedores continua no bruto");
   ok(P.balanceado(linhas), "e fecha");
 }
 
@@ -68,7 +79,7 @@ console.log("\n== compra: linhas com contas diferentes agrupam ==");
   );
   ok(conta(linhas, "6200").n === 1, "duas linhas na mesma conta viram UMA partida", conta(linhas, "6200"));
   ok(conta(linhas, "6200").d === 200, "com o valor somado");
-  ok(conta(linhas, "1300").d === 46, "o VAT tambem soma");
+  ok(conta(linhas, C.vatReceivable).d === 46, "o VAT tambem soma");
 }
 
 console.log("\n== compra: a cadeia de resolucao da conta ==");
@@ -78,7 +89,7 @@ console.log("\n== compra: a cadeia de resolucao da conta ==");
   const daRegra = P.resolveExpenseAccount(null, "6200");
   ok(daRegra.code === "6200" && daRegra.resolvedBy === "supplier_rule", "sem conta na linha, vale a regra do fornecedor", daRegra);
   const padrao = P.resolveExpenseAccount(null, null);
-  ok(padrao.code === "6990" && padrao.resolvedBy === "default", "sem nada, cai na despesa generica", padrao);
+  ok(padrao.code === C.expenseFallback && padrao.resolvedBy === "default", "sem nada, cai na despesa generica", padrao);
   ok(P.resolveExpenseAccount("   ", null).resolvedBy === "default", "conta em branco nao conta como resposta");
 
   // O elo que respondeu tem de CHEGAR na partida: e a resposta para
@@ -93,34 +104,48 @@ console.log("\n== venda: o exemplo do desenho (1000 + 230 VAT) ==");
 {
   const linhas = P.postSale({ customer: "Comprador Alfa", doc_number: "SV-1", net_amount: 1000, vat_amount: 230, vat_rate: 23 });
   ok(P.balanceado(linhas), "fecha");
-  ok(conta(linhas, "1200").d === 1230, "clientes DEBITADO no bruto", conta(linhas, "1200"));
-  ok(conta(linhas, "4100").c === 1000, "receita CREDITADA no liquido", conta(linhas, "4100"));
-  ok(conta(linhas, "2200").c === 230, "VAT a pagar creditado em 230", conta(linhas, "2200"));
+  ok(conta(linhas, C.tradeDebtors).d === 1230, "clientes DEBITADO no bruto", conta(linhas, C.tradeDebtors));
+  ok(conta(linhas, C.revenue).c === 1000, "receita CREDITADA no liquido", conta(linhas, C.revenue));
+  ok(conta(linhas, C.vatPayable).c === 230, "VAT a pagar creditado em 230", conta(linhas, C.vatPayable));
   // O erro classico: receita no debito, que inverte o DRE inteiro.
-  ok(conta(linhas, "4100").d === 0, "receita nunca no debito numa venda");
-  ok(conta(linhas, "1200").c === 0, "clientes nunca no credito numa venda");
+  ok(conta(linhas, C.revenue).d === 0, "receita nunca no debito numa venda");
+  ok(conta(linhas, C.tradeDebtors).c === 0, "clientes nunca no credito numa venda");
 }
 
 console.log("\n== venda isenta: sem VAT, sem partida de VAT ==");
 {
   const linhas = P.postSale({ customer: "X", net_amount: 500, vat_amount: 0 });
-  ok(conta(linhas, "2200").n === 0, "nao cria partida de VAT zerada");
+  ok(conta(linhas, C.vatPayable).n === 0, "nao cria partida de VAT zerada");
   ok(linhas.length === 2 && P.balanceado(linhas), "duas partidas, e fecha", linhas.length);
 }
 
 console.log("\n== baixa: o dinheiro fecha o titulo, e NAO repete a despesa ==");
 {
   const pagar = P.postSettlement("payable", 1230, "Office Supplies Ltd");
-  ok(conta(pagar, "2100").d === 1230, "fornecedores DEBITADO: a divida diminui", conta(pagar, "2100"));
-  ok(conta(pagar, "1100").c === 1230, "banco creditado: o dinheiro sai", conta(pagar, "1100"));
+  ok(conta(pagar, C.tradeCreditors).d === 1230, "fornecedores DEBITADO: a divida diminui", conta(pagar, C.tradeCreditors));
+  ok(conta(pagar, C.bank).c === 1230, "banco creditado: o dinheiro sai", conta(pagar, C.bank));
   ok(P.balanceado(pagar), "fecha");
   // ESTE e o teste que pega o erro que dobra o DRE.
-  const temResultado = pagar.some((l) => /^[456789]/.test(l.account_code) && l.account_code !== "9999");
-  ok(!temResultado, "a baixa NAO toca em despesa nem receita", pagar.map((l) => l.account_code));
+  /*
+   * A baixa toca EXACTAMENTE em duas contas: o controlo e o banco.
+   *
+   * Isto verificava-se antes por prefixo — "nenhuma conta comeca por 4 a 9",
+   * que era como se reconheciam as contas de resultado no plano de arranque. A
+   * regra caiu com o plano da pratica, onde o resultado vai do 001 ao 599 e o
+   * balanco do 601 ao 999, e o teste passou a acusar o banco e o fornecedor.
+   *
+   * Listar as duas contas esperadas diz a mesma coisa e diz mais: se alguem
+   * acrescentar uma terceira partida — a despesa repetida, que e o erro que
+   * este teste existe para apanhar — falha na mesma, e sem depender de como os
+   * codigos estao numerados.
+   */
+  const contasDaBaixa = pagar.map((l) => l.account_code).sort();
+  ok(pagar.length === 2 && contasDaBaixa.join(",") === [C.tradeCreditors, C.bank].sort().join(","),
+     "a baixa toca so no controlo e no banco — nao repete a despesa", contasDaBaixa);
 
   const receber = P.postSettlement("receivable", 500, "Cliente Beta");
-  ok(conta(receber, "1100").d === 500, "recebimento debita o banco");
-  ok(conta(receber, "1200").c === 500, "e credita clientes: o direito diminui");
+  ok(conta(receber, C.bank).d === 500, "recebimento debita o banco");
+  ok(conta(receber, C.tradeDebtors).c === 500, "e credita clientes: o direito diminui");
 }
 
 console.log("\n== movimento de banco sem titulo (tarifa, juro) ==");
@@ -128,10 +153,10 @@ console.log("\n== movimento de banco sem titulo (tarifa, juro) ==");
   // Saida: valor negativo no extrato.
   const tarifa = P.postBankDirect(-12.5, "6300", "AIB");
   ok(conta(tarifa, "6300").d === 12.5, "tarifa vira despesa no debito", conta(tarifa, "6300"));
-  ok(conta(tarifa, "1100").c === 12.5, "e sai do banco");
+  ok(conta(tarifa, C.bank).c === 12.5, "e sai do banco");
   // Entrada.
   const entrada = P.postBankDirect(40, "4900", "Juro");
-  ok(conta(entrada, "1100").d === 40, "entrada debita o banco");
+  ok(conta(entrada, C.bank).d === 40, "entrada debita o banco");
   ok(conta(entrada, "4900").c === 40, "e credita o resultado");
 }
 
@@ -141,13 +166,13 @@ console.log("\n== arredondamento: a sobra aparece, nunca some ==");
   const linhas = P.postPurchase({ supplier_name: "Y", total_gross: 123.01 },
     [{ net_amount: 100, vat_amount_on_invoice: 23, take_credit: true }]);
   ok(P.balanceado(linhas), "mesmo assim fecha", { d: P.somaDebito(linhas), c: P.somaCredito(linhas) });
-  const dif = conta(linhas, "9999");
+  const dif = conta(linhas, C.rounding);
   ok(dif.n === 1 && dif.d === 0.01, "o centimo vai para a conta de diferencas, no debito", dif);
 
   // Diferenca para o outro lado.
   const outro = P.postPurchase({ supplier_name: "Y", total_gross: 122.99 },
     [{ net_amount: 100, vat_amount_on_invoice: 23, take_credit: true }]);
-  ok(conta(outro, "9999").c === 0.01, "e do lado certo quando a diferenca inverte", conta(outro, "9999"));
+  ok(conta(outro, C.rounding).c === 0.01, "e do lado certo quando a diferenca inverte", conta(outro, C.rounding));
 }
 
 console.log("\n== diferenca grande NAO e absorvida: estoura ==");
@@ -176,7 +201,7 @@ console.log("\n== centimos: a conta corre em inteiro ==");
   ok(P.somaDebito(linhas) === 100 && P.somaCredito(linhas) === 100, "e no valor da nota", {
     d: P.somaDebito(linhas), c: P.somaCredito(linhas),
   });
-  ok(conta(linhas, "9999").d === 0.01, "com o centimo visivel", conta(linhas, "9999"));
+  ok(conta(linhas, C.rounding).d === 0.01, "com o centimo visivel", conta(linhas, C.rounding));
 }
 
 console.log("\n== toda partida e de um lado so ==");
@@ -207,19 +232,19 @@ console.log("\n== toda partida e de um lado so ==");
 console.log("\n== a provisao da folha ==");
 {
   const l = P.postPayroll(4820.5, "Folha semanal");
-  const desp = conta(l, "6950");
-  const pass_ = conta(l, "2400");
+  const desp = conta(l, C.wages);
+  const pass_ = conta(l, C.payrollLiability);
   ok(desp.d === 4820.5 && desp.c === 0, "salario e DESPESA (debito em 6950)", desp);
   ok(pass_.c === 4820.5 && pass_.d === 0, "folha a pagar e PASSIVO (credito em 2400)", pass_);
   ok(P.balanceado(l), "a provisao fecha");
 
   // O ciclo completo: provisao + baixa tem de deixar 2400 em ZERO. Se a
   // provisao nao existisse, 2400 ficaria devedora em 4820,50 — o defeito.
-  const baixa = P.postSettlement("payable", 4820.5, "Folha", undefined, "1100", "2400");
+  const baixa = P.postSettlement("payable", 4820.5, "Folha", undefined, C.bank, C.payrollLiability);
   const ciclo = [...l, ...baixa];
-  const c2400 = conta(ciclo, "2400");
+  const c2400 = conta(ciclo, C.payrollLiability);
   ok(Math.round((c2400.c - c2400.d) * 100) === 0, "provisao + baixa deixam 2400 em ZERO", c2400);
-  const c6950 = conta(ciclo, "6950");
+  const c6950 = conta(ciclo, C.wages);
   ok(c6950.d === 4820.5, "e o salario FICA no resultado depois de pago", c6950);
 }
 {
@@ -244,12 +269,12 @@ console.log("\n== titulo manual (sem documento) ==");
 {
   const l = P.postManualTitle("payable", 350, "6900", "Companies Registration Office", "Taxa anual");
   ok(conta(l, "6900").d === 350, "a pagar: DESPESA no debito", conta(l, "6900"));
-  ok(conta(l, "2100").c === 350, "a pagar: FORNECEDORES no credito", conta(l, "2100"));
+  ok(conta(l, C.tradeCreditors).c === 350, "a pagar: FORNECEDORES no credito", conta(l, C.tradeCreditors));
   ok(P.balanceado(l), "fecha");
 }
 {
   const l = P.postManualTitle("receivable", 120, "4900", "Cliente X", "Reembolso");
-  ok(conta(l, "1200").d === 120, "a receber: CLIENTES no debito", conta(l, "1200"));
+  ok(conta(l, C.tradeDebtors).d === 120, "a receber: CLIENTES no debito", conta(l, C.tradeDebtors));
   ok(conta(l, "4900").c === 120, "a receber: RENDIMENTO no credito", conta(l, "4900"));
   ok(P.balanceado(l), "fecha");
 }
@@ -258,7 +283,7 @@ console.log("\n== titulo manual (sem documento) ==");
   // de ser creditada aqui.
   const l = P.postManualTitle("payable", 90, "6300", null, null, P.CONTAS_PADRAO, "2110");
   ok(conta(l, "2110").c === 90, "conta de controlo propria e respeitada", conta(l, "2110"));
-  ok(conta(l, "2100").n === 0, "e a padrao NAO e usada");
+  ok(conta(l, C.tradeCreditors).n === 0, "e a padrao NAO e usada");
 }
 
 console.log(`\n=========== ${pass} passaram, ${fail} falharam ===========\n`);

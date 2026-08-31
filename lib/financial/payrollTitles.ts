@@ -2,6 +2,7 @@ import "server-only";
 import { getServerSupabase } from "@/lib/supabase";
 import { integracoesDo } from "@/lib/integrations";
 import { grossFor, isoWeekDay, type Employee, type WeekHours } from "@/lib/hr/payroll";
+import { CONTAS_PADRAO } from "@/lib/accounting/post";
 
 /**
  * A folha de pagamento vira conta a pagar.
@@ -103,7 +104,9 @@ export async function garantirTituloDeFolha(
     document_ref: `FOLHA ${year}-S${String(week).padStart(2, "0")}`,
     counterparty: `Folha de pagamento (${NOME_TIPO[freq] ?? freq})`,
     issue_date: vencimento, due_date: vencimento,
-    original_amount: total, account_code: "2400",
+    // A conta vem do motor, e não cravada: ver CONTAS_PADRAO em
+    // lib/accounting/post.ts, que mudou com o plano da prática.
+    original_amount: total, account_code: CONTAS_PADRAO.payrollLiability,
     notes: `${pessoas} funcionario(s), folha ${NOME_TIPO[freq] ?? freq}`,
   }).select("id").single();
   if (error) return { id: null, jaExistia: false, ignorado: error.message };

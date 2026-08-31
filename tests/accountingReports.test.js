@@ -13,6 +13,16 @@
  * subtrair, e o balanco fecha por acaso em alguns casos.
  */
 const R = require("../.test-build/accounting/reports.js");
+/*
+ * Os codigos das contas vem de CONTAS_PADRAO, e nao escritos a mao.
+ *
+ * Estavam cravados ("1200", "2100", ...) e partiram todos de uma vez quando o
+ * plano de contas passou a ser o da pratica. O teste estava certo — o que
+ * estava errado era ele SABER o codigo. O que tem de garantir e que o cliente
+ * e debitado e o fornecedor creditado, seja qual for o codigo que esses papeis
+ * tenham no plano em vigor.
+ */
+const { CONTAS_PADRAO: C } = require("../.test-build/accounting/post.js");
 
 let pass = 0, fail = 0;
 const ok = (cond, label, extra) => {
@@ -23,11 +33,11 @@ const linha = (r, key) => r.lines.find((l) => l.key === key);
 
 /** Os saldos reais do cliente de teste, depois da contabilizacao retroativa. */
 const SALDOS = [
-  { account_code: "1200", account_name: "Trade debtors",   type: "asset",     report_group: "debtors",                 balance: 3744.35 },
-  { account_code: "2100", account_name: "Trade creditors", type: "liability", report_group: "creditors_within_1y",     balance: 482.35 },
-  { account_code: "2200", account_name: "VAT payable",     type: "liability", report_group: "creditors_within_1y",     balance: 689.35 },
-  { account_code: "4100", account_name: "Sales",           type: "revenue",   report_group: "turnover",                balance: 3055.00 },
-  { account_code: "6990", account_name: "Other expenses",  type: "expense",   report_group: "administrative_expenses", balance: 482.35 },
+  { account_code: C.tradeDebtors, account_name: "Trade debtors",   type: "asset",     report_group: "debtors",                 balance: 3744.35 },
+  { account_code: C.tradeCreditors, account_name: "Trade creditors", type: "liability", report_group: "creditors_within_1y",     balance: 482.35 },
+  { account_code: C.vatPayable, account_name: "VAT payable",     type: "liability", report_group: "creditors_within_1y",     balance: 689.35 },
+  { account_code: C.revenue, account_name: "Sales",           type: "revenue",   report_group: "turnover",                balance: 3055.00 },
+  { account_code: C.expenseFallback, account_name: "Other expenses",  type: "expense",   report_group: "administrative_expenses", balance: 482.35 },
 ];
 
 console.log("\n== a equacao contabil ==");
@@ -76,7 +86,7 @@ console.log("\n== BALANCO completo, com abertura e banco ==");
 {
   const comAbertura = [
     ...SALDOS,
-    { account_code: "1100", account_name: "Bank",           type: "asset",     report_group: "cash",                balance: 12000 },
+    { account_code: C.bank, account_name: "Bank",           type: "asset",     report_group: "cash",                balance: 12000 },
     { account_code: "1600", account_name: "Fixed assets",   type: "asset",     report_group: "fixed_assets_tangible", balance: 8000 },
     { account_code: "2600", account_name: "Loans",          type: "liability", report_group: "creditors_after_1y",  balance: 5000 },
     { account_code: "3100", account_name: "Share capital",  type: "equity",    report_group: "share_capital",       balance: 100 },
@@ -114,9 +124,9 @@ console.log("\n== o segundo exercicio: o lucro do ano passado tem de chegar ao p
   // Ano 1: vendeu 1.000, gastou 400, tudo a prazo. Lucro 600.
   // Ano 2: vendeu 500, gastou 200. Lucro 300. Acumulado: 900.
   const ACUMULADO = [
-    { account_code: "1200", account_name: "Trade debtors", type: "asset",   report_group: "debtors",  balance: 1500 },
-    { account_code: "2100", account_name: "Trade creditors", type: "liability", report_group: "creditors_within_1y", balance: 600 },
-    { account_code: "4100", account_name: "Sales",    type: "revenue", report_group: "turnover",      balance: 1500 },
+    { account_code: C.tradeDebtors, account_name: "Trade debtors", type: "asset",   report_group: "debtors",  balance: 1500 },
+    { account_code: C.tradeCreditors, account_name: "Trade creditors", type: "liability", report_group: "creditors_within_1y", balance: 600 },
+    { account_code: C.revenue, account_name: "Sales",    type: "revenue", report_group: "turnover",      balance: 1500 },
     { account_code: "5100", account_name: "Purchases", type: "expense", report_group: "cost_of_sales", balance: 600 },
   ];
   const lucroAcumulado = R.profitAndLoss(ACUMULADO).profit;
@@ -142,8 +152,8 @@ console.log("\n== depois do encerramento, o mesmo numero nao conta duas vezes ==
    * resultado desse periodo fica zero, e o patrimonio nao pode dobrar.
    */
   const DEPOIS = [
-    { account_code: "1200", account_name: "Trade debtors", type: "asset", report_group: "debtors", balance: 1500 },
-    { account_code: "2100", account_name: "Trade creditors", type: "liability", report_group: "creditors_within_1y", balance: 600 },
+    { account_code: C.tradeDebtors, account_name: "Trade debtors", type: "asset", report_group: "debtors", balance: 1500 },
+    { account_code: C.tradeCreditors, account_name: "Trade creditors", type: "liability", report_group: "creditors_within_1y", balance: 600 },
     { account_code: "3200", account_name: "Retained earnings", type: "equity", report_group: "profit_loss_account", balance: 900 },
   ];
   const b = R.balanceSheet(DEPOIS, R.profitAndLoss(DEPOIS).profit);

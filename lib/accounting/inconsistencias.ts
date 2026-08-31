@@ -284,7 +284,21 @@ export async function checkupDoCliente(clientId: string): Promise<Checkup> {
       a.saldo += Number(l.balance) || 0;
       acc.set(l.account_code, a);
     }
-    const CAIXA = new Set(["1100", "1110"]);
+    /*
+     * As contas de CAIXA saem da verificação, e a lista vem do PLANO.
+     *
+     * Uma conta bancária a descoberto tem saldo credor sendo activo, e isso é
+     * legítimo — não é erro. Os códigos estavam cravados ("1100", "1110"), e
+     * com a troca do plano de contas ficariam a apontar para contas inativas:
+     * o alarme passaria a acusar todas as contas bancárias do escritório, todos
+     * os dias, e um alarme que grita sempre deixa de ser lido.
+     *
+     * `report_group = 'cash'` é a mesma pergunta feita ao plano, e sobrevive à
+     * próxima troca.
+     */
+    const { data: contasDeCaixa } = await sb.from("chart_of_accounts")
+      .select("code").eq("report_group", "cash").is("client_id", null);
+    const CAIXA = new Set(((contasDeCaixa ?? []) as any[]).map((c) => c.code));
     const invertidas = [...acc.entries()]
       .filter(([code, a]) => !CAIXA.has(code) && a.tipo && r2(a.saldo) < -0.01);
 
