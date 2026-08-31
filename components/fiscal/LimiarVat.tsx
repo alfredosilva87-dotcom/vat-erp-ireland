@@ -54,7 +54,7 @@ export default function LimiarVat() {
     fetch("/api/obligations/vat-threshold")
       .then((r) => r.json())
       .then((j) => { if (vivo) { if (j.error) setErro(j.error); else setD(j); } })
-      .catch(() => { if (vivo) setErro("Não deu para ler o faturamento."); });
+      .catch(() => { if (vivo) setErro(t("vatLimit.readErr")); });
     return () => { vivo = false; };
   }, []);
 

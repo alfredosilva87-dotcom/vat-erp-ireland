@@ -26,5 +26,9 @@ for m in re.finditer(r'"([^"\n]{3,160})"|\'([^\'\n]{3,160})\'|>\s*([^<>{}\n]{3,1
     # a lista deixar de ser confiavel, que e o mesmo motivo por que os
     # comentarios ficam de fora.
     if re.fullmatch(r'[a-zà-ú]+', s): continue
+    # Valores tecnicos que a palavra "no"/"data" apanha por engano.
+    if s in ('no-store', 'no-cache', 'nao', 'data'): continue
+    if re.fullmatch(r'[a-z-]+/[a-z0-9.+-]+', s): continue   # "application/pdf"
+
     if s not in vistos: vistos.append(s)
 for s in vistos: print(s)

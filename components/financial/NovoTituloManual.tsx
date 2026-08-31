@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { useT } from "@/lib/i18n";
 
 /**
  * Lançar um título À MÃO, sem documento por trás.
@@ -25,6 +26,7 @@ export default function NovoTituloManual({
   aoFechar: () => void;
   aoCriar: () => void | Promise<void>;
 }) {
+  const { t } = useT();
   const hoje = new Date().toISOString().slice(0, 10);
   const [contas, setContas] = useState<Conta[]>([]);
   const [contraparte, setContraparte] = useState("");
@@ -75,7 +77,7 @@ export default function NovoTituloManual({
         }),
       });
       const j = await r.json();
-      if (!r.ok) { setErro(j.error || "Não deu para gravar."); return; }
+      if (!r.ok) { setErro(j.error || t("manual.notSaved")); return; }
       await aoCriar();
     } finally {
       setGravando(false);
@@ -89,13 +91,13 @@ export default function NovoTituloManual({
         <div className="flex items-start justify-between gap-3">
           <div>
             <h2 className="font-display text-lg font-semibold">
-              {aPagar ? "Nova conta a pagar" : "Nova conta a receber"}
+              {aPagar ? t("manual.newPayable") : t("manual.newReceivable")}
             </h2>
             <p className="mt-1 text-sm text-muted">
-              Para o que não vem de nota — taxa, imposto, seguro, acerto.
+              {t("manual.subtitle")}
             </p>
           </div>
-          <button className="btn-ghost h-8 px-3 text-xs" onClick={aoFechar}>Fechar</button>
+          <button className="btn-ghost h-8 px-3 text-xs" onClick={aoFechar}>{t("common.close")}</button>
         </div>
 
         {erro && <p className="mt-3 text-sm text-danger">{erro}</p>}
@@ -105,7 +107,7 @@ export default function NovoTituloManual({
             <span className="label">{aPagar ? "A quem se deve" : "Quem deve"} *</span>
             <input className="input w-full text-[13px]" value={contraparte}
               onChange={(e) => setContraparte(e.target.value)}
-              placeholder={aPagar ? "ex.: Companies Registration Office" : "ex.: Cliente X"} />
+              placeholder={aPagar ? t("manual.counterpartyPayable") : t("manual.counterparty")} />
           </label>
           <label className="flex flex-col leading-tight">
             <span className="label">Documento</span>
@@ -115,7 +117,7 @@ export default function NovoTituloManual({
               onChange={(e) => setRef(e.target.value)} placeholder="opcional" />
           </label>
           <label className="flex flex-col leading-tight">
-            <span className="label">Valor *</span>
+            <span className="label">{t("manual.amount")}</span>
             <input className="input w-full text-right font-mono text-[13px]" value={valor}
               onChange={(e) => setValor(e.target.value)} placeholder="0,00" />
           </label>
@@ -130,10 +132,10 @@ export default function NovoTituloManual({
               onChange={(e) => setVencimento(e.target.value)} />
           </label>
           <label className="flex flex-col leading-tight sm:col-span-2">
-            <span className="label">{aPagar ? "Conta de despesa" : "Conta de rendimento"} *</span>
+            <span className="label">{aPagar ? t("manual.expenseAcct") : t("manual.incomeAcct")} *</span>
             <select className="input w-full text-[13px]" value={conta}
               onChange={(e) => setConta(e.target.value)}>
-              <option value="">escolher…</option>
+              <option value="">{t("manual.choose")}</option>
               {contas.map((c) => (
                 <option key={c.code} value={c.code}>{c.code} · {c.description}</option>
               ))}
@@ -153,7 +155,7 @@ export default function NovoTituloManual({
         <div className="mt-5 flex justify-end gap-3">
           <button className="btn-ghost h-9 px-4 text-sm" onClick={aoFechar}>Cancelar</button>
           <button className="btn-primary h-9 px-4 text-sm" disabled={gravando} onClick={gravar}>
-            {gravando ? "A gravar…" : "Lançar"}
+            {gravando ? t("common.saving") : "Lançar"}
           </button>
         </div>
       </div>

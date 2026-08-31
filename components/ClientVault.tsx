@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import { TIPOS_DE_DOCUMENTO, type DocumentoDoCliente } from "@/lib/fiscal/cofreTipos";
+import { useT } from "@/lib/i18n";
 
 /**
  * O cofre de documentos do cliente, dentro do cadastro dele.
@@ -35,18 +36,29 @@ function tamanho(bytes: number | null) {
 }
 
 /** A cor da validade, e a frase que a acompanha. */
-function validade(d: DocumentoDoCliente): { chip: string; texto: string } | null {
+/**
+ * O `t` vem POR ARGUMENTO, e não de um `useT()` aqui dentro.
+ *
+ * Esta função não é um componente, e um hook só corre dentro de um. Tipar o
+ * parâmetro à mão daria uma assinatura ligeiramente diferente da real e o
+ * `tsc` recusava; `ReturnType` colhe a verdadeira, e acompanha-a se ela mudar.
+ */
+function validade(
+  d: DocumentoDoCliente,
+  t: ReturnType<typeof useT>["t"]
+): { chip: string; texto: string } | null {
   if (d.validade === "sem_prazo") return null;
   if (d.validade === "caducado") {
-    return { chip: "chip-danger", texto: `caducou há ${Math.abs(d.diasParaCaducar!)} dias` };
+    return { chip: "chip-danger", texto: t("vault.expiredDays", { n: Math.abs(d.diasParaCaducar!) }) };
   }
   if (d.validade === "a_caducar") {
-    return { chip: "chip-warn", texto: `caduca em ${d.diasParaCaducar} dias` };
+    return { chip: "chip-warning", texto: t("vault.expiresDays", { n: d.diasParaCaducar ?? 0 }) };
   }
-  return { chip: "chip-ok", texto: `válido até ${d.expiresOn}` };
+  return { chip: "chip-ok", texto: t("vault.validTo", { n: d.expiresOn ?? "" }) };
 }
 
 export default function ClientVault({ clientId }: { clientId: string }) {
+  const { t } = useT();
   const [docs, setDocs] = useState<DocumentoDoCliente[] | null>(null);
   const [marcados, setMarcados] = useState<Set<string>>(new Set());
   const [zipando, setZipando] = useState(false);
@@ -67,7 +79,7 @@ export default function ClientVault({ clientId }: { clientId: string }) {
 
   async function enviar() {
     const file = fileRef.current?.files?.[0];
-    if (!file) { setErro("Escolha um ficheiro."); return; }
+    if (!file) { setErro(t("vault.pickFile")); return; }
     setEnviando(true);
     setErro(null);
     try {
@@ -78,7 +90,7 @@ export default function ClientVault({ clientId }: { clientId: string }) {
       if (expiresOn) fd.append("expiresOn", expiresOn);
       const r = await fetch(`/api/clients/${clientId}/vault`, { method: "POST", body: fd });
       const j = await r.json();
-      if (!r.ok) { setErro(j.error || "Não deu para guardar."); return; }
+      if (!r.ok) { setErro(j.error || t("vault.notStored")); return; }
       setDocs(j.documentos ?? []);
       setTitle("");
       setExpiresOn("");
@@ -103,7 +115,7 @@ export default function ClientVault({ clientId }: { clientId: string }) {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ ids: [...marcados] }),
       });
-      if (!r.ok) { setErro((await r.json()).error || "Não deu para montar o ZIP."); return; }
+      if (!r.ok) { setErro((await r.json()).error || t("vault.notZipped")); return; }
 
       const incluidos = Number(r.headers.get("X-Documentos-Incluidos") || 0);
       const nome = /filename="([^"]+)"/.exec(r.headers.get("Content-Disposition") || "")?.[1] || "documentos.zip";
@@ -118,7 +130,7 @@ export default function ClientVault({ clientId }: { clientId: string }) {
       // não veio do armazenamento, quem montou o dossiê tem de saber ANTES de
       // o entregar ao banco.
       if (incluidos && incluidos < marcados.size) {
-        setErro(`O ZIP levou ${incluidos} de ${marcados.size} documentos — os outros não foram lidos do armazenamento.`);
+        setErro(t("vault.partial", { n: incluidos, t: marcados.size }));
       }
       setMarcados(new Set());
     } finally {
@@ -141,10 +153,9 @@ export default function ClientVault({ clientId }: { clientId: string }) {
   return (
     <section className="rounded-xl2 border border-line bg-surface p-4">
       <div className="flex flex-wrap items-baseline justify-between gap-2">
-        <h2 className="font-display text-sm font-semibold">Documentos do cliente</h2>
+        <h2 className="font-display text-sm font-semibold">{t("vault.title")}</h2>
         <p className="text-xs text-muted">
-          Identidade, comprovativo de morada, pacto social — o que o escritório tem de apresentar
-          quando alguém pergunta.
+          {t("vault.subtitle")}
         </p>
       </div>
 
@@ -167,13 +178,13 @@ export default function ClientVault({ clientId }: { clientId: string }) {
             */}
           {caducados.length > 0 && (
             <p>
-              <strong>Caducado:</strong>{" "}
+              <strong>{t("vault.expired")}</strong>{" "}
               {caducados.map((d) => ROTULO[d.kind] ?? d.kind).join(", ")}.
             </p>
           )}
           {aCaducar.length > 0 && (
             <p>
-              <strong>A caducar:</strong>{" "}
+              <strong>{t("vault.expiring")}</strong>{" "}
               {aCaducar.map((d) => `${ROTULO[d.kind] ?? d.kind} (${d.diasParaCaducar} dias)`).join(", ")}.
             </p>
           )}
@@ -182,7 +193,7 @@ export default function ClientVault({ clientId }: { clientId: string }) {
 
       <div className="mt-3 flex flex-wrap items-end gap-2">
         <label className="flex flex-col gap-1">
-          <span className="text-[11px] uppercase tracking-wide text-muted">Tipo</span>
+          <span className="text-[11px] uppercase tracking-wide text-muted">{t("vault.kind")}</span>
           <select className="input h-9 w-56" value={kind} onChange={(e) => setKind(e.target.value)}>
             {TIPOS_DE_DOCUMENTO.map((t) => (
               <option key={t.valor} value={t.valor}>{t.rotulo}</option>
@@ -190,8 +201,8 @@ export default function ClientVault({ clientId }: { clientId: string }) {
           </select>
         </label>
         <label className="flex flex-col gap-1">
-          <span className="text-[11px] uppercase tracking-wide text-muted">Descrição</span>
-          <input className="input h-9 w-56" placeholder="opcional"
+          <span className="text-[11px] uppercase tracking-wide text-muted">{t("vault.desc")}</span>
+          <input className="input h-9 w-56" placeholder={t("vault.optional")}
             value={title} onChange={(e) => setTitle(e.target.value)} />
         </label>
         {/*
@@ -202,18 +213,18 @@ export default function ClientVault({ clientId }: { clientId: string }) {
           */}
         {CADUCA.has(kind) && (
           <label className="flex flex-col gap-1">
-            <span className="text-[11px] uppercase tracking-wide text-muted">Válido até</span>
+            <span className="text-[11px] uppercase tracking-wide text-muted">{t("vault.validUntil")}</span>
             <input type="date" className="input h-9 w-40"
               value={expiresOn} onChange={(e) => setExpiresOn(e.target.value)} />
           </label>
         )}
         <label className="flex flex-col gap-1">
-          <span className="text-[11px] uppercase tracking-wide text-muted">Ficheiro</span>
+          <span className="text-[11px] uppercase tracking-wide text-muted">{t("vault.file")}</span>
           <input ref={fileRef} type="file" className="input h-9 w-72 py-1.5 text-xs"
             accept=".pdf,.png,.jpg,.jpeg,.heic,.webp" />
         </label>
         <button className="btn-primary h-9 px-4 text-sm" disabled={enviando} onClick={enviar}>
-          {enviando ? "A guardar…" : "Guardar"}
+          {enviando ? t("common.saving") : t("common.save")}
         </button>
       </div>
 
@@ -228,24 +239,23 @@ export default function ClientVault({ clientId }: { clientId: string }) {
       {marcados.size > 0 && (
         <div className="mt-3 flex flex-wrap items-center gap-3 rounded-lg border border-line bg-surface-2 px-3 py-2">
           <span className="text-xs text-muted">
-            {marcados.size} de {docs?.length ?? 0} seleccionados
+            {t("vault.selected", { n: marcados.size, t: docs?.length ?? 0 })}
           </span>
           <button className="btn-primary h-8 px-3 text-xs" disabled={zipando} onClick={baixarSelecionados}>
-            {zipando ? "A montar o ZIP…" : "Baixar seleccionados (.zip)"}
+            {zipando ? t("vault.zipping") : t("vault.downloadZip")}
           </button>
           <button className="btn-ghost h-8 px-3 text-xs" onClick={() => setMarcados(new Set())}>
-            limpar
+            {t("common.clear")}
           </button>
-          <span className="text-[11px] text-muted">Vai arrumado por tipo, uma pasta para cada.</span>
+          <span className="text-[11px] text-muted">{t("vault.zipHint")}</span>
         </div>
       )}
 
       {docs === null ? (
-        <p className="mt-3 text-sm text-muted">A carregar…</p>
+        <p className="mt-3 text-sm text-muted">{t("common.loading")}</p>
       ) : docs.length === 0 ? (
         <p className="mt-3 text-sm text-muted">
-          Nenhum documento guardado. Comece pela identidade do{" "}
-          titular e pelo comprovativo de morada.
+          {t("vault.none")}
         </p>
       ) : (
         <table className="mt-3 w-full text-[13px]">
@@ -261,15 +271,15 @@ export default function ClientVault({ clientId }: { clientId: string }) {
                   onChange={(e) => setMarcados(e.target.checked ? new Set(docs.map((d) => d.id)) : new Set())}
                 />
               </th>
-              <th className="py-1 text-left font-medium">Tipo</th>
-              <th className="py-1 text-left font-medium">Ficheiro</th>
-              <th className="py-1 text-left font-medium">Validade</th>
+              <th className="py-1 text-left font-medium">{t("vault.kind")}</th>
+              <th className="py-1 text-left font-medium">{t("vault.file")}</th>
+              <th className="py-1 text-left font-medium">{t("vault.validity")}</th>
               <th className="py-1 text-right font-medium"></th>
             </tr>
           </thead>
           <tbody>
             {docs.map((d) => {
-              const v = validade(d);
+              const v = validade(d, t);
               return (
                 <tr key={d.id} className="border-b border-line/40">
                   <td className="py-1.5">
@@ -305,18 +315,18 @@ export default function ClientVault({ clientId }: { clientId: string }) {
                       className="btn-ghost inline-flex h-7 items-center px-2 text-[11px]"
                       href={`/api/clients/${clientId}/vault/${d.id}?download=1`}
                     >
-                      baixar
+                      {t("vault.download")}
                     </a>
                     <button
                       className="btn-ghost h-7 px-2 text-[11px] text-danger"
                       onClick={async () => {
-                        if (!confirm(`Apagar "${d.originalFilename || ROTULO[d.kind]}"? Não há como recuperar.`)) return;
+                        if (!confirm(t("vault.confirmDel", { n: d.originalFilename || ROTULO[d.kind] }))) return;
                         const r = await fetch(`/api/clients/${clientId}/vault/${d.id}`, { method: "DELETE" });
-                        if (!r.ok) { setErro((await r.json()).error || "Não deu para apagar."); return; }
+                        if (!r.ok) { setErro((await r.json()).error || t("vault.notDeleted")); return; }
                         await carregar();
                       }}
                     >
-                      apagar
+                      {t("common.delete")}
                     </button>
                   </td>
                 </tr>
