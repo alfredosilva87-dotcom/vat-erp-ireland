@@ -159,10 +159,22 @@ export async function criarTituloDeImposto(p: PedidoDeTitulo): Promise<Resultado
    * Sem esta verificação, carregar duas vezes no botão criava duas dívidas do
    * mesmo imposto, e a segunda só apareceria a quem fosse pagar.
    */
-  const { data: jaExiste } = await sb.from("ledger_items")
+  /*
+   * `limit(1)` e não `maybeSingle()`.
+   *
+   * `document_ref` não tem — nem pode ter — índice único: a referência de um
+   * título de compra vem do número da nota do fornecedor, e dois fornecedores
+   * diferentes emitem notas com o mesmo número todos os dias.
+   *
+   * `maybeSingle` REBENTA ao encontrar duas linhas. Se alguma vez existirem
+   * duas com esta referência, esta função — que existe justamente para impedir
+   * a segunda — passaria a falhar para sempre, e a falhar sem dizer porquê. A
+   * pergunta aqui é "já existe algum?", e para isso um chega.
+   */
+  const { data: existentes } = await sb.from("ledger_items")
     .select("id").eq("client_id", p.clientId).eq("kind", "payable")
-    .eq("document_ref", ref).maybeSingle();
-  if (jaExiste) {
+    .eq("document_ref", ref).limit(1);
+  if (existentes?.length) {
     return { ok: false, erro: `Já existe um título para ${ref}. Veja em contas a pagar.` };
   }
 
@@ -212,9 +224,12 @@ export async function tituloExistente(
     .order("due_date", { ascending: true }).limit(1).maybeSingle();
 
   const ref = referencia(tipo, (obrig as any)?.period_label ?? null, de, ate);
+  // Mesma razão de `criarTituloDeImposto`: `document_ref` não é único, e
+  // `maybeSingle` rebentaria ao achar duas.
   const { data } = await sb.from("ledger_items")
     .select("id,document_ref,due_date")
-    .eq("client_id", clientId).eq("kind", "payable").eq("document_ref", ref).maybeSingle();
+    .eq("client_id", clientId).eq("kind", "payable").eq("document_ref", ref).limit(1);
 
-  return data ? { id: (data as any).id, ref, dueDate: (data as any).due_date ?? null } : null;
+  const t = (data ?? [])[0] as any;
+  return t ? { id: t.id, ref, dueDate: t.due_date ?? null } : null;
 }
