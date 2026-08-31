@@ -656,9 +656,36 @@ export async function salesVatInPeriod(clientId: string, start: string, end: str
   return Number((data ?? []).reduce((a: number, s: any) => a + (s.vat_amount || 0), 0).toFixed(2));
 }
 
+/**
+ * As obrigações do ano — lidas, e criadas se ainda não existirem.
+ *
+ * ---------------------------------------------------------------------------
+ * POR QUE `upsert` E UMA RELEITURA, E NÃO UM `insert`
+ *
+ * Isto lê, decide, e só depois escreve — e entre a leitura e a escrita passam
+ * CATORZE idas ao banco (uma apuração de IVA por período). É uma janela enorme,
+ * e dois pedidos que caiam lá dentro veem os dois a tabela vazia e inserem os
+ * dois. Basta abrir a tela duas vezes, ou a tela e a agenda ao mesmo tempo.
+ *
+ * Foi o que aconteceu: a tela de obrigações do Kilkenny mostrava cada linha
+ * duas vezes, e o Alfredo chegou a marcar as duas como entregues, com três
+ * segundos de diferença.
+ *
+ * O índice único em `obligations` (ver selfhost/schema/041) é o que fecha a
+ * porta de verdade. Aqui é preciso `ignoreDuplicates` para o perdedor da
+ * corrida não rebentar com erro de chave duplicada — e a RELEITURA no fim é o
+ * que lhe devolve as linhas do vencedor em vez de uma lista pela metade.
+ * ---------------------------------------------------------------------------
+ */
 export async function getObligations(clientId: string, year: number): Promise<ClientObligation[]> {
-  const { data: existing } = await sb().from("obligations").select("*").eq("client_id", clientId).eq("year", year).order("period_start");
-  if (existing && existing.length) return existing as ClientObligation[];
+  const ler = async () => {
+    const { data } = await sb().from("obligations")
+      .select("*").eq("client_id", clientId).eq("year", year).order("period_start");
+    return (data ?? []) as ClientObligation[];
+  };
+
+  const existing = await ler();
+  if (existing.length) return existing;
   const rows: any[] = [];
   for (let m = 0; m < 12; m += 2) {
     const start = new Date(Date.UTC(year, m, 1)), end = new Date(Date.UTC(year, m + 2, 0)), due = new Date(Date.UTC(year, m + 2, 23));
@@ -673,8 +700,9 @@ export async function getObligations(clientId: string, year: number): Promise<Cl
     due_date: iso(new Date(Date.UTC(year + 1, 0, 23))), year, status: "open",
     vat_on_sales: (await salesVatInPeriod(clientId, iso(rStart), iso(rEnd))) || null,
     vat_on_purchases: await inputVatInPeriod(clientId, iso(rStart), iso(rEnd)), net: null });
-  const { data } = await sb().from("obligations").insert(rows).select().order("period_start");
-  return (data ?? []) as ClientObligation[];
+  await sb().from("obligations")
+    .upsert(rows, { onConflict: "client_id,kind,period_start,period_end", ignoreDuplicates: true });
+  return await ler();
 }
 
 export async function refreshObligations(clientId: string, year: number): Promise<ClientObligation[]> {
