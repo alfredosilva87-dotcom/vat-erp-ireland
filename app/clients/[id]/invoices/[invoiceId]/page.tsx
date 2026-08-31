@@ -19,7 +19,7 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
-import { calcularInvoice, vencimentoDosTermos } from "@/lib/invoicing/calculo";
+import { calcularInvoice, vencimentoDosTermos, porDentro } from "@/lib/invoicing/calculo";
 import { linkDeWhatsapp } from "@/lib/invoicing/envioPuro";
 
 type Item = {
@@ -59,6 +59,7 @@ export default function InvoiceEditor({ params }: { params: { id: string; invoic
   const [linkPublico, setLinkPublico] = useState<string | null>(null);
   const [emailPara, setEmailPara] = useState("");
   const [enviado, setEnviado] = useState<string | null>(null);
+  const [totalDesejado, setTotalDesejado] = useState("");
 
   const carregar = useCallback(async () => {
     const [ri, rc] = await Promise.all([
@@ -406,6 +407,36 @@ export default function InvoiceEditor({ params }: { params: { id: string; invoic
           </div>
         </div>
 
+        {/*
+          * CÁLCULO POR DENTRO — vive ao lado dos totais, que é o número que ele
+          * muda. Posto no topo da tela, obrigaria a olhar para dois sítios ao
+          * mesmo tempo para perceber o que aconteceu.
+          */}
+        {editavel && (
+          <div className="mt-4 flex flex-wrap items-end gap-2 rounded-lg border border-line bg-surface-2 px-3 py-2.5">
+            <label className="flex flex-col gap-1">
+              <span className="text-[11px] uppercase tracking-wide text-muted">
+                O cliente vai pagar (com IVA)
+              </span>
+              <input
+                className="input h-9 w-40 text-right"
+                inputMode="decimal"
+                placeholder="2800,00"
+                value={totalDesejado}
+                onChange={(e) => setTotalDesejado(e.target.value)}
+                onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); calcularPorDentro(); } }}
+              />
+            </label>
+            <button className="btn-ghost h-9 px-4 text-sm" onClick={calcularPorDentro}>
+              Calcular por dentro
+            </button>
+            <span className="max-w-md text-xs text-muted">
+              Ajusta os preços unitários para o total fechar nesse valor, repartindo pela proporção
+              que as linhas já têm. As quantidades não mudam.
+            </span>
+          </div>
+        )}
+
         <label className="mt-4 flex flex-col gap-1">
           <span className="text-[11px] uppercase tracking-wide text-muted">Nota na fatura</span>
           <input className="input" disabled={!editavel} value={inv.notes ?? ""}
@@ -491,6 +522,41 @@ export default function InvoiceEditor({ params }: { params: { id: string; invoic
       )}
     </div>
   );
+
+  /**
+   * "O cliente paga 2.800" — e o sistema acha o líquido.
+   *
+   * Reescreve os preços unitários para o TOTAL bater no que foi combinado. Ver
+   * `porDentro` em lib/invoicing/calculo.ts, onde está por que a conta não é
+   * tirar 23% do bruto.
+   */
+  function calcularPorDentro() {
+    setErro(null);
+    const alvo = Number(String(totalDesejado).replace(",", "."));
+    const r = porDentro(
+      items.filter((i) => i.description.trim()).map((i) => ({
+        description: i.description, detail: i.detail,
+        quantity: Number(i.quantity) || 0, unitPrice: Number(i.unitPrice) || 0,
+        vatRate: Number(i.vatRate) || 0,
+      })),
+      alvo
+    );
+    // Um alvo inalcançável AINDA aplica o resultado mais próximo, e avisa: é
+    // melhor ficar a um cêntimo com aviso do que não fazer nada e deixar a
+    // pessoa a carregar no botão sem perceber porquê.
+    if (r.erro) setErro(r.erro);
+
+    /*
+     * As linhas SEM descrição ficam onde estão.
+     *
+     * `porDentro` só recebe as preenchidas — devolver a lista dela por cima da
+     * do ecrã apagaria as linhas em branco que a pessoa acabou de abrir para
+     * escrever.
+     */
+    let k = 0;
+    setItems(items.map((it) =>
+      it.description.trim() ? { ...it, unitPrice: r.linhas[k++]?.unitPrice ?? it.unitPrice } : it));
+  }
 
   function troca(i: number, patch: Partial<Item>) {
     setItems(items.map((x, k) => (k === i ? { ...x, ...patch } : x)));

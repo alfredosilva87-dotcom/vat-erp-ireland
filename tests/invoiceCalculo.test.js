@@ -184,5 +184,132 @@ console.log("\n== o modelo de referencia somava o IVA duas vezes ==");
      "somar a coluna com IVA daria 6826.50 — que o modelo chamava de subtotal", colunaBruta);
 }
 
+console.log("\n== calculo POR DENTRO: o cliente diz o total ==");
+{
+  // O caso que o Alfredo descreveu: o cliente paga 2800, e a fatura tem de
+  // fechar em 2800 COM imposto.
+  const r = I.porDentro([{ description: "Servico", quantity: 1, unitPrice: 1000, vatRate: 23 }], 2800);
+  ok(!r.erro, "sem erro", r.erro);
+  const t = I.calcularInvoice(r.linhas);
+  ok(t.gross === 2800, "o total fecha EXACTAMENTE em 2800", t.gross);
+  ok(t.net === 2276.42 && t.vat === 523.58, "liquido 2276.42, IVA 523.58", { net: t.net, vat: t.vat });
+
+  // A armadilha que este botao existe para evitar: quem tira 23% de 2800 chega
+  // a 2156, que esta errado — o IVA incide sobre o liquido e nao sobre o bruto.
+  ok(t.net !== 2156, "e NAO 2156, que e o erro de quem tira 23% do bruto", t.net);
+}
+
+console.log("\n== reparte pela PROPORCAO, e nao em partes iguais ==");
+{
+  // Uma fatura de 2000 + 500 tem de manter a relacao 4:1 depois de ajustada,
+  // senao o documento deixa de descrever o que foi combinado.
+  const r = I.porDentro([
+    { description: "A", quantity: 1, unitPrice: 2000, vatRate: 23 },
+    { description: "B", quantity: 1, unitPrice: 500, vatRate: 23 },
+  ], 3690);
+  const t = I.calcularInvoice(r.linhas);
+  ok(t.gross === 3690, "fecha em 3690", t.gross);
+  const razao = t.linhas[0].net / t.linhas[1].net;
+  ok(Math.abs(razao - 4) < 0.01, "a relacao 4:1 mantem-se", razao);
+}
+
+console.log("\n== aliquotas diferentes na mesma fatura ==");
+{
+  // O fator tem de ser sobre o BRUTO. Escalar os liquidos daria certo so quando
+  // todas as linhas tem a mesma taxa — e o erro passaria despercebido ate a
+  // primeira fatura com 23% e 13.5% juntas.
+  const r = I.porDentro([
+    { description: "Servico", quantity: 1, unitPrice: 1000, vatRate: 23 },
+    { description: "Obra", quantity: 1, unitPrice: 1000, vatRate: 13.5 },
+  ], 5000);
+  const t = I.calcularInvoice(r.linhas);
+  ok(t.gross === 5000, "fecha em 5000 mesmo com duas aliquotas", t.gross);
+  ok(t.porTaxa.length === 2, "continua a ter as duas aliquotas", t.porTaxa.map(g=>g.rate));
+}
+
+console.log("\n== a sobra do arredondamento ==");
+{
+  // Tres linhas iguais: 1/3 de um alvo nao da numero redondo, entao sobra um
+  // centimo algures. O alvo e o numero que o cliente combinou e tem de sair
+  // exacto.
+  for (const alvo of [1000, 2800, 999.99, 1234.57, 77.77]) {
+    const r = I.porDentro([
+      { description: "A", quantity: 1, unitPrice: 100, vatRate: 23 },
+      { description: "B", quantity: 1, unitPrice: 100, vatRate: 23 },
+      { description: "C", quantity: 1, unitPrice: 100, vatRate: 23 },
+    ], alvo);
+    const t = I.calcularInvoice(r.linhas);
+    ok(t.gross === alvo, `alvo ${alvo} fecha exacto`, t.gross);
+  }
+}
+
+console.log("\n== quantidade nao se mexe ==");
+{
+  // A quantidade descreve o que foi entregue; mexer nela mentiria sobre o
+  // servico. O que se ajusta e o preco unitario.
+  const r = I.porDentro([{ description: "Horas", quantity: 15, unitPrice: 100, vatRate: 23 }], 2460);
+  ok(r.linhas[0].quantity === 15, "as 15 horas continuam 15", r.linhas[0].quantity);
+  ok(r.linhas[0].unitPrice !== 100, "o preco unitario e que mudou", r.linhas[0].unitPrice);
+}
+
+console.log("\n== o que recusa ==");
+{
+  ok(I.porDentro([{ description: "A", quantity: 1, unitPrice: 100, vatRate: 23 }], 0).erro,
+     "total zero e recusado");
+  ok(I.porDentro([{ description: "A", quantity: 1, unitPrice: 100, vatRate: 23 }], -50).erro,
+     "total negativo e recusado");
+  ok(I.porDentro([], 2800).erro, "sem linhas e recusado");
+  // Sem valores nas linhas nao ha PROPORCAO para repartir — e preciso dizer
+  // isso, senao a pessoa carrega no botao e nada acontece.
+  const semValor = I.porDentro([{ description: "A", quantity: 1, unitPrice: 0, vatRate: 23 }], 2800);
+  ok(semValor.erro && /proporção|proporcao/.test(semValor.erro),
+     "linhas a zero: diz que falta a proporcao", semValor.erro);
+}
+
+console.log("\n== isento de IVA ==");
+{
+  // A 0%, por dentro e por fora sao a mesma coisa — mas tem de funcionar na
+  // mesma, senao o botao parece partido para quem nao cobra IVA.
+  const r = I.porDentro([{ description: "A", quantity: 1, unitPrice: 100, vatRate: 0 }], 2800);
+  const t = I.calcularInvoice(r.linhas);
+  ok(t.gross === 2800 && t.net === 2800 && t.vat === 0, "a 0%, bruto = liquido = 2800", t);
+}
+
+console.log("\n== o alvo impossivel ==");
+{
+  // Com UMA linha a 23%, o bruto salta de centimo a centimo em degraus de 1 ou
+  // 2, e alguns valores nao existem. Varro um intervalo a procura de um.
+  let impossivel = null;
+  for (let alvo = 1000; alvo < 1010 && !impossivel; alvo += 0.01) {
+    const v = Math.round(alvo * 100) / 100;
+    const r = I.porDentro([{ description: "A", quantity: 1, unitPrice: 500, vatRate: 23 }], v);
+    if (r.erro) impossivel = { alvo: v, erro: r.erro, linhas: r.linhas };
+  }
+  if (impossivel) {
+    ok(/nao existe|não existe/.test(impossivel.erro),
+       `alvo impossivel (${impossivel.alvo}) e AVISADO e nao calado`, impossivel.erro);
+    // E devolve o mais proximo, nao as linhas originais: melhor 1 centimo ao
+    // lado do que o valor antigo, que estaria muito mais longe.
+    const t = I.calcularInvoice(impossivel.linhas);
+    ok(Math.abs(t.gross - impossivel.alvo) <= 0.01,
+       "e devolve o mais proximo, a um centimo", { alvo: impossivel.alvo, ficou: t.gross });
+  } else {
+    ok(true, "(neste intervalo todos os alvos eram alcancaveis)");
+  }
+}
+
+console.log("\n== quantidade > 1 nao impede o fecho ==");
+{
+  // Uma linha de quantidade 3 mexe 3 centimos de cada vez e nao serve para o
+  // acerto fino; a de quantidade 1 e que fecha a conta.
+  const r = I.porDentro([
+    { description: "Horas", quantity: 3, unitPrice: 100, vatRate: 23 },
+    { description: "Taxa", quantity: 1, unitPrice: 50, vatRate: 23 },
+  ], 2800);
+  const t = I.calcularInvoice(r.linhas);
+  ok(!r.erro && t.gross === 2800, "fecha exacto usando a linha de quantidade 1", { erro: r.erro, gross: t.gross });
+  ok(r.linhas[0].quantity === 3, "a quantidade 3 continua 3");
+}
+
 console.log(`\n=========== ${pass} passaram, ${fail} falharam ===========\n`);
 process.exit(fail ? 1 : 0);
