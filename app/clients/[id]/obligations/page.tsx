@@ -10,6 +10,20 @@ const num = (v: string): number | null => (v.trim() === "" ? null : Number(v.rep
 
 const emptyManual = { name: "", category: "", periodicity: "", due_date: "" };
 
+/**
+ * O que cada sigla é, para quem não vive nisto todos os dias.
+ *
+ * A tabela já mostrava VAT3 e RTD, que qualquer contabilista lê de olhos
+ * fechados. CT1, B1 e Form 11 entraram agora e vêm da forma jurídica do
+ * cliente — vale a pena dizer o que são ao lado da sigla.
+ */
+const NOME_DA: Record<string, string> = {
+  CT1: "imposto sobre o lucro",
+  B1: "contas anuais no CRO",
+  FORM11: "imposto do titular",
+  PRELIMINARY_TAX: "pagamento por conta",
+};
+
 export default function Obligations({ params }: { params: { id: string } }) {
   const { t } = useT();
   const [obligations, setObligations] = useState<ClientObligation[]>([]);
@@ -115,27 +129,59 @@ export default function Obligations({ params }: { params: { id: string } }) {
             <tbody>
               {obligations.map((o) => {
                 const net = (o.vat_on_sales || 0) - (o.vat_on_purchases || 0);
-                const overdue = o.status === "open" && o.due_date < new Date().toISOString().slice(0, 10);
+                const overdue = o.status === "open" && !!o.due_date
+                  && o.due_date < new Date().toISOString().slice(0, 10);
+                /*
+                 * As colunas T1/T2/T3 são do IVA, e só do IVA.
+                 *
+                 * O CT1, a B1 e a Form 11 entraram nesta tabela porque partilham
+                 * tudo o resto — período, prazo, entregue ou não. Mas não têm
+                 * T1 nem T2: uma caixa de texto editável ali convidaria a
+                 * escrever um número numa declaração que não o tem, e ele
+                 * ficaria a parecer conferido.
+                 */
+                const deVat = o.kind === "VAT3" || o.kind === "RTD";
                 return (
                   <tr key={o.id} className="border-b border-line/70 align-middle">
-                    <td className="px-5 py-2 font-medium">{o.kind}</td>
+                    <td className="px-5 py-2 font-medium">
+                      {o.kind}
+                      {!deVat && <span className="ml-2 text-[11px] font-normal text-muted">{NOME_DA[o.kind] ?? ""}</span>}
+                    </td>
                     <td className="px-3 py-2">{o.period_label}</td>
                     <td className="px-3 py-2 tnum">
-                      {o.due_date}
-                      {overdue && <span className="ml-1 chip-danger">overdue</span>}
+                      {o.due_date ? (
+                        <>
+                          {o.due_date}
+                          {overdue && <span className="ml-1 chip-danger">overdue</span>}
+                        </>
+                      ) : (
+                        /*
+                         * Sem prazo NÃO é um espaço em branco: é um cadastro por
+                         * completar, e a linha diz qual campo falta. Uma data
+                         * inventada ficaria verde e nunca mais seria olhada —
+                         * ver lib/fiscal/calendario.ts.
+                         */
+                        <span className="chip-warn text-[11px]" title={o.notes ?? ""}>
+                          sem prazo — falta no cadastro
+                        </span>
+                      )}
                     </td>
                     <td className="px-3 py-2">
-                      <input className="input h-9 w-24 text-right" defaultValue={o.vat_on_sales ?? ""}
-                        disabled={o.status === "filed"}
-                        onBlur={(e) => patchObl(o.id, { vat_on_sales: num(e.target.value) })} />
+                      {deVat ? (
+                        <input className="input h-9 w-24 text-right" defaultValue={o.vat_on_sales ?? ""}
+                          disabled={o.status === "filed"}
+                          onBlur={(e) => patchObl(o.id, { vat_on_sales: num(e.target.value) })} />
+                      ) : <span className="block text-right text-muted">—</span>}
                     </td>
                     <td className="px-3 py-2">
-                      <input className="input h-9 w-24 text-right" defaultValue={o.vat_on_purchases ?? ""}
-                        disabled={o.status === "filed"}
-                        onBlur={(e) => patchObl(o.id, { vat_on_purchases: num(e.target.value) })} />
+                      {deVat ? (
+                        <input className="input h-9 w-24 text-right" defaultValue={o.vat_on_purchases ?? ""}
+                          disabled={o.status === "filed"}
+                          onBlur={(e) => patchObl(o.id, { vat_on_purchases: num(e.target.value) })} />
+                      ) : <span className="block text-right text-muted">—</span>}
                     </td>
-                    <td className={`px-3 py-2 text-right tnum font-semibold ${net > 0 ? "text-danger" : "text-success"}`}>
-                      {money(net)}
+                    <td className={`px-3 py-2 text-right tnum font-semibold ${deVat && net > 0 ? "text-danger" : deVat ? "text-success" : "text-muted"}`}>
+                      {deVat ? money(net) : "—"}
                     </td>
                     <td className="px-3 py-2 text-center">
                       {o.status === "filed" ? (

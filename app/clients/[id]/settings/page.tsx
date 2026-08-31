@@ -74,6 +74,8 @@ export default function ClientSettings({ params }: { params: { id: string } }) {
           activity_label: activity?.label || client.activity_label,
           trading_name: client.trading_name, legal_form: client.legal_form || null,
           director: client.director, cro: client.cro,
+          financial_year_end: client.financial_year_end || null,
+          annual_return_date: client.annual_return_date || null,
           vat_number: client.vat_number, tax_reg_no: client.tax_reg_no,
           email: client.email, phone: client.phone, address: client.address, notes: client.notes,
           related_categories: client.related_categories,
@@ -114,14 +116,26 @@ export default function ClientSettings({ params }: { params: { id: string } }) {
           </div>
         </div>
 
-        <div className="mt-4 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-          <F label="Razão social *">
+        {/*
+          * DOZE COLUNAS, e cada campo com a largura do que lá cabe.
+          *
+          * A grelha era de três colunas iguais, e isso põe a razão social — que
+          * pode ter sessenta caracteres — na mesma caixa do número do CRO, que
+          * tem seis. O resultado é um formulário em que nada indica o que se
+          * espera: a caixa larga demais convida a escrever mais do que o campo
+          * quer, e a estreita demais esconde o que lá está.
+          *
+          * A largura passa a ser informação. Nome e morada ocupam meia linha;
+          * VAT, CRO e as datas ficam do tamanho do que se escreve neles.
+          */}
+        <div className="mt-4 grid grid-cols-1 gap-4 sm:grid-cols-6 lg:grid-cols-12">
+          <F label="Razão social *" span={6}>
             <input className="input" value={client.name} onChange={(e) => set("name", e.target.value)} />
           </F>
-          <F label="Código do cliente">
+          <F label="Código do cliente" span={2}>
             <input className="input font-mono" value={client.client_code} disabled />
           </F>
-          <F label="Tipo de negócio">
+          <F label="Tipo de negócio" span={4}>
             <select className="input" value={client.activity_code}
               onChange={(e) => set("activity_code", e.target.value)}>
               {ACTIVITIES.map((a) => <option key={a.code} value={a.code}>{a.label}</option>)}
@@ -140,7 +154,7 @@ export default function ClientSettings({ params }: { params: { id: string } }) {
             * valor faria o sistema deixar de cobrar as contas anuais de uma
             * sociedade, em silêncio.
             */}
-          <F label="Forma jurídica">
+          <F label="Forma jurídica" span={4}>
             <select className="input" value={client.legal_form ?? ""}
               onChange={(e) => {
                 // O `value` de um <select> é string; o campo só aceita as duas
@@ -154,35 +168,58 @@ export default function ClientSettings({ params }: { params: { id: string } }) {
               ))}
             </select>
           </F>
-          <F label="Nome comercial">
+          <F label="Nome comercial" span={6}>
             <input className="input" placeholder="se for diferente da razão social"
               value={client.trading_name ?? ""} onChange={(e) => set("trading_name", e.target.value)} />
           </F>
-          <F label={client.legal_form === "sole_trader" ? "Titular" : "Diretor"}>
+          <F label={client.legal_form === "sole_trader" ? "Titular" : "Diretor"} span={4}>
             <input className="input" value={client.director ?? ""}
               onChange={(e) => set("director", e.target.value)} />
           </F>
-          <F label="Número do CRO">
+          <F label="Número do CRO" span={2}>
             <input className="input font-mono" placeholder="só sociedades"
               value={client.cro ?? ""} onChange={(e) => set("cro", e.target.value)} />
           </F>
-          <F label="Número de VAT">
+          {/*
+            * OS DOIS CAMPOS QUE DÃO PRAZO ÀS OBRIGAÇÕES DA SOCIEDADE.
+            *
+            * O CT1 vence nove meses depois do FECHO DO EXERCÍCIO, e nem toda a
+            * empresa fecha em Dezembro. A B1 conta 56 dias a partir da Annual
+            * Return Date, que vem da constituição e está na ficha do CRO — é o
+            * único prazo aqui que não sai do calendário fiscal.
+            *
+            * Sem eles a obrigação nasce SEM prazo e diz que falta este campo,
+            * em vez de nascer com um palpite. Ver lib/fiscal/calendario.ts.
+            */}
+          <F label="Fecho do exercício" span={2}
+             dica="MM-DD, ex. 12-31. Define o prazo do CT1.">
+            <input className="input font-mono" placeholder="12-31" maxLength={5}
+              value={client.financial_year_end ?? ""}
+              onChange={(e) => set("financial_year_end", e.target.value)} />
+          </F>
+          <F label="Data da anual (CRO)" span={3}
+             dica="A B1 vence 56 dias depois dela.">
+            <input type="date" className="input"
+              value={client.annual_return_date ?? ""}
+              onChange={(e) => set("annual_return_date", e.target.value || null)} />
+          </F>
+          <F label="Número de VAT" span={3}>
             <input className="input font-mono" placeholder="IE1234567X"
               value={client.vat_number ?? ""} onChange={(e) => set("vat_number", e.target.value)} />
           </F>
-          <F label="Nº de registro fiscal (Revenue)">
+          <F label="Nº de registro fiscal (Revenue)" span={3}>
             <input className="input" value={client.tax_reg_no ?? ""} onChange={(e) => set("tax_reg_no", e.target.value)} />
           </F>
-          <F label="E-mail de contato">
+          <F label="E-mail de contato" span={4}>
             <input className="input" value={client.email ?? ""} onChange={(e) => set("email", e.target.value)} />
           </F>
-          <F label="Telefone">
+          <F label="Telefone" span={2}>
             <input className="input" value={client.phone ?? ""} onChange={(e) => set("phone", e.target.value)} />
           </F>
-          <F label="Endereço">
+          <F label="Endereço" span={6}>
             <input className="input" value={client.address ?? ""} onChange={(e) => set("address", e.target.value)} />
           </F>
-          <F label="Observações">
+          <F label="Observações" span={12}>
             <input className="input" value={client.notes ?? ""} onChange={(e) => set("notes", e.target.value)} />
           </F>
         </div>
@@ -250,11 +287,29 @@ export default function ClientSettings({ params }: { params: { id: string } }) {
   );
 }
 
-function F({ label, children }: { label: string; children: React.ReactNode }) {
+/**
+ * Um campo, com a largura que o conteúdo pede.
+ *
+ * `span` é em colunas de doze. Fica no próprio campo e não numa folha de
+ * estilos à parte porque quem mexe no formulário está a olhar para o campo, e
+ * é aí que a decisão "isto é largo ou estreito" tem de estar à vista.
+ */
+function F({ label, children, span = 4, dica }: {
+  label: string; children: React.ReactNode; span?: 2 | 3 | 4 | 6 | 8 | 12; dica?: string;
+}) {
+  const largura: Record<number, string> = {
+    2: "sm:col-span-2 lg:col-span-2",
+    3: "sm:col-span-3 lg:col-span-3",
+    4: "sm:col-span-3 lg:col-span-4",
+    6: "sm:col-span-6 lg:col-span-6",
+    8: "sm:col-span-6 lg:col-span-8",
+    12: "sm:col-span-6 lg:col-span-12",
+  };
   return (
-    <div>
+    <div className={largura[span]}>
       <label className="label">{label}</label>
       {children}
+      {dica && <p className="mt-1 text-[11px] leading-snug text-muted">{dica}</p>}
     </div>
   );
 }

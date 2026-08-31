@@ -78,10 +78,18 @@ export const MODULES: ModuleDef[] = [
     key: "contabilidade",
     labelKey: "modules.contabilidade",
     items: [
-      // O plano de contas saiu do Financeiro. Ele é a espinha da contabilidade:
-      // é dele que saem as rubricas do balanço e do DRE, e quem mexe nele está
-      // a fazer trabalho contábil, não financeiro.
-      { seg: "accounts", key: "client.tabAccounts" },
+      /*
+       * A ORDEM É A DO USO, e não a da hierarquia dos conceitos.
+       *
+       * O plano de contas vinha primeiro por ser a espinha da contabilidade —
+       * é dele que saem as rubricas do balanço e do DRE. Mas isso é a ordem
+       * lógica, não a do dia: quem abre este módulo vai ver o balancete, o DRE
+       * ou o balanço. O plano abre-se de vez em quando, para uma alteração
+       * pontual, e estava a ocupar o primeiro lugar da lista — que é o único
+       * que se acerta sem ler.
+       *
+       * Foi para depois da Verificação, junto do resto do que se faz raramente.
+       */
       // Balancete, DRE e balanço — a leitura do razão.
       { seg: "accounting", key: "client.tabAccounting" },
       // E o próprio razão. Telas separadas porque o uso é outro: aquela é de
@@ -92,8 +100,11 @@ export const MODULES: ModuleDef[] = [
        * A varredura a pedido. Mora aqui e não no Financeiro porque a pergunta
        * que responde é contábil — "posso confiar nos números deste cliente?" —
        * e é o que se corre antes de fechar o mês ou entregar uma declaração.
+       * É também de onde se põe o razão em dia — ver o botão de contabilizar.
        */
       { seg: "checkup", key: "client.tabCheckup" },
+      // O plano, no fim: alteração pontual, não trabalho do dia.
+      { seg: "accounts", key: "client.tabAccounts" },
       /*
        * A conciliação fiscal NÃO é um item de menu.
        *

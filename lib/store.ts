@@ -1,6 +1,7 @@
 import { randomUUID } from "crypto";
 import { impedimentoParaApagar, impedimentoParaEditar } from "@/lib/financial/devolver";
 import { getServerSupabase } from "@/lib/supabase";
+import { obrigacoesDoAno, ehDeVat } from "@/lib/fiscal/calendario";
 import { computeLines } from "@/lib/vat";
 import { diffFields, recordAudit, type Actor, type AuditAction } from "@/lib/reviewStore";
 import { checkFit, verifyLicenseKey } from "@/lib/licenseKey";
@@ -74,7 +75,9 @@ export async function updateClient(id: string, patch: Partial<Client>): Promise<
   const row: any = {};
   // Lista branca, e não `...patch`: o corpo vem do navegador, e sem ela um
   // pedido feito à mão escrevia qualquer coluna da tabela — `company_id` incluído.
-  for (const k of ["name","trading_name","legal_form","director","vat_number","tax_reg_no","cro","activity_code","activity_label","default_credit_unmatched","related_categories","email","phone","address","notes","invoice_footer","invoice_bank_account_id"])
+  for (const k of ["name","trading_name","legal_form","director","vat_number","tax_reg_no","cro","activity_code","activity_label","default_credit_unmatched","related_categories","email","phone","address","notes","invoice_footer","invoice_bank_account_id",
+       // Os dois que definem os prazos do CT1 e da B1 — ver lib/fiscal/calendario.ts.
+       "financial_year_end","annual_return_date"])
     if (k in patch) row[k] = (patch as any)[k];
   const { data } = await sb().from("clients").update(row).eq("id", id).select().maybeSingle();
   return (data as Client) ?? null;
@@ -684,22 +687,84 @@ export async function getObligations(clientId: string, year: number): Promise<Cl
     return (data ?? []) as ClientObligation[];
   };
 
-  const existing = await ler();
-  if (existing.length) return existing;
+  /*
+   * O QUE FALTA, e não "se está vazio".
+   *
+   * A versão anterior devolvia logo assim que encontrasse uma linha do ano.
+   * Isso bastava enquanto só havia VAT3 e RTD; deixou de bastar quando o CT1,
+   * a B1 e a Form 11 entraram: num cliente cujas obrigações de IVA já tinham
+   * sido geradas, as novas nunca chegariam a nascer — e a agenda continuaria a
+   * mostrar só o imposto que já mostrava.
+   *
+   * Comparar contra o ESPERADO faz isto arrumar-se sozinho, e não custa nada
+   * quando já está tudo lá: só se apura IVA das linhas que faltam.
+   */
+  const existentes = await ler();
+  const jaTem = new Set(existentes.map((o: any) => `${o.kind}|${o.period_start}|${o.period_end}`));
+
+  const { data: cliente } = await sb().from("clients")
+    .select("legal_form,vat_number,financial_year_end,annual_return_date")
+    .eq("id", clientId).maybeSingle();
+  const c = (cliente ?? {}) as any;
+
+  const esperadas = obrigacoesDoAno(year, {
+    forma: c.legal_form ?? null,
+    // Registado para VAT é ter número de VAT. É o que a Revenue emite quando o
+    // registo passa, e é o que decide se VAT3 e RTD se aplicam.
+    registadoParaVat: Boolean(String(c.vat_number ?? "").trim()),
+    fimDoExercicio: c.financial_year_end ?? null,
+    dataDaAnual: c.annual_return_date ?? null,
+  });
+
+  const faltam = esperadas.filter(
+    (o) => !jaTem.has(`${o.kind}|${o.periodStart}|${o.periodEnd}`)
+  );
+  if (!faltam.length) return existentes;
+
   const rows: any[] = [];
-  for (let m = 0; m < 12; m += 2) {
-    const start = new Date(Date.UTC(year, m, 1)), end = new Date(Date.UTC(year, m + 2, 0)), due = new Date(Date.UTC(year, m + 2, 23));
-    const purchases = await inputVatInPeriod(clientId, iso(start), iso(end));
-    const sales = await salesVatInPeriod(clientId, iso(start), iso(end));
-    rows.push({ client_id: clientId, kind: "VAT3", period_label: `${MONTHS[m]}–${MONTHS[m + 1]} ${year}`,
-      period_start: iso(start), period_end: iso(end), due_date: iso(due), year, status: "open",
-      vat_on_sales: sales || null, vat_on_purchases: purchases, net: sales || purchases ? Number((sales - purchases).toFixed(2)) : null });
+  for (const o of faltam) {
+    /*
+     * O IVA só se apura nas linhas de IVA.
+     *
+     * Um CT1 com `vat_on_sales` preenchido não é um campo a mais: é um número
+     * que a tela mostraria nas colunas T1/T2 de uma declaração que não as tem.
+     */
+    const comVat = ehDeVat(o.kind);
+    const compras = comVat ? await inputVatInPeriod(clientId, o.periodStart, o.periodEnd) : null;
+    const vendas = comVat ? await salesVatInPeriod(clientId, o.periodStart, o.periodEnd) : null;
+    rows.push({
+      client_id: clientId, kind: o.kind,
+      period_label: o.periodLabel,
+      period_start: o.periodStart, period_end: o.periodEnd,
+      // Sem vencimento quando falta o dado do cadastro — ver lib/fiscal/calendario.ts.
+      due_date: o.dueDate,
+      year, status: "open",
+      vat_on_sales: vendas || null,
+      vat_on_purchases: compras,
+      net: comVat && ((vendas ?? 0) || (compras ?? 0))
+        ? Number(((vendas ?? 0) - (compras ?? 0)).toFixed(2))
+        : null,
+      notes: o.falta === "financialYearEnd"
+        ? "Sem prazo: falta o fecho do exercício no cadastro do cliente."
+        : o.falta === "annualReturnDate"
+          ? "Sem prazo: falta a Annual Return Date (CRO) no cadastro do cliente."
+          : null,
+    });
   }
-  const rStart = new Date(Date.UTC(year, 0, 1)), rEnd = new Date(Date.UTC(year, 11, 31));
-  rows.push({ client_id: clientId, kind: "RTD", period_label: `RTD ${year}`, period_start: iso(rStart), period_end: iso(rEnd),
-    due_date: iso(new Date(Date.UTC(year + 1, 0, 23))), year, status: "open",
-    vat_on_sales: (await salesVatInPeriod(clientId, iso(rStart), iso(rEnd))) || null,
-    vat_on_purchases: await inputVatInPeriod(clientId, iso(rStart), iso(rEnd)), net: null });
+
+  /*
+   * `upsert` com `ignoreDuplicates`, e uma releitura no fim.
+   *
+   * Isto lê, decide, e só depois escreve — e entre a leitura e a escrita passam
+   * até catorze idas ao banco. É uma janela enorme, e dois pedidos que caiam lá
+   * dentro veem os dois a mesma falta e inserem os dois. Foi o que aconteceu: a
+   * tela de obrigações do Kilkenny mostrava cada linha duas vezes, e o Alfredo
+   * chegou a marcar as duas como entregues, com três segundos de diferença.
+   *
+   * O índice único (ver selfhost/schema/041) é o que fecha a porta de verdade;
+   * `ignoreDuplicates` é o que impede o perdedor da corrida de rebentar, e a
+   * releitura é o que lhe devolve as linhas do vencedor.
+   */
   await sb().from("obligations")
     .upsert(rows, { onConflict: "client_id,kind,period_start,period_end", ignoreDuplicates: true });
   return await ler();
@@ -709,6 +774,15 @@ export async function refreshObligations(clientId: string, year: number): Promis
   const list = await getObligations(clientId, year);
   for (const o of list) {
     if (o.status === "filed") continue;
+    /*
+     * Só as de IVA se recalculam a partir das notas.
+     *
+     * Sem esta linha, "atualizar pelas notas" escrevia o IVA do período dentro
+     * do CT1 e da B1 — e a tela mostrá-lo-ia como se fosse o valor da
+     * declaração. Um número verdadeiro no sítio errado é pior do que um campo
+     * vazio: parece conferido.
+     */
+    if (!ehDeVat(o.kind)) continue;
     const purchases = await inputVatInPeriod(clientId, o.period_start, o.period_end);
     const sv = await salesVatInPeriod(clientId, o.period_start, o.period_end);
     const sales = sv || o.vat_on_sales || 0;

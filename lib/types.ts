@@ -318,6 +318,15 @@ export interface Client {
   director?: string | null;
   /** Número do CRO. Existe no banco desde a migração 018 e faltava no tipo. */
   cro?: string | null;
+  /**
+   * O fecho do exercício em `MM-DD`, e a Annual Return Date do CRO.
+   *
+   * São os dois dados de que a agenda fiscal precisa e não consegue deduzir: o
+   * CT1 vence nove meses depois do fecho, e a B1 conta 56 dias a partir da
+   * data da anual. Ver lib/fiscal/calendario.ts.
+   */
+  financial_year_end?: string | null;
+  annual_return_date?: string | null;
   /** O que sai impresso nas faturas emitidas — ver components/ClientInvoiceBranding.tsx. */
   logo_path?: string | null;
   invoice_footer?: string | null;
