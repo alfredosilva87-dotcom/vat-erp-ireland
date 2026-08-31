@@ -4,6 +4,7 @@ import { inputVatInPeriod, salesVatInPeriod } from "@/lib/store";
 import { CONTAS_PADRAO } from "@/lib/accounting/post";
 import { loadReports } from "@/lib/accounting/query";
 import { conciliarVat, conciliarImposto, type ConciliacaoDeVat, type ConciliacaoDeImposto } from "./conciliacao";
+import { tituloExistente } from "./tituloDeImposto";
 
 /**
  * Os dois lados da conciliação fiscal, buscados no banco.
@@ -54,9 +55,15 @@ async function movimentoNoPeriodo(
   return { debito: r2(debito), credito: r2(credito) };
 }
 
+export type TituloDoImposto = { id: string; ref: string; dueDate: string | null } | null;
+
 export type ConciliacaoFiscal = {
   de: string;
   ate: string;
+  /* O título a pagar já criado para este período, se houver — a tela não deve
+     oferecer criar outro, e deve poder levar lá quem quer ver. */
+  tituloVat: TituloDoImposto;
+  tituloImposto: TituloDoImposto;
   cliente: { name: string; client_code: string | null; vat_number: string | null; legal_form: string | null };
   vat: ConciliacaoDeVat;
   imposto: ConciliacaoDeImposto;
@@ -128,8 +135,14 @@ export async function conciliacaoFiscal(
     contaPassivo: CONTA_PASSIVO_IMPOSTO,
   });
 
+  const [tituloVat, tituloImposto] = await Promise.all([
+    tituloExistente(clientId, "vat", de, ate),
+    tituloExistente(clientId, "imposto", de, ate),
+  ]);
+
   return {
     de, ate,
+    tituloVat, tituloImposto,
     cliente: {
       name: (cliente as any)?.name ?? "",
       client_code: (cliente as any)?.client_code ?? null,

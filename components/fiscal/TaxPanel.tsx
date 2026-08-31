@@ -39,8 +39,11 @@ type Linha = {
   documentos: number; razao: number; diferenca: number; contas: string[];
 };
 export type Estado = "fecha" | "diverge" | "sem_movimento";
+type Titulo = { id: string; ref: string; dueDate: string | null } | null;
+
 type Dados = {
   de: string; ate: string;
+  tituloVat: Titulo; tituloImposto: Titulo;
   cliente: { name: string; client_code: string | null; vat_number: string | null; legal_form: string | null };
   vat: {
     apuracao: { saidas: number; entradas: number; aPagar: number };
@@ -67,6 +70,31 @@ export default function TaxPanel({ clientId, tipo }: { clientId: string; tipo: "
   const [d, setD] = useState<Dados | null>(null);
   const [erro, setErro] = useState<string | null>(null);
   const [carregando, setCarregando] = useState(false);
+  const [criando, setCriando] = useState(false);
+  const [criado, setCriado] = useState<string | null>(null);
+
+  /**
+   * O imposto apurado vira um TÍTULO A PAGAR.
+   *
+   * É o passo que faltava entre saber quanto se deve e o dinheiro sair: a lista
+   * de contas a pagar é o que alguém abre para decidir o que sai do banco esta
+   * semana, e o imposto não estava lá. Ver lib/fiscal/tituloDeImposto.ts, onde
+   * está por que o lançamento é diferente para os dois impostos.
+   */
+  async function criarTitulo(valor: number) {
+    setCriando(true); setErro(null); setCriado(null);
+    try {
+      const r = await fetch(`/api/clients/${clientId}/tax/titulo`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ tipo, de, ate, valor }),
+      });
+      const j = await r.json();
+      if (!r.ok) { setErro(j.error || t("tax.titleErr")); return; }
+      setCriado(t("tax.titleMade", { n: j.ref, d: j.vencimento }));
+      await carregar();
+    } finally { setCriando(false); }
+  }
 
   const carregar = useCallback(async () => {
     setCarregando(true); setErro(null);
@@ -107,6 +135,9 @@ export default function TaxPanel({ clientId, tipo }: { clientId: string; tipo: "
       {erro && (
         <p className="rounded-lg border border-danger/40 bg-danger/10 px-3 py-2 text-sm text-danger">{erro}</p>
       )}
+      {criado && (
+        <p className="rounded-lg border border-ok/40 bg-ok/10 px-3 py-2 text-sm">{criado}</p>
+      )}
 
       {!d ? (
         <p className="text-sm text-muted">{t("common.loading")}</p>
@@ -134,6 +165,16 @@ export default function TaxPanel({ clientId, tipo }: { clientId: string; tipo: "
                 tom={d.vat.apuracao.aPagar >= 0 ? "brand" : "ok"}
               />
             </div>
+
+            <BotaoDeTitulo
+              clientId={clientId} t={t}
+              titulo={d.tituloVat}
+              /* Só se cria título do que há a PAGAR. Um período a recuperar não
+                 é uma dívida — é um crédito, e um crédito em contas a pagar
+                 seria uma dívida negativa que ninguém sabe ler. */
+              valor={d.vat.apuracao.aPagar}
+              criando={criando} onCriar={criarTitulo}
+            />
           </section>
 
           <Confronto titulo={t("tax.vatCheck")} linhas={d.vat.linhas}
@@ -176,6 +217,21 @@ export default function TaxPanel({ clientId, tipo }: { clientId: string; tipo: "
             </div>
           </section>
 
+          <section className="card p-5">
+            <BotaoDeTitulo
+              clientId={clientId} t={t}
+              titulo={d.tituloImposto}
+              /* O imposto A PAGAR é o que foi lançado como despesa. Se ninguém
+                 o lançou ainda, o botão propõe o cálculo pela taxa de trading —
+                 mas quem decide é quem clica, e o valor vai à vista. */
+              valor={d.imposto.despesaDeImposto > 0
+                ? d.imposto.despesaDeImposto
+                : Math.round(Math.max(0, d.imposto.lucroAntesDeImposto) * CT_TRADING) / 100}
+              criando={criando} onCriar={criarTitulo}
+              nota={d.imposto.despesaDeImposto > 0 ? undefined : t("tax.estimateNote", { n: CT_TRADING })}
+            />
+          </section>
+
           <Confronto titulo={t("tax.incomeCheck")} linhas={d.imposto.linhas}
             estado={d.imposto.estado} total={d.imposto.diferencaTotal} t={t} />
         </>
@@ -185,6 +241,43 @@ export default function TaxPanel({ clientId, tipo }: { clientId: string; tipo: "
 }
 
 /* ------------------------------------------------------------------ peças */
+
+/**
+ * O botão que transforma o apurado num título a pagar — ou o link para o que
+ * já existe.
+ *
+ * Um botão que cria o mesmo título uma segunda vez seria pior do que não haver
+ * botão: a duplicata só apareceria a quem fosse pagar. Por isso, criado o
+ * título, o botão dá lugar ao caminho para ele.
+ */
+function BotaoDeTitulo({ clientId, titulo, valor, criando, onCriar, nota, t }: {
+  clientId: string;
+  titulo: { id: string; ref: string; dueDate: string | null } | null;
+  valor: number; criando: boolean; onCriar: (v: number) => void; nota?: string;
+  t: (k: any, v?: Record<string, string | number>) => string;
+}) {
+  if (titulo) {
+    return (
+      <div className="mt-4 flex flex-wrap items-center gap-3 rounded-lg border border-ok/40 bg-ok/5 px-3 py-2.5 text-[12.5px]">
+        <span className="chip-ok text-[11px]">{t("tax.titleExists")}</span>
+        <span className="font-mono">{titulo.ref}</span>
+        {titulo.dueDate && <span className="text-muted">{t("tax.dueOn", { n: titulo.dueDate })}</span>}
+        <Link className="underline" href={`/clients/${clientId}/payable?status=todos&q=${encodeURIComponent(titulo.ref)}`}>
+          {t("tax.seePayable")}
+        </Link>
+      </div>
+    );
+  }
+  if (valor <= 0) return null;
+  return (
+    <div className="mt-4 flex flex-wrap items-center gap-3 rounded-lg border border-line bg-surface-2 px-3 py-2.5">
+      <button className="btn-primary h-9 px-4 text-sm" disabled={criando} onClick={() => onCriar(valor)}>
+        {criando ? t("common.saving") : t("tax.makeTitle", { n: eur(valor) })}
+      </button>
+      <span className="max-w-xl text-xs text-muted">{nota ?? t("tax.makeTitleHint")}</span>
+    </div>
+  );
+}
 
 function Cartao({ rotulo, valor, nota, tom }: {
   rotulo: string; valor: string; nota?: string; tom?: "brand" | "ok" | "warn";
