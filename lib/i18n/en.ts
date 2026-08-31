@@ -1043,6 +1043,8 @@ const en = {
   "acc.posted": "{n} posted, {ja} already done, {erros} failed.",
   "acc.tab_pl": "Profit and loss",
   "acc.tab_bs": "Balance sheet",
+  "acc.tab_vat": "VAT",
+  "acc.tab_tax": "Income tax",
   "acc.tab_trial": "Trial balance",
   "acc.balanced": "Balance sheet balances",
   "acc.notBalanced": "Balance sheet does NOT balance",

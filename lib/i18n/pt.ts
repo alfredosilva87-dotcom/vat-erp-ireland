@@ -1044,6 +1044,8 @@ const pt: Dict = {
   "acc.posted": "{n} contabilizados, {ja} já estavam, {erros} com erro.",
   "acc.tab_pl": "DRE",
   "acc.tab_bs": "Balanço",
+  "acc.tab_vat": "VAT",
+  "acc.tab_tax": "Imposto",
   "acc.tab_trial": "Balancete",
   "acc.balanced": "O balanço fecha",
   "acc.notBalanced": "O balanço NÃO fecha",

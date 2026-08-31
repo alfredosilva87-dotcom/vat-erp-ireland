@@ -1,10 +1,20 @@
 "use client";
 
 /**
- * A CONCILIAÇÃO FISCAL: dois separadores, VAT e imposto sobre o lucro.
+ * A CONCILIAÇÃO FISCAL, dentro das abas da Contabilidade.
  *
  * ---------------------------------------------------------------------------
- * O QUE ESTA TELA FAZ QUE NENHUMA OUTRA FAZIA
+ * POR QUE AQUI E NÃO NUMA TELA PRÓPRIA
+ *
+ * Começou como tela separada e o Alfredo apontou o sítio certo: as abas do
+ * balancete. É onde o contabilista já está quando fecha o período, e o VAT e o
+ * imposto são a mesma leitura do razão que o DRE e o balanço — só que
+ * confrontada com o que vai na declaração.
+ *
+ * Uma tela à parte obrigaria a sair do fecho para conferir o fecho.
+ *
+ * ---------------------------------------------------------------------------
+ * O QUE ESTE PAINEL FAZ QUE NENHUM OUTRO FAZIA
  *
  * O sistema apurava o imposto por duas vias que nunca se olhavam: pelos
  * DOCUMENTOS (de onde sai a declaração) e pelo RAZÃO (de onde saem os livros).
@@ -27,7 +37,7 @@ type Linha = {
   rotulo: string; nota?: string;
   documentos: number; razao: number; diferenca: number; contas: string[];
 };
-type Estado = "fecha" | "diverge" | "sem_movimento";
+export type Estado = "fecha" | "diverge" | "sem_movimento";
 type Dados = {
   de: string; ate: string;
   cliente: { name: string; client_code: string | null; vat_number: string | null; legal_form: string | null };
@@ -49,9 +59,8 @@ const eur = (n: number) =>
 
 const ANO = new Date().getFullYear();
 
-export default function TaxPage({ params }: { params: { id: string } }) {
+export default function TaxPanel({ clientId, tipo }: { clientId: string; tipo: "vat" | "imposto" }) {
   const { t } = useT();
-  const [aba, setAba] = useState<"vat" | "imposto">("vat");
   const [de, setDe] = useState(`${ANO}-01-01`);
   const [ate, setAte] = useState(`${ANO}-12-31`);
   const [d, setD] = useState<Dados | null>(null);
@@ -61,22 +70,24 @@ export default function TaxPage({ params }: { params: { id: string } }) {
   const carregar = useCallback(async () => {
     setCarregando(true); setErro(null);
     try {
-      const r = await fetch(`/api/clients/${params.id}/tax?de=${de}&ate=${ate}`);
+      const r = await fetch(`/api/clients/${clientId}/tax?de=${de}&ate=${ate}`);
       const j = await r.json();
       if (!r.ok) { setErro(j.error || t("tax.loadErr")); setD(null); return; }
       setD(j);
     } finally { setCarregando(false); }
-  }, [params.id, de, ate, t]);
+  }, [clientId, de, ate, t]);
 
   useEffect(() => { void carregar(); }, [carregar]);
 
   return (
-    <div className="space-y-4">
-      <div className="rise flex flex-wrap items-end justify-between gap-4">
-        <div>
-          <h1 className="font-display text-3xl font-semibold tracking-tight">{t("tax.title")}</h1>
-          <p className="mt-1 max-w-2xl text-muted">{t("tax.subtitle")}</p>
-        </div>
+    <div className="space-y-4 p-5">
+      {/*
+        * Só o intervalo de datas — o título já é a aba, e o cabeçalho da tela
+        * de contabilidade já diz de que cliente e de que exercício se trata.
+        * Repetir isso aqui empurraria o quadro para fora do primeiro ecrã.
+        */}
+      <div className="flex flex-wrap items-end justify-between gap-3">
+        <p className="max-w-2xl text-[12.5px] text-muted">{t("tax.subtitle")}</p>
         <div className="flex flex-wrap items-end gap-2">
           <label className="flex flex-col gap-1">
             <span className="text-[10.5px] uppercase tracking-wide text-muted">{t("common.from")}</span>
@@ -96,29 +107,15 @@ export default function TaxPage({ params }: { params: { id: string } }) {
         <p className="rounded-lg border border-danger/40 bg-danger/10 px-3 py-2 text-sm text-danger">{erro}</p>
       )}
 
-      {/*
-        * OS SEPARADORES, com o estado de cada um à vista.
-        *
-        * O ponto colorido no separador é o que evita o pior defeito de uma tela
-        * de abas: um problema escondido na aba que não está aberta. Com ele,
-        * vê-se que há divergência no imposto sem sair do VAT.
-        */}
-      <div className="flex gap-1 border-b border-line">
-        <Aba activa={aba === "vat"} onClick={() => setAba("vat")}
-          rotulo={t("tax.tabVat")} estado={d?.vat.estado} />
-        <Aba activa={aba === "imposto"} onClick={() => setAba("imposto")}
-          rotulo={t("tax.tabIncome")} estado={d?.imposto.aplicavel ? d?.imposto.estado : undefined} />
-      </div>
-
       {!d ? (
         <p className="text-sm text-muted">{t("common.loading")}</p>
-      ) : aba === "vat" ? (
+      ) : tipo === "vat" ? (
         <>
           {/* A apuração — o que a declaração vai dizer. */}
           <section className="card p-5">
             <div className="flex flex-wrap items-baseline justify-between gap-2">
               <h2 className="font-display text-sm font-semibold">{t("tax.vatReturn")}</h2>
-              <Link className="text-xs underline text-muted" href={`/clients/${params.id}/obligations`}>
+              <Link className="text-xs underline text-muted" href={`/clients/${clientId}/obligations`}>
                 {t("tax.seeObligations")}
               </Link>
             </div>
@@ -187,23 +184,6 @@ export default function TaxPage({ params }: { params: { id: string } }) {
 }
 
 /* ------------------------------------------------------------------ peças */
-
-function Aba({ activa, onClick, rotulo, estado }: {
-  activa: boolean; onClick: () => void; rotulo: string; estado?: Estado;
-}) {
-  return (
-    <button
-      onClick={onClick}
-      className={`relative -mb-px flex items-center gap-2 border-b-2 px-4 py-2.5 text-sm font-medium transition-colors
-        ${activa ? "border-brand text-ink" : "border-transparent text-muted hover:text-ink"}`}
-    >
-      {rotulo}
-      {estado && estado !== "sem_movimento" && (
-        <span className={`h-1.5 w-1.5 rounded-full ${estado === "diverge" ? "bg-danger" : "bg-ok"}`} />
-      )}
-    </button>
-  );
-}
 
 function Cartao({ rotulo, valor, nota, tom }: {
   rotulo: string; valor: string; nota?: string; tom?: "brand" | "ok" | "warn";
