@@ -19,6 +19,29 @@ const ok = (cond, label, extra) => {
   else { fail++; console.log("  FALHA " + label + (extra !== undefined ? "  -> " + JSON.stringify(extra) : "")); }
 };
 
+console.log("\n== as linhas vem por CHAVE, e nao com o texto escrito ==");
+{
+  const c = C.conciliarVat({
+    de: "2026-01-01", ate: "2026-02-28",
+    docSaidas: 100, docEntradas: 50, razaoSaidas: 100, razaoEntradas: 50,
+    contaSaidas: "845", contaEntradas: "736",
+  });
+  // Este modulo corre no SERVIDOR, e `useT` e um hook do navegador. Devolver o
+  // rotulo escrito fazia a tela mostrar portugues no meio de uma interface em
+  // ingles — e viu-se logo na primeira vez que se abriu.
+  ok(c.linhas.map((l) => l.chave).join(",") === "vatOut,vatIn",
+     "o VAT devolve as chaves vatOut e vatIn", c.linhas.map((l) => l.chave));
+  ok(!("rotulo" in c.linhas[0]) && !("nota" in c.linhas[0]),
+     "e NAO devolve texto nenhum", Object.keys(c.linhas[0]));
+
+  const i = C.conciliarImposto({
+    de: "2026-01-01", ate: "2026-12-31", aplicavel: true,
+    lucroAntesDeImposto: 100, despesaDeImposto: 10, movimentoDoPassivo: 10,
+    contaDespesa: "501", contaPassivo: "831",
+  });
+  ok(i.linhas[0].chave === "taxRecognised", "o imposto devolve taxRecognised", i.linhas[0].chave);
+}
+
 console.log("\n== o VAT quando tudo bate ==");
 {
   const c = C.conciliarVat({

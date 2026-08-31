@@ -34,7 +34,8 @@ import { useT } from "@/lib/i18n";
 import { CT_TRADING } from "@/lib/fiscal/conciliacao";
 
 type Linha = {
-  rotulo: string; nota?: string;
+  /* A chave vem do servidor; o texto sai do dicionário aqui. */
+  chave: "vatOut" | "vatIn" | "taxRecognised";
   documentos: number; razao: number; diferenca: number; contas: string[];
 };
 export type Estado = "fecha" | "diverge" | "sem_movimento";
@@ -235,10 +236,12 @@ function Confronto({ titulo, linhas, estado, total, t }: {
             {linhas.map((l) => {
               const bate = l.diferenca === 0;
               return (
-                <tr key={l.rotulo} className="border-b border-line/50 align-top">
+                <tr key={l.chave} className="border-b border-line/50 align-top">
                   <td className="px-5 py-3">
-                    <div className="font-medium">{l.rotulo}</div>
-                    {l.nota && <div className="mt-0.5 max-w-xl text-[11.5px] text-muted">{l.nota}</div>}
+                    <div className="font-medium">{t(`tax.line_${l.chave}` as const)}</div>
+                    <div className="mt-0.5 max-w-xl text-[11.5px] text-muted">
+                      {t(`tax.lineNote_${l.chave}` as const)}
+                    </div>
                     <div className="mt-1 font-mono text-[11px] text-muted">{l.contas.join(" · ")}</div>
                   </td>
                   <td className="px-3 py-3 text-right font-mono tabular-nums">{eur(l.documentos)}</td>

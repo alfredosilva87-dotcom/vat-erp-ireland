@@ -95,15 +95,13 @@ export const MODULES: ModuleDef[] = [
        */
       { seg: "checkup", key: "client.tabCheckup" },
       /*
-       * A conciliação fiscal — o imposto dos documentos contra o do razão.
+       * A conciliação fiscal NÃO é um item de menu.
        *
-       * Mora na CONTABILIDADE e não no Fiscal, apesar de falar de imposto: a
-       * pergunta que responde é "os meus livros e a minha declaração contam a
-       * mesma história?", e quem a faz está a fechar o período, não a
-       * preencher a declaração. É o passo antes de entregar, e vive ao lado do
-       * balancete e do checkup, que são os outros dois.
+       * Começou por sê-lo, e é o género de coisa que engorda a barra lateral
+       * sem ganho: ela vive como ABA dentro de "accounting", ao lado do
+       * balancete, porque é a mesma leitura do razão — só que confrontada com
+       * o que vai na declaração. Quem a quer já está lá.
        */
-      { seg: "tax", key: "client.tabTax" },
     ],
   },
   {

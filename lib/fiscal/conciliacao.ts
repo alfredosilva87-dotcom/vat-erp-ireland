@@ -35,9 +35,16 @@ const r2 = (n: number) => Math.round((Number(n) || 0) * 100) / 100;
  * apontarem para lados opostos, e ninguém confia num quadro assim.
  */
 export type LinhaDeConfronto = {
-  rotulo: string;
-  /** O que explica esta linha a quem não a montou. */
-  nota?: string;
+  /*
+   * A CHAVE de tradução, e não o texto.
+   *
+   * Este módulo corre no servidor, e `useT` é um hook que só existe no
+   * navegador. Devolver o rótulo escrito fazia a tela mostrar português no meio
+   * de uma interface em inglês — e viu-se logo na primeira vez que se abriu.
+   *
+   * Com a chave, quem escolhe a língua é quem a sabe: o ecrã.
+   */
+  chave: "vatOut" | "vatIn" | "taxRecognised";
   /** Apurado pelos DOCUMENTOS — o que vai na declaração. */
   documentos: number;
   /** Apurado pelo RAZÃO — o movimento das contas do período. */
@@ -58,10 +65,10 @@ export type LinhaDeConfronto = {
 export const TOLERANCIA = 0;
 
 export function confrontar(
-  rotulo: string, documentos: number, razao: number, contas: string[], nota?: string
+  chave: LinhaDeConfronto["chave"], documentos: number, razao: number, contas: string[]
 ): LinhaDeConfronto {
   return {
-    rotulo, nota, contas,
+    chave, contas,
     documentos: r2(documentos),
     razao: r2(razao),
     diferenca: r2(documentos - razao),
@@ -129,14 +136,8 @@ export function conciliarVat(args: {
   contaSaidas: string; contaEntradas: string;
 }): ConciliacaoDeVat {
   const linhas = [
-    confrontar(
-      "IVA das vendas (saídas)", args.docSaidas, args.razaoSaidas, [args.contaSaidas],
-      "O que as vendas do período geraram de imposto, contra o que foi creditado na conta de controlo."
-    ),
-    confrontar(
-      "IVA das compras (entradas)", args.docEntradas, args.razaoEntradas, [args.contaEntradas],
-      "O imposto com direito a crédito, contra o que foi debitado na conta de recuperação."
-    ),
+    confrontar("vatOut", args.docSaidas, args.razaoSaidas, [args.contaSaidas]),
+    confrontar("vatIn", args.docEntradas, args.razaoEntradas, [args.contaEntradas]),
   ];
   const estado = estadoDe(linhas);
   return {
@@ -195,12 +196,8 @@ export function conciliarImposto(args: {
   const despesa = r2(args.despesaDeImposto);
 
   const linhas = [
-    confrontar(
-      "Imposto reconhecido", despesa, args.movimentoDoPassivo,
-      [args.contaDespesa, args.contaPassivo],
-      "A despesa lançada no resultado, contra o que entrou no passivo de imposto. "
-        + "Reconhecer uma sem a outra deixa o balanço a dever a diferença."
-    ),
+    confrontar("taxRecognised", despesa, args.movimentoDoPassivo,
+      [args.contaDespesa, args.contaPassivo]),
   ];
 
   return {
