@@ -632,7 +632,17 @@ export async function getDocumentDownload(id: string): Promise<DocumentDownload>
 const MONTHS = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
 const iso = (d: Date) => d.toISOString().slice(0, 10);
 
-async function inputVatInPeriod(clientId: string, start: string, end: string): Promise<number> {
+/*
+ * EXPORTADAS de propósito, apesar de nascerem privadas.
+ *
+ * São elas que alimentam o VAT3 da tela de obrigações. A conciliação fiscal
+ * confronta a declaração com o razão, e para isso tem de ler *exactamente* o
+ * mesmo número que a declaração leva — não um reimplementado ao lado, que
+ * concordaria com a declaração até ao dia em que uma das duas mudasse.
+ *
+ * Um double-check contra a própria cópia não verifica nada.
+ */
+export async function inputVatInPeriod(clientId: string, start: string, end: string): Promise<number> {
   // Aggregate by posting date (data de lançamento / competência), fallback invoice_date.
   const { data } = await sb().from("invoices").select("total_credit,posting_date,invoice_date").eq("client_id", clientId);
   const sum = (data ?? []).reduce((a: number, i: any) => {
@@ -641,7 +651,7 @@ async function inputVatInPeriod(clientId: string, start: string, end: string): P
   }, 0);
   return Number(sum.toFixed(2));
 }
-async function salesVatInPeriod(clientId: string, start: string, end: string): Promise<number> {
+export async function salesVatInPeriod(clientId: string, start: string, end: string): Promise<number> {
   const { data } = await sb().from("sales").select("vat_amount,entry_date").eq("client_id", clientId).gte("entry_date", start).lte("entry_date", end);
   return Number((data ?? []).reduce((a: number, s: any) => a + (s.vat_amount || 0), 0).toFixed(2));
 }

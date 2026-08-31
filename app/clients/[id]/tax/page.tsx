@@ -1,0 +1,298 @@
+"use client";
+
+/**
+ * A CONCILIAÇÃO FISCAL: dois separadores, VAT e imposto sobre o lucro.
+ *
+ * ---------------------------------------------------------------------------
+ * O QUE ESTA TELA FAZ QUE NENHUMA OUTRA FAZIA
+ *
+ * O sistema apurava o imposto por duas vias que nunca se olhavam: pelos
+ * DOCUMENTOS (de onde sai a declaração) e pelo RAZÃO (de onde saem os livros).
+ * Se a contabilização estivesse sempre certa dariam o mesmo número — não estão,
+ * e nenhuma das três formas de divergir dá erro em lado nenhum: um documento
+ * que entra no período e não é contabilizado, um contabilizado com outro valor,
+ * ou um lançamento à mão sem documento.
+ *
+ * A diferença entre as duas vias é o único sítio onde isso aparece. É por isso
+ * que a coluna da diferença é a mais visível da tela, e a única a vermelho.
+ * ---------------------------------------------------------------------------
+ */
+
+import { useCallback, useEffect, useState } from "react";
+import Link from "next/link";
+import { useT } from "@/lib/i18n";
+import { CT_TRADING } from "@/lib/fiscal/conciliacao";
+
+type Linha = {
+  rotulo: string; nota?: string;
+  documentos: number; razao: number; diferenca: number; contas: string[];
+};
+type Estado = "fecha" | "diverge" | "sem_movimento";
+type Dados = {
+  de: string; ate: string;
+  cliente: { name: string; client_code: string | null; vat_number: string | null; legal_form: string | null };
+  vat: {
+    apuracao: { saidas: number; entradas: number; aPagar: number };
+    linhas: Linha[]; estado: Estado; diferencaTotal: number;
+  };
+  imposto: {
+    aplicavel: boolean;
+    lucroAntesDeImposto: number; despesaDeImposto: number; lucroDepois: number;
+    taxaEfetiva: number | null;
+    linhas: Linha[]; estado: Estado; diferencaTotal: number;
+  };
+  error?: string;
+};
+
+const eur = (n: number) =>
+  n.toLocaleString("en-IE", { style: "currency", currency: "EUR", minimumFractionDigits: 2 });
+
+const ANO = new Date().getFullYear();
+
+export default function TaxPage({ params }: { params: { id: string } }) {
+  const { t } = useT();
+  const [aba, setAba] = useState<"vat" | "imposto">("vat");
+  const [de, setDe] = useState(`${ANO}-01-01`);
+  const [ate, setAte] = useState(`${ANO}-12-31`);
+  const [d, setD] = useState<Dados | null>(null);
+  const [erro, setErro] = useState<string | null>(null);
+  const [carregando, setCarregando] = useState(false);
+
+  const carregar = useCallback(async () => {
+    setCarregando(true); setErro(null);
+    try {
+      const r = await fetch(`/api/clients/${params.id}/tax?de=${de}&ate=${ate}`);
+      const j = await r.json();
+      if (!r.ok) { setErro(j.error || t("tax.loadErr")); setD(null); return; }
+      setD(j);
+    } finally { setCarregando(false); }
+  }, [params.id, de, ate, t]);
+
+  useEffect(() => { void carregar(); }, [carregar]);
+
+  return (
+    <div className="space-y-4">
+      <div className="rise flex flex-wrap items-end justify-between gap-4">
+        <div>
+          <h1 className="font-display text-3xl font-semibold tracking-tight">{t("tax.title")}</h1>
+          <p className="mt-1 max-w-2xl text-muted">{t("tax.subtitle")}</p>
+        </div>
+        <div className="flex flex-wrap items-end gap-2">
+          <label className="flex flex-col gap-1">
+            <span className="text-[10.5px] uppercase tracking-wide text-muted">{t("common.from")}</span>
+            <input type="date" className="input h-9 w-40" value={de} onChange={(e) => setDe(e.target.value)} />
+          </label>
+          <label className="flex flex-col gap-1">
+            <span className="text-[10.5px] uppercase tracking-wide text-muted">{t("common.to")}</span>
+            <input type="date" className="input h-9 w-40" value={ate} onChange={(e) => setAte(e.target.value)} />
+          </label>
+          <button className="btn-ghost h-9 px-4 text-sm" disabled={carregando} onClick={carregar}>
+            {carregando ? t("common.loading") : t("tax.refresh")}
+          </button>
+        </div>
+      </div>
+
+      {erro && (
+        <p className="rounded-lg border border-danger/40 bg-danger/10 px-3 py-2 text-sm text-danger">{erro}</p>
+      )}
+
+      {/*
+        * OS SEPARADORES, com o estado de cada um à vista.
+        *
+        * O ponto colorido no separador é o que evita o pior defeito de uma tela
+        * de abas: um problema escondido na aba que não está aberta. Com ele,
+        * vê-se que há divergência no imposto sem sair do VAT.
+        */}
+      <div className="flex gap-1 border-b border-line">
+        <Aba activa={aba === "vat"} onClick={() => setAba("vat")}
+          rotulo={t("tax.tabVat")} estado={d?.vat.estado} />
+        <Aba activa={aba === "imposto"} onClick={() => setAba("imposto")}
+          rotulo={t("tax.tabIncome")} estado={d?.imposto.aplicavel ? d?.imposto.estado : undefined} />
+      </div>
+
+      {!d ? (
+        <p className="text-sm text-muted">{t("common.loading")}</p>
+      ) : aba === "vat" ? (
+        <>
+          {/* A apuração — o que a declaração vai dizer. */}
+          <section className="card p-5">
+            <div className="flex flex-wrap items-baseline justify-between gap-2">
+              <h2 className="font-display text-sm font-semibold">{t("tax.vatReturn")}</h2>
+              <Link className="text-xs underline text-muted" href={`/clients/${params.id}/obligations`}>
+                {t("tax.seeObligations")}
+              </Link>
+            </div>
+            <div className="mt-3 grid gap-3 sm:grid-cols-3">
+              <Cartao rotulo={t("tax.outputVat")} valor={eur(d.vat.apuracao.saidas)} />
+              <Cartao rotulo={t("tax.inputVat")} valor={eur(d.vat.apuracao.entradas)} />
+              {/*
+                * Positivo é a pagar, negativo é a recuperar — e o rótulo muda
+                * com o sinal. Um cartão fixo a dizer "a pagar" com um número
+                * negativo obriga a pessoa a interpretar duas vezes.
+                */}
+              <Cartao
+                rotulo={d.vat.apuracao.aPagar >= 0 ? t("tax.toPay") : t("tax.toRecover")}
+                valor={eur(Math.abs(d.vat.apuracao.aPagar))}
+                tom={d.vat.apuracao.aPagar >= 0 ? "brand" : "ok"}
+              />
+            </div>
+          </section>
+
+          <Confronto titulo={t("tax.vatCheck")} linhas={d.vat.linhas}
+            estado={d.vat.estado} total={d.vat.diferencaTotal} t={t} />
+        </>
+      ) : !d.imposto.aplicavel ? (
+        <section className="card p-6">
+          <h2 className="font-display text-sm font-semibold">{t("tax.notApplicable")}</h2>
+          {/*
+            * Diz PORQUE não se aplica, e para onde o lucro vai.
+            *
+            * Um quadro a zeros lê-se como "não há imposto", e o empresário em
+            * nome individual paga imposto — só que na pessoa, pela Form 11.
+            */}
+          <p className="mt-2 max-w-2xl text-sm text-muted">{t("tax.soleTraderNote")}</p>
+          <div className="mt-4 grid gap-3 sm:grid-cols-2">
+            <Cartao rotulo={t("tax.profit")} valor={eur(d.imposto.lucroAntesDeImposto)} tom="brand" />
+          </div>
+        </section>
+      ) : (
+        <>
+          <section className="card p-5">
+            <h2 className="font-display text-sm font-semibold">{t("tax.incomeSummary")}</h2>
+            <div className="mt-3 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+              <Cartao rotulo={t("tax.profitBefore")} valor={eur(d.imposto.lucroAntesDeImposto)} />
+              <Cartao rotulo={t("tax.taxCharge")} valor={eur(d.imposto.despesaDeImposto)} />
+              <Cartao rotulo={t("tax.profitAfter")} valor={eur(d.imposto.lucroDepois)} tom="brand" />
+              {/*
+                * A taxa EFETIVA sai dos números, não da lei — e é ela que
+                * denuncia o que uma comparação com os 12,5% não denuncia: uma
+                * despesa lançada a mais, ou um lucro que mudou depois de o
+                * imposto ter sido calculado.
+                */}
+              <Cartao
+                rotulo={t("tax.effectiveRate")}
+                valor={d.imposto.taxaEfetiva === null ? "—" : `${d.imposto.taxaEfetiva}%`}
+                nota={d.imposto.taxaEfetiva === null ? t("tax.noProfit") : t("tax.tradingRate", { n: CT_TRADING })}
+                tom={d.imposto.taxaEfetiva !== null && Math.abs(d.imposto.taxaEfetiva - CT_TRADING) > 5 ? "warn" : undefined}
+              />
+            </div>
+          </section>
+
+          <Confronto titulo={t("tax.incomeCheck")} linhas={d.imposto.linhas}
+            estado={d.imposto.estado} total={d.imposto.diferencaTotal} t={t} />
+        </>
+      )}
+    </div>
+  );
+}
+
+/* ------------------------------------------------------------------ peças */
+
+function Aba({ activa, onClick, rotulo, estado }: {
+  activa: boolean; onClick: () => void; rotulo: string; estado?: Estado;
+}) {
+  return (
+    <button
+      onClick={onClick}
+      className={`relative -mb-px flex items-center gap-2 border-b-2 px-4 py-2.5 text-sm font-medium transition-colors
+        ${activa ? "border-brand text-ink" : "border-transparent text-muted hover:text-ink"}`}
+    >
+      {rotulo}
+      {estado && estado !== "sem_movimento" && (
+        <span className={`h-1.5 w-1.5 rounded-full ${estado === "diverge" ? "bg-danger" : "bg-ok"}`} />
+      )}
+    </button>
+  );
+}
+
+function Cartao({ rotulo, valor, nota, tom }: {
+  rotulo: string; valor: string; nota?: string; tom?: "brand" | "ok" | "warn";
+}) {
+  const cor = tom === "brand" ? "text-brand" : tom === "ok" ? "text-ok" : tom === "warn" ? "text-warning" : "";
+  return (
+    <div className="rounded-xl2 border border-line bg-surface-2/50 px-4 py-3">
+      <div className="text-[10.5px] uppercase tracking-wide text-muted">{rotulo}</div>
+      <div className={`mt-1 font-display text-xl font-semibold tabular-nums ${cor}`}>{valor}</div>
+      {nota && <div className="mt-0.5 text-[11px] text-muted">{nota}</div>}
+    </div>
+  );
+}
+
+/**
+ * O QUADRO DO CONFRONTO — o coração da tela.
+ *
+ * Três colunas: o que os documentos dizem, o que o razão diz, e a falta. A
+ * terceira é a que interessa, e por isso é a única que muda de cor.
+ */
+function Confronto({ titulo, linhas, estado, total, t }: {
+  titulo: string; linhas: Linha[]; estado: Estado; total: number;
+  t: (k: any, v?: Record<string, string | number>) => string;
+}) {
+  return (
+    <section className="card overflow-hidden">
+      <div className="flex flex-wrap items-center justify-between gap-2 border-b border-line px-5 py-3.5">
+        <h2 className="font-display text-sm font-semibold">{titulo}</h2>
+        {estado === "sem_movimento" ? (
+          <span className="chip text-[11px]">{t("tax.noMovement")}</span>
+        ) : estado === "fecha" ? (
+          <span className="chip-ok text-[11px]">{t("tax.balances")}</span>
+        ) : (
+          <span className="chip-danger text-[11px]">{t("tax.diverges", { n: eur(total) })}</span>
+        )}
+      </div>
+
+      <div className="overflow-x-auto">
+        <table className="w-full text-[13px]">
+          <thead>
+            <tr className="border-b border-line text-[10.5px] uppercase tracking-wide text-muted">
+              <th className="px-5 py-2 text-left font-medium">{t("tax.colWhat")}</th>
+              <th className="px-3 py-2 text-right font-medium">{t("tax.colDocs")}</th>
+              <th className="px-3 py-2 text-right font-medium">{t("tax.colLedger")}</th>
+              <th className="px-5 py-2 text-right font-medium">{t("tax.colDiff")}</th>
+            </tr>
+          </thead>
+          <tbody>
+            {linhas.map((l) => {
+              const bate = l.diferenca === 0;
+              return (
+                <tr key={l.rotulo} className="border-b border-line/50 align-top">
+                  <td className="px-5 py-3">
+                    <div className="font-medium">{l.rotulo}</div>
+                    {l.nota && <div className="mt-0.5 max-w-xl text-[11.5px] text-muted">{l.nota}</div>}
+                    <div className="mt-1 font-mono text-[11px] text-muted">{l.contas.join(" · ")}</div>
+                  </td>
+                  <td className="px-3 py-3 text-right font-mono tabular-nums">{eur(l.documentos)}</td>
+                  <td className="px-3 py-3 text-right font-mono tabular-nums">{eur(l.razao)}</td>
+                  {/*
+                    * A diferença é a coluna que se lê primeiro: maior, e a
+                    * vermelho quando não é zero. Um zero fica discreto de
+                    * propósito — o que se procura aqui é o que NÃO é zero.
+                    */}
+                  <td className={`px-5 py-3 text-right font-mono text-[15px] font-semibold tabular-nums
+                    ${bate ? "text-muted" : "text-danger"}`}>
+                    {eur(l.diferenca)}
+                  </td>
+                </tr>
+              );
+            })}
+            <tr className="bg-surface-2/40 text-[12.5px] font-semibold">
+              <td className="px-5 py-2.5 text-right text-muted" colSpan={3}>{t("tax.totalDiff")}</td>
+              <td className={`px-5 py-2.5 text-right font-mono tabular-nums
+                ${total === 0 ? "text-muted" : "text-danger"}`}>
+                {eur(total)}
+              </td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+
+      {estado === "diverge" && (
+        <div className="border-t border-line bg-danger/5 px-5 py-3 text-[12.5px]">
+          {/* Dizer o que FAZER, e não só que está errado. */}
+          <p className="font-medium text-danger">{t("tax.whatNow")}</p>
+          <p className="mt-1 max-w-3xl text-muted">{t("tax.whatNowHint")}</p>
+        </div>
+      )}
+    </section>
+  );
+}

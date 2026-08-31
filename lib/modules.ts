@@ -94,6 +94,16 @@ export const MODULES: ModuleDef[] = [
        * e é o que se corre antes de fechar o mês ou entregar uma declaração.
        */
       { seg: "checkup", key: "client.tabCheckup" },
+      /*
+       * A conciliação fiscal — o imposto dos documentos contra o do razão.
+       *
+       * Mora na CONTABILIDADE e não no Fiscal, apesar de falar de imposto: a
+       * pergunta que responde é "os meus livros e a minha declaração contam a
+       * mesma história?", e quem a faz está a fechar o período, não a
+       * preencher a declaração. É o passo antes de entregar, e vive ao lado do
+       * balancete e do checkup, que são os outros dois.
+       */
+      { seg: "tax", key: "client.tabTax" },
     ],
   },
   {
