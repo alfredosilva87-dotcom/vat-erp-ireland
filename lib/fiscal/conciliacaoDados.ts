@@ -70,7 +70,16 @@ export type ConciliacaoFiscal = {
 };
 
 export async function conciliacaoFiscal(
-  clientId: string, de: string, ate: string
+  clientId: string, de: string, ate: string,
+  /*
+   * Os relatórios já carregados, quando quem chama os tem.
+   *
+   * `loadReports` percorre o razão inteiro, paginado. A rotina de fecho precisa
+   * deles para a sua própria verificação e chama isto a seguir — sem esta porta
+   * o mesmo razão era lido duas vezes no mesmo pedido, e num cliente com três
+   * anos isso é a diferença entre caber e não caber nos 60 segundos do Vercel.
+   */
+  relatoriosJaLidos?: Awaited<ReturnType<typeof loadReports>>
 ): Promise<ConciliacaoFiscal> {
   const sb = getServerSupabase();
 
@@ -79,7 +88,7 @@ export async function conciliacaoFiscal(
     // As MESMAS funções que alimentam o VAT3 — ver o comentário em store.ts.
     inputVatInPeriod(clientId, de, ate),
     salesVatInPeriod(clientId, de, ate),
-    loadReports(clientId, de, ate),
+    relatoriosJaLidos ?? loadReports(clientId, de, ate),
   ]);
 
   const [movSaidas, movEntradas, movImpostoDespesa, movImpostoPassivo] = await Promise.all([

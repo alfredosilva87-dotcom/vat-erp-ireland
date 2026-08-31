@@ -37,13 +37,16 @@ const r2 = (n: number) => Math.round((Number(n) || 0) * 100) / 100;
 export async function verificacoesDoPeriodo(
   clientId: string, de: string, ate: string
 ): Promise<Verificacao[]> {
+  // O razão inteiro lê-se UMA vez, e passa-se à conciliação fiscal. Ver a porta
+  // em `conciliacaoFiscal`.
+  const relatorios = await loadReports(clientId, de, ate);
+
   const [
-    porConferir, naoIntegrados, relatorios, fiscal, cPagar, cReceber, banco, anterior,
+    porConferir, naoIntegrados, fiscal, cPagar, cReceber, banco, anterior,
   ] = await Promise.all([
     contarPorConferir(clientId, de, ate),
     documentosNaoIntegrados(clientId),
-    loadReports(clientId, de, ate),
-    conciliacaoFiscal(clientId, de, ate),
+    conciliacaoFiscal(clientId, de, ate, relatorios),
     conciliarControlo(clientId, "payable"),
     conciliarControlo(clientId, "receivable"),
     contarContasPorFechar(clientId, ate),
