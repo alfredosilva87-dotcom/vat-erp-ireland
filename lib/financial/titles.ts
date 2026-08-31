@@ -85,10 +85,30 @@ export async function garantirTituloDeCompra(
   invoiceId: string, journalId?: string | null
 ): Promise<ResultadoTitulo> {
   const { data: nota } = await sb().from("invoices")
-    .select("id,client_id,supplier_name,invoice_number,invoice_date,posting_date,total_gross")
+    .select("id,client_id,supplier_name,invoice_number,invoice_date,posting_date,total_gross,reviewed_at")
     .eq("id", invoiceId).maybeSingle();
   const n = nota as any;
   if (!n?.client_id) return { id: null, jaExistia: false, ignorado: "Nota sem cliente." };
+
+  /*
+   * NÃO INTEGRA O QUE NINGUÉM CONFERIU.
+   *
+   * Pedido do Alfredo: "deveria ir para contas a pagar e receber após informar
+   * conferida, mesmo que puxe na função contabilizar, ele enxergar se está
+   * conferida ou não".
+   *
+   * A carga retroativa já verificava isto — mas era o único caminho que
+   * verificava, e não é o único caminho. Contabilizar um documento à mão
+   * chegava aqui sem passar por lá, e um título nascia de um número que
+   * ninguém validou: quem abre contas a pagar vê uma dívida com o valor que a
+   * extração leu, que é precisamente o que `reviewed_at` existe para separar.
+   *
+   * A verificação fica AQUI, no sítio por onde todos passam, e não em cada
+   * chamador — pela mesma razão que o cadeado do período é um gatilho.
+   */
+  if (!n.reviewed_at) {
+    return { id: null, jaExistia: false, ignorado: "Falta conferir a nota para ela integrar." };
+  }
 
   const ja = await existente(n.client_id, invoiceId);
   if (ja) {
@@ -127,10 +147,15 @@ export async function garantirTituloDeVenda(
   saleId: string, journalId?: string | null
 ): Promise<ResultadoTitulo> {
   const { data: venda } = await sb().from("sales")
-    .select("id,client_id,customer,doc_number,entry_date,net_amount,vat_amount")
+    .select("id,client_id,customer,doc_number,entry_date,net_amount,vat_amount,reviewed_at")
     .eq("id", saleId).maybeSingle();
   const v = venda as any;
   if (!v?.client_id) return { id: null, jaExistia: false, ignorado: "Venda sem cliente." };
+
+  // Ver `garantirTituloDeCompra`: o que ninguém conferiu não vira título.
+  if (!v.reviewed_at) {
+    return { id: null, jaExistia: false, ignorado: "Falta conferir a venda para ela integrar." };
+  }
 
   const ja = await existente(v.client_id, saleId);
   if (ja) {

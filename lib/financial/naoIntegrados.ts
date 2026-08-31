@@ -31,7 +31,21 @@ export type MotivoNaoIntegrado =
   | "por_conferir"
   | "sem_valor"
   | "data_futura"
-  | "devolvido";
+  | "devolvido"
+  /**
+   * O contrário de todos os outros: o documento ENTROU sem ninguém o conferir.
+   *
+   * Pedido do Alfredo, sobre uma fatura que ele viu em contas a receber por
+   * conferir: "na rotina de verificar pendências precisa apontar essa
+   * inconsistência".
+   *
+   * Ele tem razão, e o motivo é o mesmo dos outros: um número que ninguém
+   * validou está a contar como dívida real e a somar na apuração. A partir de
+   * agora não acontece — `garantirTitulo*` e `postSaleDoc` recusam o que não
+   * está conferido —, mas o que já entrou assim continua lá, e só esta lista o
+   * mostra.
+   */
+  | "integrado_sem_conferir";
 
 export type DocumentoNaoIntegrado = {
   id: string;
@@ -106,6 +120,23 @@ export async function documentosNaoIntegrados(clientId: string): Promise<ResumoN
 
     const faltaTitulo = esperaTitulo && !temTitulo;
     const faltaLancamento = esperaLancamento && !temLancamento;
+
+    /*
+     * O caso invertido vem PRIMEIRO, porque não é falta — é excesso.
+     *
+     * Um documento por conferir que já está em contas a pagar e no razão não
+     * "falta" em lado nenhum, e por isso escapava a esta tela inteira: as
+     * comparações abaixo só perguntam o que falta. É o estado mais silencioso
+     * dos três, e o único em que o número errado já está a contar.
+     */
+    if (!conferido && (temTitulo || temLancamento)) {
+      itens.push({
+        id, origem, documentRef: ref, contraparte, data, valor,
+        motivo: "integrado_sem_conferir", meiaIntegracao: false,
+      });
+      return;
+    }
+
     // Está como devia estar — incluindo o cliente que não integra nada.
     if (!faltaTitulo && !faltaLancamento) return;
 

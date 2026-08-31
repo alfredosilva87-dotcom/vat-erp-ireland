@@ -1243,6 +1243,7 @@ const pt: Dict = {
   "unposted.half": "meia integração",
   "unposted.halfHelp": "Um lado sem o outro: está no razão e não na lista, ou o contrário. É isto que faz a conta de controlo deixar de bater com o aging.",
   "unposted.por_conferir": "Ainda não conferido — aprovar e ele integra",
+  "unposted.integrado_sem_conferir": "Integrado sem conferir — o valor já está a contar; confira, ou devolva-o",
   "unposted.integracao_desligada": "Este cliente não alimenta pagar/receber — é a configuração, não é defeito",
   "unposted.sem_valor": "Sem valor — a leitura falhou; corrija o documento",
   "unposted.data_futura": "Data no futuro — lança quando a data chegar",

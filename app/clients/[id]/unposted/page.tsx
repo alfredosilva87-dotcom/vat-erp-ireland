@@ -36,6 +36,9 @@ const CHIP: Record<string, string> = {
   sem_valor: "chip-danger",
   data_futura: "chip",
   devolvido: "chip-warn",
+  // Vermelho, e não amarelo: nos outros o número ainda não conta em lado
+  // nenhum. Neste ele já está a contar sem ninguém o ter validado.
+  integrado_sem_conferir: "chip-danger",
 };
 
 export default function NaoIntegrados({ params }: { params: { id: string } }) {

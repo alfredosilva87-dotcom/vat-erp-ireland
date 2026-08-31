@@ -386,6 +386,22 @@ export async function emitirInvoice(
     vat_rate: taxaPrincipal,
     vat_amount: t.vat,
     notes: `Fatura emitida pelo ERP${inv.customerRef ? ` · ref. ${inv.customerRef}` : ""}`,
+    /*
+     * EMITIR É CONFERIR, e por isso a venda nasce conferida.
+     *
+     * `reviewed_at` existe porque a extração pode ler mal um documento que veio
+     * de fora: a coluna separa "o sistema leu" de "uma pessoa olhou". Uma
+     * fatura emitida aqui não passou por leitura nenhuma — alguém escreveu cada
+     * linha, viu o total e mandou o PDF ao cliente. Pedir que a confira depois
+     * é pedir uma segunda leitura da própria letra, sem informação nova.
+     *
+     * Sem isto ela ficava por conferir para sempre: entrava em contas a receber
+     * e no razão (o caminho da emissão não passa pela carga retroativa, que é
+     * quem verifica), e ao mesmo tempo aparecia na lista de pendências. Foi o
+     * que o Alfredo viu na fatura do Matheus.
+     */
+    reviewed_at: new Date().toISOString(),
+    reviewed_by: userId ?? null,
   }).select("id").single();
   if (eVenda || !venda) return { ok: false, erro: eVenda?.message || "Não gravou a venda." };
 

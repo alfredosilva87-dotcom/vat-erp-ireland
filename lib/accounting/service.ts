@@ -138,11 +138,25 @@ export async function postInvoice(
   }
 
   const { data: nota } = await sb().from("invoices")
-    .select("id,client_id,supplier_name,supplier_vat,invoice_number,invoice_date,posting_date,total_gross")
+    .select("id,client_id,supplier_name,supplier_vat,invoice_number,invoice_date,posting_date,total_gross,reviewed_at")
     .eq("id", invoiceId).maybeSingle();
   if (!nota) return { journalId: null, jaExistia: false, erro: "Nota nao encontrada." };
   const n = nota as any;
   if (!n.client_id) return { journalId: null, jaExistia: false, erro: "Nota sem cliente." };
+
+  /*
+   * O RAZÃO também não recebe o que ninguém conferiu.
+   *
+   * A trava do título (`garantirTituloDeCompra`) sozinha produziria o pior dos
+   * dois mundos: partida no razão e nada em contas a pagar — a meia-integração
+   * que a tela de não integrados existe para acusar, fabricada por nós.
+   *
+   * Os dois lados travam pela mesma condição, então o documento por conferir
+   * fica inteiro de fora e entra inteiro quando alguém o aprovar.
+   */
+  if (!n.reviewed_at) {
+    return { journalId: null, jaExistia: false, erro: "Falta conferir a nota para ela integrar." };
+  }
 
   const { data: itens } = await sb().from("invoice_items")
     .select("id,description,net_amount,vat_amount_on_invoice,vat_rate_on_invoice,account_code,take_credit")
@@ -206,11 +220,16 @@ export async function postSaleDoc(
   }
 
   const { data: venda } = await sb().from("sales")
-    .select("id,client_id,customer,doc_number,entry_date,net_amount,vat_amount,vat_rate,account_code")
+    .select("id,client_id,customer,doc_number,entry_date,net_amount,vat_amount,vat_rate,account_code,reviewed_at")
     .eq("id", saleId).maybeSingle();
   if (!venda) return { journalId: null, jaExistia: false, erro: "Venda nao encontrada." };
   const v = venda as any;
   if (!v.client_id) return { journalId: null, jaExistia: false, erro: "Venda sem cliente." };
+
+  // Os dois lados travam juntos — ver o comentário em `postInvoiceDoc`.
+  if (!v.reviewed_at) {
+    return { journalId: null, jaExistia: false, erro: "Falta conferir a venda para ela integrar." };
+  }
 
   const data = v.entry_date || new Date().toISOString().slice(0, 10);
 

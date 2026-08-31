@@ -1242,6 +1242,7 @@ const en = {
   "unposted.half": "half-integrated",
   "unposted.halfHelp": "One side without the other: it is in the ledger and not in the list, or the reverse. This is what makes the control account stop matching the aging.",
   "unposted.por_conferir": "Not reviewed yet — approve it and it integrates",
+  "unposted.integrado_sem_conferir": "Integrated without review — the amount is already counting; review it or take it back",
   "unposted.integracao_desligada": "This client does not feed payables/receivables — it is the setup, not a fault",
   "unposted.sem_valor": "No amount — the reading failed; fix the document",
   "unposted.data_futura": "Dated in the future — it posts when the date arrives",
