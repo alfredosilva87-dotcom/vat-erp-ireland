@@ -41,7 +41,7 @@ export type MotivoNaoIntegrado =
    *
    * Ele tem razão, e o motivo é o mesmo dos outros: um número que ninguém
    * validou está a contar como dívida real e a somar na apuração. A partir de
-   * agora não acontece — `garantirTitulo*` e `postSaleDoc` recusam o que não
+   * agora não acontece — `garantirTitulo*`, `postInvoice` e `postSaleDoc` recusam o que não
    * está conferido —, mas o que já entrou assim continua lá, e só esta lista o
    * mostra.
    */

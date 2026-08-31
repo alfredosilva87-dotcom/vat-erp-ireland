@@ -226,7 +226,7 @@ export async function postSaleDoc(
   const v = venda as any;
   if (!v.client_id) return { journalId: null, jaExistia: false, erro: "Venda sem cliente." };
 
-  // Os dois lados travam juntos — ver o comentário em `postInvoiceDoc`.
+  // Os dois lados travam juntos — ver o comentário em `postInvoice`.
   if (!v.reviewed_at) {
     return { journalId: null, jaExistia: false, erro: "Falta conferir a venda para ela integrar." };
   }
