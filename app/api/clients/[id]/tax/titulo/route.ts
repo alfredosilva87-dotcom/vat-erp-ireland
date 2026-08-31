@@ -19,6 +19,10 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
     de: String(b?.de ?? ""), ate: String(b?.ate ?? ""),
     valor: Number(b?.valor ?? 0),
     vencimento: b?.vencimento ?? null,
+    // As contas vêm da tela: a do imposto a pagar sempre, a da despesa só no
+    // imposto sobre o lucro — e vazia ali significa "já lançado no fecho".
+    contaDoImposto: b?.conta_do_imposto ?? null,
+    contaDeDespesa: b?.conta_de_despesa ?? null,
     userId: (await getSessionUser())?.id ?? null,
   });
 

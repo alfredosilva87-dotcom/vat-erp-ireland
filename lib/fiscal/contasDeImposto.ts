@@ -27,6 +27,38 @@ export const CONTAS_DE_IMPOSTO = ["845", "736", "831", "501"] as const;
 
 const CONJUNTO: ReadonlySet<string> = new Set(CONTAS_DE_IMPOSTO);
 
-export function ehContaDeImposto(codigo: string | null | undefined): boolean {
-  return Boolean(codigo && CONJUNTO.has(String(codigo).trim()));
+export function ehContaDeImposto(
+  codigo: string | null | undefined,
+  conjunto: ReadonlySet<string> = CONJUNTO
+): boolean {
+  return Boolean(codigo && conjunto.has(String(codigo).trim()));
+}
+
+/**
+ * A lista fixa MAIS as contas que os titulos de imposto usam de facto.
+ *
+ * ---------------------------------------------------------------------------
+ * POR QUE A LISTA FIXA NAO CHEGA
+ *
+ * Enquanto o botao da apuracao escrevia 845 e 831 no codigo, saber quais eram
+ * as contas de imposto era saber quatro numeros. Deixou de ser: o escritorio
+ * escolhe agora a conta do imposto ao criar o titulo, e pode escolher 836
+ * (RCT), 844 (retencao na fonte) ou a 849 que existe no plano exactamente para
+ * o imposto que o plano nao previu.
+ *
+ * Uma conta escolhida assim ficava de fora desta lista, e o falso alarme
+ * permanente que o comentario acima descreve voltava — na conta seguinte, com
+ * a mesma cara. Por isso a lista tem duas metades: a fixa, que nao depende de
+ * dados, e a que se le dos proprios titulos.
+ * ---------------------------------------------------------------------------
+ */
+export function contasDeImposto(
+  extras: Iterable<string | null | undefined> = []
+): ReadonlySet<string> {
+  const s = new Set<string>(CONTAS_DE_IMPOSTO);
+  for (const e of extras) {
+    const c = String(e ?? "").trim();
+    if (c) s.add(c);
+  }
+  return s;
 }

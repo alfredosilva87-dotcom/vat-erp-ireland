@@ -2,6 +2,7 @@ import "server-only";
 import { getServerSupabase } from "@/lib/supabase";
 import { criarTituloManual } from "@/lib/accounting/service";
 import { CONTAS_PADRAO } from "@/lib/accounting/post";
+import { periodoTravado } from "@/lib/accounting/periodos";
 
 /**
  * O IMPOSTO APURADO VIRA UM TÍTULO A PAGAR.
@@ -25,18 +26,38 @@ import { CONTAS_PADRAO } from "@/lib/accounting/post";
  *             saldo dela é o que se deve. O título é só a vista financeira
  *             disso, e por isso NÃO gera partida nenhuma: gerar duplicaria o
  *             passivo, e o balanço passaria a dever duas vezes o mesmo imposto.
+ *             O razão só se mexe na BAIXA — DR imposto a pagar / CR banco —,
+ *             que é o lançamento que faltava e o que fecha a conta de controlo.
  *
- *   Imposto — a dívida NÃO existe até alguém a reconhecer. É um lançamento de
- *   sobre     fecho (DR despesa / CR passivo) que ninguém faz sozinho. Aqui o
- *   o lucro   título vem COM a partida, porque criá-lo sem ela poria uma dívida
- *             em contas a pagar que o balanço desconhece.
+ *   Imposto — a dívida pode ou não existir já, e só o escritório sabe qual dos
+ *   sobre     dois casos é o seu. Por isso aqui é ESCOLHA, e não regra:
+ *   o lucro
+ *             com conta de despesa → o título traz o lançamento de fecho
+ *                                    (DR a conta escolhida / CR o passivo),
+ *                                    para quem ainda não o fez;
+ *             sem conta            → o título nasce sem partida, como o de IVA,
+ *                                    para quem já lançou o imposto no fecho —
+ *                                    lançá-lo de novo dobrava a despesa.
+ *
+ * ---------------------------------------------------------------------------
+ * POR QUE AS CONTAS SÃO ESCOLHIDAS E NÃO FIXAS
+ *
+ * Estavam escritas no código: 845 para o IVA, 501/831 para o imposto sobre o
+ * lucro. Funcionam para o plano da prática, e só para ele — o próprio plano
+ * tem 836 (RCT), 844 (retenção na fonte) e uma 849 que existe exactamente para
+ * o imposto que ele não previu. Um número escrito no código só se muda com um
+ * deploy, e é a mesma razão que fez os tipos de encargo virarem tabela.
+ * ---------------------------------------------------------------------------
  */
 
 const r2 = (n: number) => Math.round((Number(n) || 0) * 100) / 100;
 
-/** As contas do imposto sobre o lucro — as mesmas da conciliação. */
-const CONTA_DESPESA_IMPOSTO = "501";
-const CONTA_PASSIVO_IMPOSTO = "831";
+/** O que se propõe quando ninguém escolhe — as mesmas contas da conciliação. */
+export const CONTAS_SUGERIDAS = {
+  vat: CONTAS_PADRAO.vatPayable,
+  impostoPassivo: "831",
+  impostoDespesa: "501",
+} as const;
 
 export type TipoDeImposto = "vat" | "imposto";
 
@@ -49,6 +70,13 @@ export type PedidoDeTitulo = {
   valor: number;
   /** Se vier vazio, procura-se na obrigação do período. */
   vencimento?: string | null;
+  /** A conta do imposto A PAGAR — a que a baixa vai debitar. */
+  contaDoImposto?: string | null;
+  /**
+   * Só no imposto sobre o lucro: a conta onde a DESPESA é reconhecida.
+   * Vazia significa "já lançado no fecho" — e aí o título nasce sem partida.
+   */
+  contaDeDespesa?: string | null;
   userId?: string | null;
 };
 
@@ -116,40 +144,56 @@ export async function criarTituloDeImposto(p: PedidoDeTitulo): Promise<Resultado
     return { ok: false, erro: `Já existe um título para ${ref}. Veja em contas a pagar.` };
   }
 
-  const hoje = new Date().toISOString().slice(0, 10);
-
-  // ---------------------------------------------------------------- VAT
-  if (p.tipo === "vat") {
-    // Sem partida: a conta de controlo já carrega esta dívida. Ver acima.
-    const { data, error } = await sb.from("ledger_items").insert({
-      client_id: p.clientId, kind: "payable", source_module: "manual",
-      document_id: null, document_ref: ref,
-      counterparty: "Revenue",
-      issue_date: hoje, due_date: vencimento,
-      original_amount: valor,
-      // A conta de controlo do título: é para ela que a baixa pelo banco vai
-      // debitar, e é o que faz o saldo de IVA voltar a zero quando se paga.
-      account_code: CONTAS_PADRAO.vatPayable,
-      notes: "Apuração de IVA do período. A dívida já está na conta de controlo — "
-        + "este título é a vista de contas a pagar dela.",
-    }).select("id").single();
-
-    if (error || !data) return { ok: false, erro: error?.message || "Não criou o título." };
-    return { ok: true, id: (data as any).id, ref, vencimento, comPartida: false };
+  /*
+   * O TÍTULO SÓ NASCE DEPOIS DO MÊS FECHADO.
+   *
+   * Pedido do Alfredo: "após mês fechado gera". A razão é que o apurado muda
+   * enquanto o período está aberto — uma nota que entra depois muda o IVA a
+   * pagar —, e um título com o valor de ontem seria pago com o valor de ontem.
+   * O fecho é o que faz do número um facto, e é só a partir daí que faz
+   * sentido pô-lo em contas a pagar.
+   *
+   * A mensagem diz QUAL mês falta, e não que "o período está aberto": quem
+   * carregou no botão está a tentar fazer uma coisa, e precisa do passo
+   * seguinte, não do diagnóstico.
+   */
+  const trava = await periodoTravado(p.clientId, p.de, p.ate);
+  if (!trava.fechado) {
+    return {
+      ok: false,
+      erro: `Falta fechar ${trava.primeiroAberto}. O imposto só vira título depois de o período estar fechado — `
+        + "enquanto está aberto, o apurado ainda muda.",
+    };
   }
 
-  // ------------------------------------------------- imposto sobre o lucro
-  // COM partida: DR despesa de imposto / CR passivo de imposto. É o lançamento
-  // de fecho, e sem ele o título seria uma dívida que o balanço desconhece.
+  const hoje = new Date().toISOString().slice(0, 10);
+  const contaDoImposto = (p.contaDoImposto ?? "").trim()
+    || (p.tipo === "vat" ? CONTAS_SUGERIDAS.vat : CONTAS_SUGERIDAS.impostoPassivo);
+
+  /*
+   * O IVA nunca traz partida, e o imposto sobre o lucro só traz se lhe derem a
+   * conta da despesa. Ver o bloco no topo: no IVA a dívida já está no razão,
+   * no imposto sobre o lucro depende de o fecho já ter sido lançado ou não.
+   */
+  const contaDeDespesa = p.tipo === "vat" ? "" : (p.contaDeDespesa ?? "").trim();
+  const comPartida = Boolean(contaDeDespesa);
+
   const r = await criarTituloManual({
     clientId: p.clientId, kind: "payable",
     counterparty: "Revenue",
     documentRef: ref,
     issueDate: hoje, dueDate: vencimento,
     amount: valor,
-    resultAccount: CONTA_DESPESA_IMPOSTO,
-    controlAccount: CONTA_PASSIVO_IMPOSTO,
-    notes: "Imposto sobre o lucro do exercício, reconhecido com este título.",
+    tipo: comPartida ? "normal" : "imposto",
+    resultAccount: comPartida ? contaDeDespesa : null,
+    controlAccount: contaDoImposto,
+    notes: p.tipo === "vat"
+      ? "Apuração de IVA do período. A dívida já está na conta de controlo — "
+        + "este título é a vista de contas a pagar dela, e o razão só se mexe na baixa."
+      : comPartida
+        ? "Imposto sobre o lucro do exercício, reconhecido com este título."
+        : "Imposto sobre o lucro já reconhecido no fecho — este título é só a "
+          + "vista de contas a pagar dele.",
     userId: p.userId ?? null,
   });
   if (!r.ok || !r.id) return { ok: false, erro: r.erro || "Não criou o título." };

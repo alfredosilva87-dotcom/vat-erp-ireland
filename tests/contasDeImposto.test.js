@@ -45,5 +45,18 @@ console.log("\n== espacos nao enganam ==");
   ok(C.ehContaDeImposto(" 845 "), "com espacos continua a ser 845");
 }
 
+console.log("\n== a conta escolhida na tela tambem conta ==");
+{
+  // Desde que a conta do imposto passou a ser escolhida, a lista fixa deixou
+  // de chegar: um titulo em 836 (RCT) ou 849 ficaria de fora e o falso alarme
+  // permanente voltava — na conta seguinte, com a mesma cara.
+  const conjunto = C.contasDeImposto(["836", " 849 ", null, ""]);
+  ok(C.ehContaDeImposto("836", conjunto), "836 escolhida na tela entra");
+  ok(C.ehContaDeImposto("849", conjunto), "849 com espacos entra");
+  ok(C.ehContaDeImposto("845", conjunto), "as fixas continuam la");
+  ok(!C.ehContaDeImposto("812", conjunto), "812 continua de fora");
+  ok(!C.ehContaDeImposto("836"), "sem o conjunto, 836 nao e conta de imposto");
+}
+
 console.log(`\n=========== ${pass} passaram, ${fail} falharam ===========\n`);
 process.exit(fail ? 1 : 0);

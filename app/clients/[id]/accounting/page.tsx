@@ -5,6 +5,7 @@ import { useT } from "@/lib/i18n";
 import OpeningTab from "@/components/accounting/OpeningTab";
 import DrillPanel from "@/components/accounting/DrillPanel";
 import TaxPanel from "@/components/fiscal/TaxPanel";
+import ClosingPanel from "@/components/accounting/ClosingPanel";
 
 type Linha = { key: string; label: string; amount: number; computed?: boolean; level?: number; accounts?: any[] };
 type Saldo = { account_code: string; account_name: string; type: string; report_group: string; balance: number; side: string };
@@ -21,13 +22,14 @@ type Dados = {
  * A ORDEM DAS ABAS É A ORDEM DO TRABALHO.
  *
  * DRE, balanço e balancete são a leitura do razão; VAT e imposto são a
- * conferência contra o que vai na declaração; a ABERTURA é a carga inicial,
- * que se faz uma vez na vida do cliente e depois nunca mais.
+ * conferência contra o que vai na declaração; o FECHO vem depois deles porque
+ * é o que se faz quando os três já batem; e a ABERTURA é a carga inicial, que
+ * se faz uma vez na vida do cliente e depois nunca mais.
  *
- * Estava a meio e foi para o fim: uma aba que quase nunca se abre no meio das
- * que se abrem todos os dias é um passo a mais em cada travessia.
+ * Ela estava a meio e foi para o fim: uma aba que quase nunca se abre no meio
+ * das que se abrem todos os dias é um passo a mais em cada travessia.
  */
-const ABAS = ["pl", "bs", "trial", "vat", "tax", "opening"] as const;
+const ABAS = ["pl", "bs", "trial", "vat", "tax", "closing", "opening"] as const;
 type Aba = (typeof ABAS)[number];
 
 type Visao = "enxuta" | "completa";
@@ -227,6 +229,11 @@ export default function AccountingPage({ params }: { params: { id: string } }) {
         {(aba === "vat" || aba === "tax") && (
           <TaxPanel clientId={params.id} tipo={aba === "vat" ? "vat" : "imposto"} />
         )}
+        {/*
+          * A rotina de fecho e o cadeado do período.
+          * Ver components/accounting/ClosingPanel.tsx.
+          */}
+        {aba === "closing" && <ClosingPanel clientId={params.id} ano={ano} />}
 
         <div className="overflow-x-auto">
           {(aba === "pl" || aba === "bs") && (
@@ -322,6 +329,7 @@ export default function AccountingPage({ params }: { params: { id: string } }) {
           {aba === "bs" && t("acc.noteBs")}
           {aba === "trial" && t("acc.noteTrial")}
           {aba === "opening" && t("acc.noteOpening")}
+          {aba === "closing" && t("acc.noteClosing")}
         </div>
       </div>
 

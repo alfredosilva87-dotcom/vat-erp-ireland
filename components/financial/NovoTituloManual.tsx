@@ -35,6 +35,16 @@ export default function NovoTituloManual({
   const [vencimento, setVencimento] = useState(hoje);
   const [valor, setValor] = useState("");
   const [conta, setConta] = useState("");
+  /*
+   * O TIPO do título, e não um tipo de encargo.
+   *
+   * O Alfredo pôs a hipótese de isto ser mais uma linha nos tipos de encargo
+   * (juros, multa, taxa). Não é o mesmo objecto: aqueles acrescentam valor a um
+   * título que já existe; isto é o próprio título, e o que muda nele é a
+   * partida — o de imposto nasce SEM ela. Um encargo do tipo "imposto" não
+   * conseguiria exprimir isso.
+   */
+  const [tipo, setTipo] = useState<"normal" | "imposto">("normal");
   const [notas, setNotas] = useState("");
   const [erro, setErro] = useState<string | null>(null);
   const [gravando, setGravando] = useState(false);
@@ -55,12 +65,18 @@ export default function NovoTituloManual({
         const todas: Conta[] = j?.ledgerAccounts ?? [];
         // A pagar mostra DESPESA; a receber mostra RECEITA. Uma lista com as
         // 41 contas obriga a saber o plano de cor para lançar uma taxa.
-        const querida = aPagar ? "expense" : "revenue";
+        // No título de imposto a conta que se escolhe é o PASSIVO — a que a
+        // baixa vai debitar —, e não uma conta de resultado.
+        const querida = tipo === "imposto" ? "liability" : aPagar ? "expense" : "revenue";
         const filtradas = todas.filter((c) => c.type === querida);
         setContas(filtradas.length ? filtradas : todas);
       })
       .catch(() => setContas([]));
-  }, [clientId, aPagar]);
+  }, [clientId, aPagar, tipo]);
+
+  /* A conta escolhida é de outra família quando o tipo muda; mantê-la lançaria
+     a despesa numa conta de passivo, ou o imposto numa de despesa. */
+  useEffect(() => { setConta(""); }, [tipo]);
 
   async function gravar() {
     setErro(null);
@@ -73,7 +89,11 @@ export default function NovoTituloManual({
           kind, counterparty: contraparte, document_ref: ref,
           issue_date: emissao, due_date: vencimento,
           amount: Number(String(valor).replace(",", ".")),
-          result_account: conta, notes: notas,
+          tipo,
+          // No imposto a conta vai como CONTROLO; no normal, como resultado.
+          result_account: tipo === "imposto" ? "" : conta,
+          control_account: tipo === "imposto" ? conta : null,
+          notes: notas,
         }),
       });
       const j = await r.json();
@@ -131,8 +151,26 @@ export default function NovoTituloManual({
             <input type="date" className="input w-full text-[13px]" value={vencimento}
               onChange={(e) => setVencimento(e.target.value)} />
           </label>
+          {/* Só a pagar: um imposto a RECEBER não é isto — é um crédito, e o
+              caminho dele é a apuração, não um título à mão. */}
+          {aPagar && (
+            <label className="flex flex-col leading-tight sm:col-span-2">
+              <span className="label">{t("manual.kind")}</span>
+              <select className="input w-full text-[13px]" value={tipo}
+                onChange={(e) => setTipo(e.target.value as "normal" | "imposto")}>
+                <option value="normal">{t("manual.kindNormal")}</option>
+                <option value="imposto">{t("manual.kindTax")}</option>
+              </select>
+              <span className="mt-1 text-xs text-muted">
+                {tipo === "imposto" ? t("manual.kindTaxHint") : t("manual.kindNormalHint")}
+              </span>
+            </label>
+          )}
+
           <label className="flex flex-col leading-tight sm:col-span-2">
-            <span className="label">{aPagar ? t("manual.expenseAcct") : t("manual.incomeAcct")} *</span>
+            <span className="label">
+              {tipo === "imposto" ? t("tax.taxAccount") : aPagar ? t("manual.expenseAcct") : t("manual.incomeAcct")} *
+            </span>
             <select className="input w-full text-[13px]" value={conta}
               onChange={(e) => setConta(e.target.value)}>
               <option value="">{t("manual.choose")}</option>
@@ -141,8 +179,9 @@ export default function NovoTituloManual({
               ))}
             </select>
             <span className="mt-1 text-xs text-muted">
-              É contra esta conta que o valor entra no razão. A contrapartida é{" "}
-              {aPagar ? "fornecedores" : "clientes"}, e a baixa depois consome-a.
+              {tipo === "imposto"
+                ? t("tax.taxAccountHint")
+                : t("manual.acctHint", { n: aPagar ? t("manual.suppliers") : t("manual.customers") })}
             </span>
           </label>
           <label className="flex flex-col leading-tight sm:col-span-2">

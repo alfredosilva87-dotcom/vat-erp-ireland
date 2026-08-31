@@ -1,7 +1,7 @@
 import "server-only";
 import { getServerSupabase } from "@/lib/supabase";
 import { CONTAS_PADRAO } from "@/lib/accounting/post";
-import { ehContaDeImposto } from "@/lib/fiscal/contasDeImposto";
+import { contasDeImposto, ehContaDeImposto } from "@/lib/fiscal/contasDeImposto";
 
 /**
  * A conta de CONTROLO contra o aging: bate ou não bate.
@@ -87,7 +87,9 @@ export async function conciliarControlo(
    * repetido, ensina a ignorar o aviso.
    */
   const { data: proprias } = await sb.from("ledger_items")
-    .select("account_code").eq("client_id", clientId).eq("kind", kind).not("account_code", "is", null);
+    .select("account_code,source_module")
+    .eq("client_id", clientId).eq("kind", kind).not("account_code", "is", null);
+  const titulos = (proprias ?? []) as any[];
 
   /*
    * As contas de IMPOSTO ficam de fora, dos dois lados.
@@ -101,11 +103,20 @@ export async function conciliarControlo(
    * Não é o mesmo tipo de controlo: 812 e 711 controlam faturas de terceiros em
    * aberto; 845 controla a posição de imposto do período inteiro. Comparar as
    * duas é comparar coisas diferentes, e o resultado nunca fecharia.
+   *
+   * A lista NÃO é só a fixa: desde que a conta do imposto passou a ser escolhida
+   * na tela, um título de imposto pode estar em 836, 844 ou 849. Por isso as
+   * contas dos títulos do tipo `tax` juntam-se às quatro conhecidas — senão o
+   * mesmo falso alarme voltaria na conta seguinte.
    */
+  const deImposto = contasDeImposto(
+    titulos.filter((t) => t.source_module === "tax").map((t) => t.account_code)
+  );
+
   const contas = Array.from(new Set([
     padrao,
-    ...((proprias ?? []) as any[]).map((t) => String(t.account_code).trim()).filter(Boolean),
-  ])).filter((c) => !ehContaDeImposto(c));
+    ...titulos.map((t) => String(t.account_code).trim()).filter(Boolean),
+  ])).filter((c) => !ehContaDeImposto(c, deImposto));
 
   const [ledgerBalance, { data: abertos }] = await Promise.all([
     saldoDasContas(clientId, contas),
@@ -117,7 +128,7 @@ export async function conciliarControlo(
 
   const agingOutstanding = r2(
     ((abertos ?? []) as any[])
-      .filter((t) => !ehContaDeImposto(t.account_code))
+      .filter((t) => !ehContaDeImposto(t.account_code, deImposto))
       .reduce((s, t) => s + (Number(t.outstanding_amount) || 0), 0)
   );
 

@@ -125,6 +125,12 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
     // recorte por vencimento e desaparece da lista de quem cobra.
     dueDate: data(b?.due_date) ?? data(b?.issue_date) ?? hoje,
     amount: Number(b?.amount),
+    /*
+     * O título de IMPOSTO nasce sem partida — ver `criarTituloManual`.
+     * A tela manda o tipo; qualquer outra coisa cai no título normal, que é o
+     * comportamento que já existia.
+     */
+    tipo: b?.tipo === "imposto" ? "imposto" : "normal",
     resultAccount: String(b?.result_account ?? ""),
     controlAccount: b?.control_account ?? null,
     notes: b?.notes ?? null,

@@ -857,10 +857,19 @@ export type NovoTituloManual = {
   issueDate: string;
   dueDate: string;
   amount: number;
-  /** Conta de resultado — a despesa que se assume, ou o rendimento que se ganha. */
-  resultAccount: string;
+  /**
+   * Conta de resultado — a despesa que se assume, ou o rendimento que se ganha.
+   * Obrigatória no título normal; no de imposto não existe (ver `tipo`).
+   */
+  resultAccount?: string | null;
   /** Conta de controlo própria, quando o escritório separa fornecedores. */
   controlAccount?: string | null;
+  /**
+   * `imposto`: o título NASCE SEM PARTIDA, e a conta de controlo é a do próprio
+   * imposto. Ver o bloco abaixo para o porquê — é a diferença entre uma dívida
+   * que só existe quando alguém a lança e uma que o razão já carrega.
+   */
+  tipo?: "normal" | "imposto";
   notes?: string | null;
   userId?: string | null;
 };
@@ -888,12 +897,39 @@ export async function criarTituloManual(
   if (!t.counterparty?.trim()) {
     return { ok: false, erro: t.kind === "payable" ? "Diga a quem se deve." : "Diga quem deve." };
   }
-  if (!t.resultAccount?.trim()) {
+
+  /*
+   * O TÍTULO DE IMPOSTO nasce sem partida, e não é uma exceção preguiçosa.
+   *
+   * Pedido do Alfredo: "a contabilização seria apenas na baixa do título (...)
+   * a geração do doc não geraria lançamento (...) o lançamento banco contra
+   * débito de imposto a pagar". A razão contábil está do lado dele:
+   *
+   *   Um título NORMAL reconhece a despesa agora porque a dívida só passa a
+   *   existir quando alguém a lança — a taxa do CRO não está no razão até
+   *   alguém a pôr lá.
+   *
+   *   O imposto JÁ ESTÁ no razão antes de existir título nenhum: cada venda
+   *   creditou a conta de controlo, e o saldo dela é o que se deve. Lançar
+   *   outra vez aqui duplicava o passivo, e o balanço passava a dever duas
+   *   vezes o mesmo imposto.
+   *
+   * Por isso o título de imposto é só a VISTA de um saldo já contabilizado, e a
+   * conta de controlo dele é a própria conta do imposto — é ela que a baixa vai
+   * debitar contra o banco, que é exactamente o lançamento que falta.
+   */
+  const deImposto = t.tipo === "imposto";
+  if (deImposto) {
+    if (!t.controlAccount?.trim()) {
+      return { ok: false, erro: "Escolha a conta do imposto a pagar — é ela que a baixa vai debitar." };
+    }
+  } else if (!t.resultAccount?.trim()) {
     return { ok: false, erro: "Escolha a conta contábil do valor." };
   }
 
   const { data: criado, error } = await sb().from("ledger_items").insert({
-    client_id: t.clientId, kind: t.kind, source_module: "manual",
+    client_id: t.clientId, kind: t.kind,
+    source_module: deImposto ? "tax" : "manual",
     document_id: null,
     document_ref: (t.documentRef ?? "").trim() || null,
     counterparty: t.counterparty.trim(),
@@ -905,12 +941,16 @@ export async function criarTituloManual(
   if (error || !criado) return { ok: false, erro: error?.message || "Nao criou o titulo." };
   const id = (criado as any).id as string;
 
+  // Sem partida por desenho — ver o bloco acima. Não é o caso do cliente sem
+  // contabilidade integrada, que vem logo a seguir e é outra coisa.
+  if (deImposto) return { ok: true, id, journalId: null };
+
   const integra = await integracoesDo(t.clientId);
   if (!integra.documents_to_accounting) return { ok: true, id, journalId: null };
 
   try {
     const linhas = postManualTitle(
-      t.kind, valor, t.resultAccount.trim(), t.counterparty, t.notes,
+      t.kind, valor, (t.resultAccount ?? "").trim(), t.counterparty, t.notes,
       CONTAS_PADRAO, t.controlAccount
     );
     const journalId = await gravar(t.clientId, {

@@ -33,6 +33,8 @@ import Link from "next/link";
 import { useT } from "@/lib/i18n";
 import { CT_TRADING } from "@/lib/fiscal/conciliacao";
 
+type Conta = { code: string; description: string; type?: string | null };
+
 type Linha = {
   /* A chave vem do servidor; o texto sai do dicionário aqui. */
   chave: "vatOut" | "vatIn" | "taxRecognised";
@@ -72,6 +74,22 @@ export default function TaxPanel({ clientId, tipo }: { clientId: string; tipo: "
   const [carregando, setCarregando] = useState(false);
   const [criando, setCriando] = useState(false);
   const [criado, setCriado] = useState<string | null>(null);
+  const [contas, setContas] = useState<Conta[]>([]);
+  /*
+   * As contas do título, escolhidas e não escritas no código.
+   *
+   * Estavam fixas — 845 para o IVA, 501/831 para o imposto sobre o lucro —, e
+   * funcionam só para este plano. O próprio plano tem 836 (RCT), 844 (retenção
+   * na fonte) e uma 849 que existe exactamente para o imposto que ele não
+   * previu; um número escrito no código só se muda com um deploy.
+   */
+  const [contaImposto, setContaImposto] = useState(tipo === "vat" ? "845" : "831");
+  /*
+   * Vazio quer dizer "já lançado no fecho", e é por isso que o vazio é uma
+   * opção com nome e não a ausência de escolha: lançar a despesa outra vez
+   * dobrava-a no DRE, e é um erro que o balanço não denuncia.
+   */
+  const [contaDespesa, setContaDespesa] = useState("501");
 
   /**
    * O imposto apurado vira um TÍTULO A PAGAR.
@@ -87,7 +105,11 @@ export default function TaxPanel({ clientId, tipo }: { clientId: string; tipo: "
       const r = await fetch(`/api/clients/${clientId}/tax/titulo`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ tipo, de, ate, valor }),
+        body: JSON.stringify({
+          tipo, de, ate, valor,
+          conta_do_imposto: contaImposto,
+          conta_de_despesa: tipo === "imposto" ? contaDespesa : null,
+        }),
       });
       const j = await r.json();
       if (!r.ok) { setErro(j.error || t("tax.titleErr")); return; }
@@ -107,6 +129,14 @@ export default function TaxPanel({ clientId, tipo }: { clientId: string; tipo: "
   }, [clientId, de, ate, t]);
 
   useEffect(() => { void carregar(); }, [carregar]);
+
+  /* O plano COMPARTILHADO — é o que o motor contábil usa. Ver NovoTituloManual. */
+  useEffect(() => {
+    fetch(`/api/clients/${clientId}/accounts`, { cache: "no-store" })
+      .then((r) => (r.ok ? r.json() : null))
+      .then((j) => setContas((j?.ledgerAccounts ?? []) as Conta[]))
+      .catch(() => setContas([]));
+  }, [clientId]);
 
   return (
     <div className="space-y-4 p-5">
@@ -174,6 +204,8 @@ export default function TaxPanel({ clientId, tipo }: { clientId: string; tipo: "
                  seria uma dívida negativa que ninguém sabe ler. */
               valor={d.vat.apuracao.aPagar}
               criando={criando} onCriar={criarTitulo}
+              contas={contas}
+              contaImposto={contaImposto} setContaImposto={setContaImposto}
             />
           </section>
 
@@ -229,6 +261,9 @@ export default function TaxPanel({ clientId, tipo }: { clientId: string; tipo: "
                 : Math.round(Math.max(0, d.imposto.lucroAntesDeImposto) * CT_TRADING) / 100}
               criando={criando} onCriar={criarTitulo}
               nota={d.imposto.despesaDeImposto > 0 ? undefined : t("tax.estimateNote", { n: CT_TRADING })}
+              contas={contas}
+              contaImposto={contaImposto} setContaImposto={setContaImposto}
+              contaDespesa={contaDespesa} setContaDespesa={setContaDespesa}
             />
           </section>
 
@@ -250,11 +285,19 @@ export default function TaxPanel({ clientId, tipo }: { clientId: string; tipo: "
  * botão: a duplicata só apareceria a quem fosse pagar. Por isso, criado o
  * título, o botão dá lugar ao caminho para ele.
  */
-function BotaoDeTitulo({ clientId, titulo, valor, criando, onCriar, nota, t }: {
+function BotaoDeTitulo({
+  clientId, titulo, valor, criando, onCriar, nota, t,
+  contas, contaImposto, setContaImposto, contaDespesa, setContaDespesa,
+}: {
   clientId: string;
   titulo: { id: string; ref: string; dueDate: string | null } | null;
   valor: number; criando: boolean; onCriar: (v: number) => void; nota?: string;
   t: (k: any, v?: Record<string, string | number>) => string;
+  contas: Conta[];
+  contaImposto: string; setContaImposto: (v: string) => void;
+  /* Só o imposto sobre o lucro tem despesa a reconhecer — no IVA a conta de
+     controlo já a carrega, e oferecer o campo convidaria a dobrá-la. */
+  contaDespesa?: string; setContaDespesa?: (v: string) => void;
 }) {
   if (titulo) {
     return (
@@ -269,12 +312,46 @@ function BotaoDeTitulo({ clientId, titulo, valor, criando, onCriar, nota, t }: {
     );
   }
   if (valor <= 0) return null;
+
+  const passivos = contas.filter((c) => c.type === "liability");
+  const despesas = contas.filter((c) => c.type === "expense");
+
   return (
-    <div className="mt-4 flex flex-wrap items-center gap-3 rounded-lg border border-line bg-surface-2 px-3 py-2.5">
-      <button className="btn-primary h-9 px-4 text-sm" disabled={criando} onClick={() => onCriar(valor)}>
-        {criando ? t("common.saving") : t("tax.makeTitle", { n: eur(valor) })}
-      </button>
-      <span className="max-w-xl text-xs text-muted">{nota ?? t("tax.makeTitleHint")}</span>
+    <div className="mt-4 rounded-lg border border-line bg-surface-2 px-4 py-3.5">
+      <div className="grid gap-3 sm:grid-cols-2">
+        <label className="flex flex-col leading-tight">
+          <span className="label">{t("tax.taxAccount")}</span>
+          <select className="input w-full text-[13px]" value={contaImposto}
+            onChange={(e) => setContaImposto(e.target.value)}>
+            {(passivos.length ? passivos : contas).map((c) => (
+              <option key={c.code} value={c.code}>{c.code} · {c.description}</option>
+            ))}
+          </select>
+          <span className="mt-1 text-[11px] text-muted">{t("tax.taxAccountHint")}</span>
+        </label>
+
+        {setContaDespesa && (
+          <label className="flex flex-col leading-tight">
+            <span className="label">{t("tax.expenseAccount")}</span>
+            <select className="input w-full text-[13px]" value={contaDespesa ?? ""}
+              onChange={(e) => setContaDespesa(e.target.value)}>
+              {/* O vazio é uma escolha com nome: "já lançado no fecho". */}
+              <option value="">{t("tax.expenseAlreadyPosted")}</option>
+              {despesas.map((c) => (
+                <option key={c.code} value={c.code}>{c.code} · {c.description}</option>
+              ))}
+            </select>
+            <span className="mt-1 text-[11px] text-muted">{t("tax.expenseAccountHint")}</span>
+          </label>
+        )}
+      </div>
+
+      <div className="mt-3 flex flex-wrap items-center gap-3">
+        <button className="btn-primary h-9 px-4 text-sm" disabled={criando} onClick={() => onCriar(valor)}>
+          {criando ? t("common.saving") : t("tax.makeTitle", { n: eur(valor) })}
+        </button>
+        <span className="max-w-xl text-xs text-muted">{nota ?? t("tax.makeTitleHint")}</span>
+      </div>
     </div>
   );
 }
