@@ -80,11 +80,20 @@ export default function Login() {
               "radial-gradient(700px 400px at 15% 10%, rgb(var(--c-brand) / 0.38), transparent 60%), radial-gradient(600px 500px at 90% 90%, rgb(var(--c-violet) / 0.35), transparent 60%)",
           }}
         />
-        <div className="relative flex items-center gap-3">
-          <img src="/logo.png" alt={MARCA.nome} className="h-11 w-11 shrink-0 rounded-xl shadow-brand" />
+        {/*
+          * No painel ESCURO a marca monta-se com o simbolo e texto branco, e
+          * nao com o logótipo deitado.
+          *
+          * O lockup tem a palavra "ACCENTRA" em azul-marinho quase preto —
+          * sobre este fundo ficaria invisivel. Um logótipo que desaparece e
+          * pior do que nenhum, e por isso aqui vai o simbolo (que e violeta e
+          * le-se) com o nome escrito ao lado, em branco.
+          */}
+        <div className="relative flex items-center gap-4">
+          <img src={MARCA.icone} alt={MARCA.nome} className="h-16 w-16 shrink-0 rounded-2xl shadow-brand" />
           <div>
-            <div className="font-display text-xl font-semibold text-white">{MARCA.nome}</div>
-            <div className="text-xs font-medium tracking-wide text-night-muted">Ireland · Accounting ERP</div>
+            <div className="font-display text-2xl font-semibold tracking-tight text-white">{MARCA.nome}</div>
+            <div className="text-xs font-medium tracking-wide text-night-muted">{MARCA.descritor}</div>
           </div>
         </div>
 
@@ -108,9 +117,23 @@ export default function Login() {
       {/* Form */}
       <div className="flex items-center justify-center px-6 py-12">
         <div className="w-full max-w-sm">
-          <div className="mb-8 lg:hidden">
-            <span className="flex h-11 w-11 items-center justify-center rounded-xl bg-gradient-to-b from-brand-400 to-brand-700 font-display text-2xl leading-none text-white shadow-brand">
-              V
+          {/*
+            * O LOGÓTIPO INTEIRO, grande e centrado, por cima do formulario.
+            *
+            * Aqui via-se um quadrado com a letra "V" — sobra da marca antiga,
+            * que a procura por "VAT Reader" nao apanhou porque era so a letra.
+            * E so aparecia no telemovel; no ecra grande o lado do formulario
+            * nao tinha marca nenhuma.
+            *
+            * O logótipo assenta numa PLACA BRANCA. A palavra "ACCENTRA" e
+            * azul-marinho quase preto, e este lado do ecra fica escuro no tema
+            * escuro — sem a placa, o nome desaparecia para metade dos
+            * utilizadores, e so se veria a experimentar os dois temas.
+            */}
+          <div className="mb-9 flex justify-center">
+            <span className="inline-flex rounded-2xl bg-white px-6 py-4 shadow-sm ring-1 ring-line">
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img src={MARCA.lockup} alt={MARCA.completo} className="h-14 w-auto" />
             </span>
           </div>
           <h2 className="font-display text-2xl font-semibold tracking-tight">{t("login.signIn")}</h2>
