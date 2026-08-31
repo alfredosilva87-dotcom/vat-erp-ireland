@@ -57,6 +57,15 @@ const GRUPOS = {
   "Revaluation reserve": ["equity", "reserves"],
   "Capital contribution reserve": ["equity", "reserves"],
   "Profit and Loss Account": ["equity", "profit_loss_account"],
+  // Os lucros acumulados sao "Profit and loss account" na Schedule 3A, e nao
+  // "Other reserves". Esta seccao faltava no mapa, e as contas dela cairam no
+  // grupo da seccao ANTERIOR — ver o comentario sobre `seccao = null` abaixo.
+  "Retained profit b/fwd and movement": ["equity", "profit_loss_account"],
+  "Capital redemption reserve": ["equity", "reserves"],
+  "Own shares reserve": ["equity", "reserves"],
+  "Cash flow hedge reserve": ["equity", "reserves"],
+  "Special reserve": ["equity", "reserves"],
+  "Capital redemption reserve preference shares": ["equity", "reserves"],
   "Minority interests": ["equity", "reserves"],
 };
 
@@ -74,6 +83,8 @@ function extrair(ficheiro) {
   const linhas = XLSX.utils.sheet_to_json(wb.Sheets[wb.SheetNames[0]], { header: 1, raw: false, defval: "" });
   const contas = [];
   const semGrupo = new Set();
+  /** Contas que ficaram sem seccao — sao o motivo de isto rebentar. */
+  const orfas = [];
   let seccao = null;
 
   for (const l of linhas) {
@@ -82,18 +93,29 @@ function extrair(ficheiro) {
     if (!c && !d) continue;
     if (c === "Code" || c === "Date Range") continue;
 
-    // Um titulo de seccao vem na coluna do codigo, sem numero.
+    /*
+     * Um titulo de seccao vem na coluna do codigo, sem numero.
+     *
+     * Uma seccao DESCONHECIDA poe `seccao = null`, e nao deixa a anterior em
+     * vigor. Deixar era o que fazia antes, e produziu um erro que so se viu no
+     * balanco renderizado: "Retained profit b/fwd and movement" nao estava no
+     * mapa, e as contas dela — os lucros acumulados — herdaram "Other
+     * reserves". O balanco fechava na mesma, com 31.600 na rubrica errada.
+     *
+     * Nada disto dava erro. E por isso que a leitura passa a CONTAR o que cai
+     * sem seccao, e a funcao rebenta se cair alguma coisa.
+     */
     if (c && !/^\d/.test(c)) {
-      if (!TOTAIS.has(c) && GRUPOS[c]) seccao = c;
-      else if (GRUPOS[c]) seccao = c;
+      if (TOTAIS.has(c)) continue;
+      seccao = GRUPOS[c] ? c : null;
+      if (!GRUPOS[c]) semGrupo.add(c);
       continue;
     }
     // Linhas de total vem na coluna da descricao, sem codigo.
     if (!c && d) continue;
 
-    if (!seccao) continue;
+    if (!seccao) { orfas.push(c); continue; }
     const g = GRUPOS[seccao];
-    if (!g) { semGrupo.add(seccao); continue; }
 
     contas.push({
       code: c,
@@ -116,6 +138,20 @@ function extrair(ficheiro) {
   }
 
   for (const c of contas) c.postable = true;
+
+  /*
+   * Rebenta em vez de devolver um plano quase certo.
+   *
+   * Uma conta sem seccao nao tem grupo de relatorio, e sem grupo desaparece do
+   * balanco — em silencio. Vale mais a leitura falhar aqui do que o escritorio
+   * descobrir pelo balanco que nao bate.
+   */
+  if (orfas.length) {
+    throw new Error(
+      `${orfas.length} conta(s) sem seccao conhecida: ${orfas.slice(0, 10).join(", ")}. ` +
+      `Seccoes por mapear: ${[...semGrupo].join(" | ")}`
+    );
+  }
 
   return { contas, semGrupo: [...semGrupo] };
 }
