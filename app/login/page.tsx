@@ -81,24 +81,28 @@ export default function Login() {
           }}
         />
         {/*
-          * No painel ESCURO a marca monta-se com o simbolo e texto branco, e
-          * nao com o logótipo deitado.
+          * Neste painel a marca monta-se com o simbolo e o nome em TEXTO, e
+          * nao com o logótipo deitado: a palavra "ACCENTRA" do logótipo e
+          * azul-marinho quase preto, e no tema escuro ficaria invisivel aqui.
           *
-          * O lockup tem a palavra "ACCENTRA" em azul-marinho quase preto —
-          * sobre este fundo ficaria invisivel. Um logótipo que desaparece e
-          * pior do que nenhum, e por isso aqui vai o simbolo (que e violeta e
-          * le-se) com o nome escrito ao lado, em branco.
+          * E as cores sao `text-night-*`, nunca `text-white`.
+          *
+          * Este painel usa `bg-night`, e no tema CLARO `--c-night` e BRANCO —
+          * a barra lateral clara foi uma decisao de desenho. O texto estava a
+          * branco de quando o fundo era escuro, e ficou branco sobre branco: o
+          * titulo desta coluna era invisivel para quem usa o tema claro, que e
+          * o padrao. `text-night-ink` acompanha o tema nos dois sentidos.
           */}
         <div className="relative flex items-center gap-4">
           <img src={MARCA.icone} alt={MARCA.nome} className="h-16 w-16 shrink-0 rounded-2xl shadow-brand" />
           <div>
-            <div className="font-display text-2xl font-semibold tracking-tight text-white">{MARCA.nome}</div>
+            <div className="font-display text-2xl font-semibold tracking-tight text-night-ink">{MARCA.nome}</div>
             <div className="text-xs font-medium tracking-wide text-night-muted">{MARCA.descritor}</div>
           </div>
         </div>
 
         <div className="relative">
-          <h1 className="max-w-md font-display text-4xl font-semibold leading-tight text-white">
+          <h1 className="max-w-md font-display text-4xl font-semibold leading-tight text-night-ink">
             Read invoices. Check VAT. File obligations.
           </h1>
           <p className="mt-4 max-w-md text-night-muted">
@@ -131,9 +135,9 @@ export default function Login() {
             * utilizadores, e so se veria a experimentar os dois temas.
             */}
           <div className="mb-9 flex justify-center">
-            <span className="inline-flex rounded-2xl bg-white px-6 py-4 shadow-sm ring-1 ring-line">
+            <span className="inline-flex rounded-2xl bg-white px-7 py-5 shadow-sm ring-1 ring-line">
               {/* eslint-disable-next-line @next/next/no-img-element */}
-              <img src={MARCA.lockup} alt={MARCA.completo} className="h-14 w-auto" />
+              <img src={MARCA.lockup} alt={MARCA.completo} className="h-16 w-auto" />
             </span>
           </div>
           <h2 className="font-display text-2xl font-semibold tracking-tight">{t("login.signIn")}</h2>
