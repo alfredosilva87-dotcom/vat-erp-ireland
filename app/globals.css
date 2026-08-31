@@ -70,6 +70,28 @@
   --btn-ghost-to: 29 23 64;
 }
 
+/* ---------------------------------------------------------------------------
+   O PAINEL DA ENTRADA fica escuro nos dois temas.
+   
+   Ele usa os tokens `night-*`, que são os da barra lateral — e essa é CLARA no
+   tema claro, de propósito (ver o comentário lá em baixo). Isso está certo
+   para a barra e errado para a entrada: aquela é cromo da aplicação, esta é a
+   montra da marca, e o violeta escuro com o brilho é o que ela tem para
+   mostrar. No tema claro o painel ficava branco sobre branco e a tela perdia
+   metade do que é.
+   
+   Os valores abaixo são CÓPIA dos de `:root` — o tema escuro é o padrão desta
+   folha, e a variante clara é que o sobrepõe. Se os de cima mudarem, estes têm
+   de mudar com eles; não há forma em CSS de "não herdar" uma sobreposição.
+--------------------------------------------------------------------------- */
+.painel-entrada {
+  --c-night: 25 21 39;
+  --c-night-2: 36 31 59;
+  --c-night-muted: 161 155 192;
+  --c-night-ink: 232 229 245;
+  --c-night-icon: 163 146 232;
+}
+
 :root[data-theme="light"] {
   color-scheme: light;
 

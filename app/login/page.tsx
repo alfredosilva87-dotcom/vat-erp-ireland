@@ -151,7 +151,7 @@ export default function Login() {
   return (
     <div className="grid min-h-dvh lg:grid-cols-[1.05fr_1fr]">
       {/* ------------------------------------------------ o painel da marca */}
-      <div className="relative hidden overflow-hidden bg-night lg:flex lg:flex-col lg:justify-between lg:p-14">
+      <div className="painel-entrada relative hidden overflow-hidden bg-night lg:flex lg:flex-col lg:justify-between lg:p-14">
         <div
           className="pointer-events-none absolute inset-0 opacity-70"
           style={{
@@ -218,7 +218,7 @@ export default function Login() {
       </div>
 
       {/* ---------------------------------------------------- o formulário */}
-      <div className="relative flex items-center justify-center bg-surface-2 px-6 py-12">
+      <div className="relative flex items-center justify-center bg-surface-2 px-6 pb-12 pt-24 lg:py-12">
         {/* Ambiente: tema e língua. Antes de entrar, quem lê mal a tela não
             tem por onde a mudar — e a língua é a primeira barreira. */}
         <div className="absolute right-6 top-6 flex items-center gap-2">
