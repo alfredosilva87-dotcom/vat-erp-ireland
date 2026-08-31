@@ -1207,6 +1207,10 @@ export const FAIXA_CLIENTE = { de: "9000", ate: "9899" };
 export const dentroDaFaixaDoCliente = (code: string): boolean =>
   code >= FAIXA_CLIENTE.de && code <= FAIXA_CLIENTE.ate;
 
+/** Os códigos de um lote que a faixa do cliente não aceita, sem repetir. */
+const codigosForaDaFaixa = (codes: string[]): string[] =>
+  Array.from(new Set(codes.filter((c) => !dentroDaFaixaDoCliente(c))));
+
 export async function listAccounts(clientId: string): Promise<ChartAccount[]> {
   const { data } = await sb().from("chart_of_accounts").select("*").eq("client_id", clientId).order("code");
   return (data ?? []) as ChartAccount[];
@@ -1371,6 +1375,30 @@ export async function bulkImportAccounts(clientId: string, rows: Array<{ code: s
     }))
     .filter((r) => r.code);
   if (!clean.length) return 0;
+
+  /*
+   * A IMPORTACAO obedece a mesma faixa que a criacao à mão.
+   *
+   * `createAccount` já recusa fora de 9000-9899, e isso não é burocracia: um
+   * código de cliente igual a um do plano do escritório fazia a junção do
+   * balancete devolver duas linhas de plano para a mesma linha de razão. Medido
+   * a sério, plantando um "112" num cliente: o balancete saltava de
+   * 88.805,04/88.805,04 para 90.645,04/88.805,04.
+   *
+   * A junção já ficou à prova disso (ver selfhost/schema/042), mas era por aqui
+   * que a colisão entrava — a planilha do plano antigo do cliente traz
+   * exactamente os códigos baixos do plano geral. Duas travas para a mesma
+   * coisa, e cada uma vale por si.
+   */
+  const foraDaFaixa = codigosForaDaFaixa(clean.map((r) => r.code));
+  if (foraDaFaixa.length) {
+    throw new Error(
+      `Estes códigos ficam fora da faixa do cliente (${FAIXA_CLIENTE.de}–${FAIXA_CLIENTE.ate}): `
+      + `${foraDaFaixa.slice(0, 8).join(", ")}${foraDaFaixa.length > 8 ? "…" : ""}. `
+      + "Fora dela a conta é do escritório e vive no plano geral — importar aqui criaria um "
+      + "código repetido, e o balancete deixaria de fechar sem nada no razão a explicar porquê."
+    );
+  }
   // de-dup by code within the batch (keep last)
   const byCode = new Map<string, any>();
   for (const r of clean) byCode.set(r.code, r);
