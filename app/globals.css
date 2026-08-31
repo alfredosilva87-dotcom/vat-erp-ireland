@@ -230,6 +230,23 @@ body {
    * do cursor. E tira-se a sombra interna, que e o que dava a impressao de caixa
    * onde se pode escrever.
    */
+  /*
+   * O LOGÓTIPO DEITADO, e o unico problema que ele tem.
+   *
+   * A palavra "ACCENTRA" e azul-marinho quase preto. No tema claro assenta em
+   * qualquer fundo desta interface; no tema ESCURO desaparece.
+   *
+   * Entao a placa branca so existe no tema escuro. No claro — que e o padrao,
+   * e o que o Alfredo esta a ver — o logótipo aparece solto, sem caixa
+   * nenhuma a volta: era a caixa que fazia a tela parecer estranha.
+   */
+  .brand-lockup {
+    @apply h-auto w-auto;
+  }
+  :root[data-theme="dark"] .brand-lockup {
+    @apply rounded-2xl bg-white px-6 py-4;
+  }
+
   .input:disabled {
     @apply border-line/70 bg-surface-2 text-muted;
     box-shadow: none;

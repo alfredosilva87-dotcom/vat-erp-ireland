@@ -81,24 +81,20 @@ export default function Login() {
           }}
         />
         {/*
-          * Neste painel a marca monta-se com o simbolo e o nome em TEXTO, e
-          * nao com o logótipo deitado: a palavra "ACCENTRA" do logótipo e
-          * azul-marinho quase preto, e no tema escuro ficaria invisivel aqui.
+          * A MARCA, por extenso e centrada nesta coluna.
           *
-          * E as cores sao `text-night-*`, nunca `text-white`.
+          * Substitui o simbolo pequeno com o nome escrito ao lado: o logótipo
+          * ja traz o nome e o descritor desenhados, e repeti-los em texto era
+          * dizer a mesma coisa duas vezes com dois tipos de letra.
           *
-          * Este painel usa `bg-night`, e no tema CLARO `--c-night` e BRANCO —
-          * a barra lateral clara foi uma decisao de desenho. O texto estava a
-          * branco de quando o fundo era escuro, e ficou branco sobre branco: o
-          * titulo desta coluna era invisivel para quem usa o tema claro, que e
-          * o padrao. `text-night-ink` acompanha o tema nos dois sentidos.
+          * A cor do texto desta coluna continua a ser `text-night-*` e nunca
+          * `text-white`: no tema claro `--c-night` e BRANCO — a barra lateral
+          * clara foi uma decisao de desenho — e o titulo estava branco sobre
+          * branco, invisivel para quem usa o tema padrao.
           */}
-        <div className="relative flex items-center gap-4">
-          <img src={MARCA.icone} alt={MARCA.nome} className="h-16 w-16 shrink-0 rounded-2xl shadow-brand" />
-          <div>
-            <div className="font-display text-2xl font-semibold tracking-tight text-night-ink">{MARCA.nome}</div>
-            <div className="text-xs font-medium tracking-wide text-night-muted">{MARCA.descritor}</div>
-          </div>
+        <div className="relative flex justify-center">
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img src={MARCA.lockup} alt={MARCA.completo} className="brand-lockup max-w-[300px]" />
         </div>
 
         <div className="relative">
@@ -122,23 +118,15 @@ export default function Login() {
       <div className="flex items-center justify-center px-6 py-12">
         <div className="w-full max-w-sm">
           {/*
-            * O LOGÓTIPO INTEIRO, grande e centrado, por cima do formulario.
+            * No telemovel a coluna da marca nao aparece, entao o logótipo vem
+            * para aqui — o mesmo ficheiro, mais pequeno.
             *
-            * Aqui via-se um quadrado com a letra "V" — sobra da marca antiga,
-            * que a procura por "VAT Reader" nao apanhou porque era so a letra.
-            * E so aparecia no telemovel; no ecra grande o lado do formulario
-            * nao tinha marca nenhuma.
-            *
-            * O logótipo assenta numa PLACA BRANCA. A palavra "ACCENTRA" e
-            * azul-marinho quase preto, e este lado do ecra fica escuro no tema
-            * escuro — sem a placa, o nome desaparecia para metade dos
-            * utilizadores, e so se veria a experimentar os dois temas.
+            * Aqui estava um quadrado com a letra "V", sobra da marca antiga
+            * que a procura por "VAT Reader" nao apanhou por ser so a letra.
             */}
-          <div className="mb-9 flex justify-center">
-            <span className="inline-flex rounded-2xl bg-white px-7 py-5 shadow-sm ring-1 ring-line">
-              {/* eslint-disable-next-line @next/next/no-img-element */}
-              <img src={MARCA.lockup} alt={MARCA.completo} className="h-16 w-auto" />
-            </span>
+          <div className="mb-8 flex justify-center lg:hidden">
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img src={MARCA.lockup} alt={MARCA.completo} className="brand-lockup max-w-[220px]" />
           </div>
           <h2 className="font-display text-2xl font-semibold tracking-tight">{t("login.signIn")}</h2>
           <p className="mt-1 text-sm text-muted">{t("login.welcome")}</p>
