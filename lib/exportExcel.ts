@@ -11,6 +11,7 @@ import ExcelJS from "exceljs";
 // A paleta mora em `lib/reportBrand.ts`: o PDF do balanço usa exatamente as
 // mesmas cores, e duas listas de hex acabam sempre por divergir.
 import { C } from "@/lib/reportBrand";
+import { MARCA } from "@/lib/marca";
 
 const MONEY = '#,##0.00';
 const FONT = "Calibri";
@@ -158,7 +159,7 @@ export interface WorkbookInput {
 
 export async function buildClientWorkbook(d: WorkbookInput): Promise<Buffer> {
   const wb = new ExcelJS.Workbook();
-  wb.creator = "VAT Reader — Ireland ERP";
+  wb.creator = MARCA.completo;
   wb.created = new Date();
 
   const clientName = d.client?.name ?? "Client";

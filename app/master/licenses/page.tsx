@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { useCallback, useEffect, useState } from "react";
+import { MARCA } from "@/lib/marca";
 
 /**
  * Emitir licença e mandar para o cliente — sem entrar na instalação dele.
@@ -94,7 +95,7 @@ export default function LicensesPage() {
 
   /** O e-mail pronto, para não haver de escrever a explicação de cada vez. */
   const email = (e: Emitida) =>
-    `Licença do VAT Reader — ${e.name || e.slug}\n\n`
+    `Licença do ${MARCA.nome} — ${e.name || e.slug}\n\n`
     + `Validade: ${e.expires}\n\n`
     + `Para ativar: abra o sistema, vá a Configurações → Licença, cole a chave abaixo e clique Ativar.\n`
     + `A ativação é feita na própria instalação — não é preciso internet nem que ninguém entre no sistema.\n\n`

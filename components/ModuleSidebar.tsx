@@ -10,6 +10,7 @@ import { grantsGroup, grantsSeg } from "@/lib/permissions";
 import { usePermissions } from "@/components/PermissionScope";
 import { cachedClient, fetchClient } from "@/lib/clientCache";
 import RailWave from "@/components/RailWave";
+import { MARCA } from "@/lib/marca";
 
 /**
  * O menu de dentro de um cliente.
@@ -99,11 +100,11 @@ export default function ModuleSidebar({ clientId }: { clientId: string }) {
 
       {/* Tudo que não é a onda fica acima dela. */}
       <div className="relative z-10 flex min-h-0 flex-1 flex-col">
-        <Link href="/" className="mb-2.5 flex items-center gap-2.5 px-1" title="VAT Reader">
-          <img src="/logo.png" alt="VAT Reader" className="h-8 w-8 shrink-0 rounded-[10px] shadow-brand" />
+        <Link href="/" className="mb-2.5 flex items-center gap-2.5 px-1" title={MARCA.nome}>
+          <img src="/logo.png" alt={MARCA.nome} className="h-8 w-8 shrink-0 rounded-[10px] shadow-brand" />
           <span>
-            <span className="block font-display text-sm font-semibold leading-tight text-night-ink">VAT Reader</span>
-            <span className="block text-[10px] font-medium uppercase tracking-[0.07em] text-night-muted">Ireland · ERP</span>
+            <span className="block font-display text-sm font-semibold leading-tight text-night-ink">{MARCA.nome}</span>
+            <span className="block text-[10px] font-medium uppercase tracking-[0.07em] text-night-muted">{MARCA.descritor}</span>
           </span>
         </Link>
 

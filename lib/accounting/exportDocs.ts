@@ -8,6 +8,7 @@ import {
   faixaDeSecao, graficoBarras, graficoLinha, linhaDeTabela, rodape, timbre,
   tituloDoRelatorio,
 } from "@/lib/accounting/pdfKit";
+import { MARCA } from "@/lib/marca";
 
 /**
  * As demonstrações em PDF e em Excel, no papel do escritório.
@@ -271,7 +272,7 @@ function percentual(atual: number, anterior: number | null): number | null {
 
 export async function buildAccountingWorkbook(c: Comparativo) {
   const wb = new ExcelJS.Workbook();
-  wb.creator = c.escritorio?.name || "VAT Reader";
+  wb.creator = c.escritorio?.name || MARCA.nome;
   wb.created = new Date();
   const comparativo = c.anterior !== null;
 

@@ -9,6 +9,7 @@ import type { TKey } from "@/lib/i18n";
 import { usePermissions } from "@/components/PermissionScope";
 import { grantsScreen, HR_SCREENS } from "@/lib/permissions";
 import RailWave from "@/components/RailWave";
+import { MARCA } from "@/lib/marca";
 
 /**
  * O menu geral, em dois níveis.
@@ -135,14 +136,14 @@ export default function Sidebar() {
       {/* Conteudo acima da onda. */}
       <div className="relative z-10 flex min-h-0 flex-1 flex-col">
       {/* Brand */}
-      <Link href="/" className="mb-6 flex items-center gap-2.5 px-1" title="VAT Reader">
-        <img src="/logo.png" alt="VAT Reader" className="h-9 w-9 shrink-0 rounded-xl shadow-brand" />
+      <Link href="/" className="mb-6 flex items-center gap-2.5 px-1" title={MARCA.nome}>
+        <img src="/logo.png" alt={MARCA.nome} className="h-9 w-9 shrink-0 rounded-xl shadow-brand" />
         <span className={showLabel}>
           <span className="block font-display text-lg font-semibold leading-none text-night-ink">
-            VAT Reader
+            {MARCA.nome}
           </span>
           <span className="block text-[11px] font-medium tracking-wide text-night-muted">
-            Ireland · ERP
+            {MARCA.descritor}
           </span>
         </span>
       </Link>

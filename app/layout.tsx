@@ -5,15 +5,16 @@ import { cookies, headers } from "next/headers";
 import AppFrame from "@/components/AppFrame";
 import { I18nProvider } from "@/lib/i18n";
 import { DEFAULT_LANG, LANG_KEY, isLang, type Lang } from "@/lib/i18n/languages";
+import { MARCA } from "@/lib/marca";
 
 const display = Fraunces({ subsets: ["latin"], weight: ["400", "500", "600"], variable: "--font-display" });
 const sans = IBM_Plex_Sans({ subsets: ["latin"], weight: ["400", "500", "600"], variable: "--font-sans" });
 const mono = IBM_Plex_Mono({ subsets: ["latin"], weight: ["400", "500"], variable: "--font-mono" });
 
 export const metadata: Metadata = {
-  title: "VAT Reader — Ireland ERP",
+  title: MARCA.completo,
   description: "Read invoices, check Irish VAT, manage clients, credits and records.",
-  appleWebApp: { capable: true, statusBarStyle: "black-translucent", title: "VAT Reader" },
+  appleWebApp: { capable: true, statusBarStyle: "black-translucent", title: MARCA.nome },
 };
 
 export const viewport: Viewport = {

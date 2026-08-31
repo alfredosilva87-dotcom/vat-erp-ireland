@@ -6,6 +6,7 @@ import { C, FORMATO_MOEDA, moeda } from "@/lib/reportBrand";
 import {
   A4, LARGURA, MARGEM, Folha, rodape, timbre, tituloDoRelatorio,
 } from "@/lib/accounting/pdfKit";
+import { MARCA } from "@/lib/marca";
 
 /**
  * O razão em PDF e em Excel — o mesmo papel timbrado das demonstrações.
@@ -183,7 +184,7 @@ function linhaDoRazao(s: Folha, l: LinhaRazao): void {
 
 export async function buildLedgerWorkbook(r: Razao, e: Timbre | null) {
   const wb = new ExcelJS.Workbook();
-  wb.creator = e?.name || "VAT Reader";
+  wb.creator = e?.name || MARCA.nome;
   wb.created = new Date();
 
   folhaAgrupada(wb, r, e);

@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useT, type TKey } from "@/lib/i18n";
+import { MARCA } from "@/lib/marca";
 
 export default function Login() {
   const router = useRouter();
@@ -80,9 +81,9 @@ export default function Login() {
           }}
         />
         <div className="relative flex items-center gap-3">
-          <img src="/logo.png" alt="VAT Reader" className="h-11 w-11 shrink-0 rounded-xl shadow-brand" />
+          <img src="/logo.png" alt={MARCA.nome} className="h-11 w-11 shrink-0 rounded-xl shadow-brand" />
           <div>
-            <div className="font-display text-xl font-semibold text-white">VAT Reader</div>
+            <div className="font-display text-xl font-semibold text-white">{MARCA.nome}</div>
             <div className="text-xs font-medium tracking-wide text-night-muted">Ireland · Accounting ERP</div>
           </div>
         </div>

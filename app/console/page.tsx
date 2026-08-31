@@ -5,6 +5,7 @@ import {
   abrirChave, emitir, esquecerChave, guardarChave, importarChave,
   montarCarga, temChaveGuardada,
 } from "@/lib/licenseConsole";
+import { MARCA } from "@/lib/marca";
 
 /**
  * O console de licenças — a ferramenta de QUEM VENDE, fora do produto.
@@ -114,7 +115,7 @@ export default function ConsolePage() {
   }
 
   const email = (e: Emitida) =>
-    `Licença do VAT Reader — ${e.name || e.slug}\n\n`
+    `Licença do ${MARCA.nome} — ${e.name || e.slug}\n\n`
     + `Validade: ${e.expires}\n\n`
     + `Para ativar: abra o sistema, vá a Configurações → Licença, cole a chave abaixo e clique Ativar.\n`
     + `A ativação acontece na própria instalação — não precisa de internet nem de ninguém entrar no sistema.\n\n`

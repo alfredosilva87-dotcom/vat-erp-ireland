@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useT } from "@/lib/i18n";
 import DocumentCropper from "@/components/DocumentCropper";
+import { MARCA } from "@/lib/marca";
 
 /**
  * A tela que o cliente do escritório usa no posto de combustível.
@@ -279,12 +280,12 @@ export default function PhoneCapture({
       <div className="relative mx-auto w-full max-w-md px-5 pb-40 pt-7">
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-3">
-            <img src="/logo.png" alt="VAT Reader" className="h-11 w-11 shrink-0 rounded-xl shadow-brand" />
+            <img src="/logo.png" alt={MARCA.nome} className="h-11 w-11 shrink-0 rounded-xl shadow-brand" />
             <div>
               <div className="font-display text-lg font-semibold leading-tight text-ink">
                 VAT <span className="text-brand">READER</span>
               </div>
-              <div className="text-xs font-medium tracking-wide text-muted">Ireland · ERP</div>
+              <div className="text-xs font-medium tracking-wide text-muted">{MARCA.descritor}</div>
             </div>
           </div>
         </div>

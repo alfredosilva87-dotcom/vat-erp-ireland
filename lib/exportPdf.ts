@@ -1,5 +1,6 @@
 import jsPDF from "jspdf";
 import autoTable from "jspdf-autotable";
+import { MARCA } from "@/lib/marca";
 
 // PDF report built in the browser with jsPDF. Mirrors the Excel workbook:
 // same KPI header, same tables, same purple identity — so a client comparing
@@ -165,7 +166,7 @@ export function buildClientPdf(d: PdfInput): jsPDF {
     doc.setPage(p);
     doc.setTextColor(...MUTED).setFont("helvetica", "normal").setFontSize(7.5);
     doc.text(
-      `VAT Reader — Ireland ERP  ·  generated ${new Date().toISOString().slice(0, 10)}  ·  classification suggested and editable, does not replace the accountant's review`,
+      `${MARCA.completo}  ·  generated ${new Date().toISOString().slice(0, 10)}  ·  classification suggested and editable, does not replace the accountant's review`,
       40, doc.internal.pageSize.getHeight() - 20
     );
     doc.text(`${p} / ${pages}`, W - 40, doc.internal.pageSize.getHeight() - 20, { align: "right" });

@@ -1,4 +1,5 @@
 import type { MetadataRoute } from "next";
+import { MARCA } from "@/lib/marca";
 
 /**
  * Instalar como aplicativo: ícone próprio e janela sem barra de navegador.
@@ -13,8 +14,8 @@ export default function manifest(): MetadataRoute.Manifest {
     // Identidade estável: sem `id`, mudar `start_url` faria o navegador tratar
     // como um app diferente e o usuário acabaria com dois ícones.
     id: "/?app=vat-reader",
-    name: "VAT Reader — Ireland ERP",
-    short_name: "VAT Reader",
+    name: MARCA.completo,
+    short_name: MARCA.nome,
     description: "Leitura de notas, VAT irlandês, clientes, créditos e obrigações.",
     start_url: "/?app=vat-reader",
     scope: "/",
