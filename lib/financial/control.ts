@@ -1,6 +1,7 @@
 import "server-only";
 import { getServerSupabase } from "@/lib/supabase";
 import { CONTAS_PADRAO } from "@/lib/accounting/post";
+import { ehContaDeImposto } from "@/lib/fiscal/contasDeImposto";
 
 /**
  * A conta de CONTROLO contra o aging: bate ou não bate.
@@ -87,19 +88,37 @@ export async function conciliarControlo(
    */
   const { data: proprias } = await sb.from("ledger_items")
     .select("account_code").eq("client_id", clientId).eq("kind", kind).not("account_code", "is", null);
+
+  /*
+   * As contas de IMPOSTO ficam de fora, dos dois lados.
+   *
+   * Desde que o imposto apurado passou a gerar título a pagar — com a conta de
+   * IVA como controlo dele —, essa conta aparecia aqui e trazia consigo o saldo
+   * ACUMULADO do imposto, para ser confrontado com um único título. Dava uma
+   * diferença permanente, em todos os clientes, no ecrã que se abre todos os
+   * dias.
+   *
+   * Não é o mesmo tipo de controlo: 812 e 711 controlam faturas de terceiros em
+   * aberto; 845 controla a posição de imposto do período inteiro. Comparar as
+   * duas é comparar coisas diferentes, e o resultado nunca fecharia.
+   */
   const contas = Array.from(new Set([
     padrao,
     ...((proprias ?? []) as any[]).map((t) => String(t.account_code).trim()).filter(Boolean),
-  ]));
+  ])).filter((c) => !ehContaDeImposto(c));
 
   const [ledgerBalance, { data: abertos }] = await Promise.all([
     saldoDasContas(clientId, contas),
-    sb.from("ledger_items_open").select("outstanding_amount")
+    // Os títulos de imposto saem TAMBÉM daqui — excluir só a conta deixaria o
+    // valor deles do lado dos títulos e a diferença apareceria ao contrário.
+    sb.from("ledger_items_open").select("outstanding_amount,account_code")
       .eq("client_id", clientId).eq("kind", kind).limit(20000),
   ]);
 
   const agingOutstanding = r2(
-    ((abertos ?? []) as any[]).reduce((s, t) => s + (Number(t.outstanding_amount) || 0), 0)
+    ((abertos ?? []) as any[])
+      .filter((t) => !ehContaDeImposto(t.account_code))
+      .reduce((s, t) => s + (Number(t.outstanding_amount) || 0), 0)
   );
 
   return {
