@@ -746,7 +746,38 @@ export async function getObligations(clientId: string, year: number): Promise<Cl
       .in("id", provisoriasAObsoletar.map((o: any) => o.id));
   }
 
-  if (!faltam.length) return provisoriasAObsoletar.length ? await ler() : existentes;
+  /*
+   * E O ESPAÇO RESERVADO GANHA A DATA quando o cadastro passa a dá-la.
+   *
+   * O bloco acima só apanha o caso em que o PERÍODO muda (fecho a 30 de Junho,
+   * por exemplo). Falta o mais comum: o fecho é 31 de Dezembro, o período fica
+   * igual, e só o prazo é que passou a existir. Aí a linha certa não "falta" —
+   * ela já lá está, sem data —, então nada a criava e o CT1 ficava sem prazo
+   * para sempre, mesmo depois de alguém preencher o campo.
+   *
+   * Foi o que aconteceu ao testar: gravei o fecho, e a obrigação continuou a
+   * dizer que faltava o fecho.
+   */
+  const porChave = new Map(
+    existentes.map((o: any) => [`${o.kind}|${o.period_start}|${o.period_end}`, o])
+  );
+  const aDatar = esperadas.filter((o) => {
+    const atual: any = porChave.get(`${o.kind}|${o.periodStart}|${o.periodEnd}`);
+    return atual && atual.status === "open" && !atual.due_date && o.dueDate;
+  });
+  for (const o of aDatar) {
+    const atual: any = porChave.get(`${o.kind}|${o.periodStart}|${o.periodEnd}`);
+    const { error } = await sb().from("obligations")
+      .update({ due_date: o.dueDate, notes: null })
+      // `is("due_date", null)` guarda contra o caso de alguém ter escrito a
+      // data à mão entretanto: essa é escolha de uma pessoa e ganha à nossa.
+      .eq("id", atual.id).is("due_date", null);
+    if (error) throw new Error(`Não deu para datar ${o.kind}: ${error.message}`);
+  }
+
+  if (!faltam.length) {
+    return (provisoriasAObsoletar.length || aDatar.length) ? await ler() : existentes;
+  }
 
   const rows: any[] = [];
   for (const o of faltam) {
