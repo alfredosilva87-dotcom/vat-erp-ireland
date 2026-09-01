@@ -54,6 +54,19 @@ export async function removerLancamento(args: {
   motivo: string;
   nota?: string | null;
   userId?: string | null;
+  /**
+   * O estorno fica preso ao MESMO documento do original.
+   *
+   * Serve o ajuste (`lib/accounting/ajuste.ts`), e não a limpeza. Ali o
+   * documento existe, e as três linhas — original, espelho e correcção — só
+   * contam a história inteira se aparecerem juntas quando alguém abre o razão
+   * recortado naquele documento. Um espelho solto faria o recorte parecer
+   * desbalanceado, com o débito do original sem contrapartida à vista.
+   *
+   * Na limpeza é o contrário e fica desligado: ali o documento já não existe,
+   * e prender o estorno a um id morto era criar a segunda partida órfã.
+   */
+  manterDocumento?: boolean;
 }): Promise<Remocao> {
   const sb = getServerSupabase();
 
@@ -135,8 +148,8 @@ export async function removerLancamento(args: {
        *
        * O que liga o estorno ao original é o `reverses`, que é o rasto a sério.
        */
-      source_module: "manual",
-      document_id: null,
+      source_module: args.manterDocumento ? foto.cabecalho.source_module : "manual",
+      document_id: args.manterDocumento ? foto.cabecalho.document_id : null,
       document_ref: foto.cabecalho.document_ref,
       description: `Estorno — ${foto.cabecalho.description ?? args.journalId.slice(0, 8)}`,
       reverses: args.journalId,

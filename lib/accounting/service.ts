@@ -90,10 +90,20 @@ async function gravar(
   return cabecalho.id as string;
 }
 
+/*
+ * O documento já está no razão?
+ *
+ * `.maybeSingle()` REBENTAVA com mais de uma linha, e desde que se pode
+ * ajustar um lançamento (estorno + relançamento, ambos presos ao mesmo
+ * documento) há legitimamente três: o original, o espelho e a correcção.
+ * A pergunta aqui é sim/não — "já foi contabilizado" —, e para isso a mais
+ * recente serve e nenhuma quantidade de linhas é erro.
+ */
 const jaContabilizado = async (modulo: string, documentId: string): Promise<string | null> => {
   const { data } = await sb().from("journal")
-    .select("id").eq("source_module", modulo).eq("document_id", documentId).maybeSingle();
-  return (data as any)?.id ?? null;
+    .select("id").eq("source_module", modulo).eq("document_id", documentId)
+    .order("created_at", { ascending: false }).limit(1);
+  return ((data ?? []) as any[])[0]?.id ?? null;
 };
 
 /**

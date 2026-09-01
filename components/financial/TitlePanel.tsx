@@ -4,6 +4,7 @@ import { useCallback, useEffect, useState } from "react";
 import type { ContaBanco, Encargo, Baixa, Partida, Titulo } from "@/components/financial/tipos";
 import { ENCARGOS, ORIGEM, eur } from "@/components/financial/tipos";
 import { useT, type TKey } from "@/lib/i18n";
+import AdjustEntry from "@/components/accounting/AdjustEntry";
 
 /** O detalhe: conta contábil, vencimento, encargos e as baixas. */
 export default function PainelDoTitulo({
@@ -281,6 +282,13 @@ export default function PainelDoTitulo({
               e procurar. "Onde grava os lançamentos contábeis?" é aqui.
             */}
             <h3 className="mt-6 font-display text-sm font-semibold">{tr("ttl.entriesHeading")}</h3>
+            {/*
+              * AJUSTAR cada partida, a partir daqui.
+              *
+              * Uma por lançamento e não uma por linha: ajusta-se o lançamento
+              * inteiro, porque é ele que tem de fechar. Um botão por linha
+              * prometeria mexer numa só e deixar o outro lado sozinho.
+              */}
             {d.entries.length === 0 ? (
               <p className="mt-1 text-sm text-muted">
                 {tr("ttl.noEntries")}
@@ -312,6 +320,14 @@ export default function PainelDoTitulo({
                   ))}
                 </tbody>
               </table>
+              </div>
+            )}
+
+            {d.entries.length > 0 && (
+              <div className="mt-2 flex flex-wrap gap-2">
+                {Array.from(new Set(d.entries.map((l) => l.journalId))).map((jid) => (
+                  <AdjustEntry key={jid} clientId={clientId} journalId={jid} aoAjustar={carregar} />
+                ))}
               </div>
             )}
           </>

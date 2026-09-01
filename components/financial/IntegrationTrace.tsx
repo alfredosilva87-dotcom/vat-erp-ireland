@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import AdjustEntry from "@/components/accounting/AdjustEntry";
 import Link from "next/link";
 import { eur } from "@/components/financial/tipos";
 
@@ -114,6 +115,19 @@ export default function IntegrationTrace({
           <p className="text-xs text-muted"><span className="chip mr-2">sem lançamento</span></p>
         )}
       </div>
+
+      {/*
+        * AJUSTAR fica ao lado de DEVOLVER, e a ordem entre os dois é a da
+        * gravidade: ajustar corrige a partida e mantém o documento integrado;
+        * devolver desfaz a integração inteira. Quem só quer trocar uma conta
+        * não devia ter de escolher a operação maior por ser a única que existe
+        * — que era exactamente o caso até aqui.
+        */}
+      {rastro.posted && rastro.journalId && (
+        <div className="mt-3">
+          <AdjustEntry clientId={clientId} journalId={rastro.journalId} aoAjustar={aoDevolver} />
+        </div>
+      )}
 
       {/*
         * DEVOLVER — o inverso da integração.
