@@ -3,12 +3,19 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useState } from "react";
 import en, { type TKey } from "./en";
 import pt from "./pt";
+import es from "./es";
 import { DEFAULT_LANG, LANG_KEY, isLang, type Lang } from "./languages";
 
-// Only fully translated dictionaries are registered. Anything else resolves
-// key by key against English, so an incomplete language can never blank a
-// screen — it just shows English for the missing strings.
-const DICTS: Partial<Record<Lang, Partial<Record<TKey, string>>>> = { en, pt };
+/*
+ * Registados: inglês, português e espanhol.
+ *
+ * A resolução é CHAVE A CHAVE contra o inglês, então um dicionário incompleto
+ * nunca deixa a tela em branco — mostra a frase inglesa nas chaves que lhe
+ * faltam. É isso que torna seguro publicar o espanhol antes de estar completo,
+ * e é o contrário do costume: um idioma que parte a tela enquanto está a meio
+ * nunca é publicado, o que quer dizer que nunca fica pronto.
+ */
+const DICTS: Partial<Record<Lang, Partial<Record<TKey, string>>>> = { en, pt, es };
 
 type Ctx = {
   lang: Lang;
