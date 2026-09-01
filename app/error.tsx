@@ -12,13 +12,13 @@ export default function GlobalError({ error, reset }: { error: Error & { digest?
   }, [error]);
 
   return (
-    <div className="flex min-h-dvh items-center justify-center px-6 py-12">
+    <div className="flex flex-wrap min-h-dvh items-center justify-center px-6 py-12">
       <div className="w-full max-w-sm text-center">
         <h2 className="font-display text-2xl font-semibold tracking-tight">Something went wrong</h2>
         <p className="mt-2 text-sm text-muted">
           An unexpected error happened. You can try again, or head back to sign in.
         </p>
-        <div className="mt-6 flex justify-center gap-3">
+        <div className="mt-6 flex flex-wrap justify-center gap-3">
           <button className="btn-primary" onClick={reset}>Try again</button>
           <Link href="/login" className="btn-ghost">Go to sign in</Link>
         </div>

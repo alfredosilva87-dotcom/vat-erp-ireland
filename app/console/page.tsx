@@ -258,7 +258,7 @@ export default function ConsolePage() {
       <section className="card mt-4 overflow-hidden">
         <div className="flex flex-wrap items-center justify-between gap-2 border-b border-line px-5 py-3">
           <h2 className="font-display text-lg font-semibold">Emitidas neste aparelho</h2>
-          <div className="flex gap-2">
+          <div className="flex flex-wrap gap-2">
             <label className="btn-ghost h-8 cursor-pointer px-3 text-xs">
               Importar registo
               <input type="file" accept=".jsonl,.json,.txt" className="hidden"

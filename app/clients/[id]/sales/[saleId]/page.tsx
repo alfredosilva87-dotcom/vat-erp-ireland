@@ -169,7 +169,7 @@ export default function SaleReview({ params }: { params: { id: string; saleId: s
       )}
 
       {batchIds && (
-        <div className="card flex items-center justify-between gap-3 p-3">
+        <div className="card flex flex-wrap items-center justify-between gap-3 p-3">
           {/* Na primeira, "anterior" volta para a lista em vez de sumir. */}
           {prevId
             ? <Link href={navHref(prevId)} className="btn-ghost h-9 px-3 text-sm">← Anterior</Link>
@@ -178,7 +178,7 @@ export default function SaleReview({ params }: { params: { id: string; saleId: s
           {nextId
             ? <Link href={navHref(nextId)} className="btn-ghost h-9 px-3 text-sm">Próxima →</Link>
             : (
-              <div className="flex items-center gap-2">
+              <div className="flex flex-wrap items-center gap-2">
                 <Link href={backTo} className="btn-ghost h-9 px-3 text-sm">Pronto — voltar ao lote</Link>
                 {/* O caminho inverso do lado da entrada: fechadas as saídas, o
                     passo seguinte é conferir as compras do período. */}
@@ -236,6 +236,7 @@ export default function SaleReview({ params }: { params: { id: string; saleId: s
 
       <div className="card overflow-hidden">
         <div className="border-b border-line bg-surface-2/60 px-4 py-3 font-medium">Linhas</div>
+        <div className="-mx-1 overflow-x-auto px-1">
         <table className="w-full text-sm">
           <thead>
             <tr className="border-b border-line text-left text-xs uppercase tracking-wide text-muted">
@@ -261,6 +262,7 @@ export default function SaleReview({ params }: { params: { id: string; saleId: s
             )}
           </tbody>
         </table>
+        </div>
       </div>
 
       <IntegrationTrace

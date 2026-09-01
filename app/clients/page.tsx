@@ -107,7 +107,7 @@ export default function Clients() {
             Register the companies you manage. Selecting a client scopes every screen to it.
           </p>
         </div>
-        <div className="flex items-center gap-2">
+        <div className="flex flex-wrap items-center gap-2">
           <button
             className="btn-ghost"
             onClick={() => { window.location.href = "/api/companies/contacts.sage.csv"; }}
@@ -203,7 +203,7 @@ export default function Clients() {
               </p>
             </div>
           </div>
-          <div className="mt-4 flex items-center gap-3">
+          <div className="mt-4 flex flex-wrap items-center gap-3">
             <button className="btn-primary" onClick={submit}>{editId ? "Save changes" : "Create client"}</button>
             {msg && <span className="text-sm text-danger">{msg}</span>}
           </div>
@@ -240,7 +240,7 @@ export default function Clients() {
                   <td className="px-4 py-3 text-right tnum">{c.invoice_count}</td>
                   <td className="px-4 py-3 text-right tnum font-semibold text-brand-700">{money(c.total_credit)}</td>
                   <td className="px-4 py-3">
-                    <div className="flex items-center justify-center gap-1">
+                    <div className="flex flex-wrap items-center justify-center gap-1">
                       <Link className="btn-ghost h-8 px-3 text-xs" href={`/clients/${c.id}`}>Open</Link>
                       {currentId === c.id ? (
                         <span className="chip-ok">Selected</span>

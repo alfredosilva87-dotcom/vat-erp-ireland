@@ -155,7 +155,7 @@ export default function Master() {
             </div>
           </div>
           <p className="mt-2 text-xs text-muted">{t("master.slugHelp")}</p>
-          <div className="mt-4 flex items-center gap-3">
+          <div className="mt-4 flex flex-wrap items-center gap-3">
             <button className="btn-primary" onClick={create}>{t("common.create")}</button>
             {msg && <span className="text-sm text-danger">{msg}</span>}
           </div>
@@ -171,7 +171,7 @@ export default function Master() {
             Hand this key to the company's admin — they activate it themselves from Settings.
             New expiry: <strong>{reveal.expiresAt}</strong>. This key won't be shown again.
           </p>
-          <div className="mt-3 flex items-center gap-3">
+          <div className="mt-3 flex flex-wrap items-center gap-3">
             <code className="rounded-lg border border-line bg-surface-2 px-3 py-2 font-mono text-sm">{reveal.key}</code>
             <button
               className="btn-ghost h-9 px-3 text-xs"

@@ -71,7 +71,7 @@ export default function InvoicesPage({ params }: { params: { id: string } }) {
             {t("inv.subtitle")}
           </p>
         </div>
-        <div className="flex items-center gap-3">
+        <div className="flex flex-wrap items-center gap-3">
           <Link className="btn-ghost inline-flex h-9 items-center px-4 text-sm" href={`/clients/${params.id}/customers`}>
             {t("cust.title")}
           </Link>

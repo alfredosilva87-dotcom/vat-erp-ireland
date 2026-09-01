@@ -98,6 +98,7 @@ function RateTable({ title, groups, open, setOpen, keyPrefix, linkDocs, backTo, 
   return (
     <div className="card overflow-hidden">
       <div className="border-b border-line bg-surface-2/60 px-4 py-3 font-medium">{title}</div>
+      <div className="-mx-1 overflow-x-auto px-1">
       <table className="w-full text-sm">
         <thead>
           <tr className="border-b border-line text-left text-xs uppercase tracking-wide text-muted">
@@ -148,6 +149,7 @@ function RateTable({ title, groups, open, setOpen, keyPrefix, linkDocs, backTo, 
           )}
         </tbody>
       </table>
+      </div>
     </div>
   );
 }

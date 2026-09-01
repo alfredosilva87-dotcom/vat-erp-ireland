@@ -317,7 +317,7 @@ export default function InvoiceEditor({ params }: { params: { id: string; invoic
 
       {/* --------------------------------------------------------- as linhas */}
       <section className="card p-5">
-        <div className="flex items-baseline justify-between">
+        <div className="flex flex-wrap items-baseline justify-between">
           <h2 className="font-display text-sm font-semibold">{t("inv.lines")}</h2>
           {editavel && (
             <button className="btn-ghost h-8 px-3 text-xs"
@@ -496,7 +496,7 @@ export default function InvoiceEditor({ params }: { params: { id: string; invoic
       )}
 
       {inv.status !== "cancelled" && (
-        <div className="flex justify-end">
+        <div className="flex flex-wrap justify-end">
           <button
             className="btn-ghost h-8 px-3 text-xs text-danger"
             onClick={async () => {

@@ -216,7 +216,7 @@ export default function SalesPage({ params }: { params: { id: string } }) {
             </button>
           ))}
         </div>
-        <form onSubmit={(e) => { e.preventDefault(); setQuery(q); }} className="flex items-end gap-2">
+        <form onSubmit={(e) => { e.preventDefault(); setQuery(q); }} className="flex flex-wrap items-end gap-2">
           <div>
             <label className="label">{t("common.search")}</label>
             <input
@@ -297,7 +297,7 @@ export default function SalesPage({ params }: { params: { id: string } }) {
                         </span>}
                   </td>
                   <td className="px-4 py-2">
-                    <div className="flex items-center justify-center gap-1">
+                    <div className="flex flex-wrap items-center justify-center gap-1">
                       <Link className="btn-ghost h-8 px-3 text-xs" href={`/clients/${params.id}/sales/${s.id}?ids=${ids}`}>
                         Conferir
                       </Link>

@@ -542,11 +542,13 @@ function Memoria({
         <p className="w-full text-[11px] text-muted">{t("memo.notStored")}</p>
       </div>
 
+      <div className="-mx-1 overflow-x-auto px-1">
       <table className="w-full text-[13px]">
         <tbody>
           {m.linhas.map((l) => <Degrau key={l.chave} l={l} t={t} />)}
         </tbody>
       </table>
+      </div>
 
       <div className="border-t border-line bg-surface-2/60 px-5 py-2.5 text-[12px] text-muted">
         {m.prejuizo

@@ -9,6 +9,7 @@ import { ClientScopeProvider, useClientScope } from "@/components/ClientScope";
 import { PermissionProvider } from "@/components/PermissionScope";
 import AccessGuard from "@/components/AccessGuard";
 import { useT } from "@/lib/i18n";
+import { MobileNavProvider, MobileNavBackdrop } from "@/components/MobileNav";
 
 const PUBLIC_PATHS = ["/login", "/reset-password"];
 // Prefixos sem sessão. `/enviar/<token>` é a captura por telefone (camada B4):
@@ -53,18 +54,26 @@ function Frame({ children }: { children: React.ReactNode }) {
   const { clientId } = useClientScope();
 
   return (
-    <div className="flex min-h-dvh">
-      {clientId ? <ModuleSidebar clientId={clientId} /> : <Sidebar />}
-      <div className="flex min-w-0 flex-1 flex-col">
-        <TopBar />
-        <LicenseGate />
-        <main className="mx-auto w-full max-w-6xl flex-1 px-5 py-7">
-          <AccessGuard>{children}</AccessGuard>
-        </main>
-        <footer className="mx-auto w-full max-w-6xl px-5 py-6 text-xs text-muted">
+    <MobileNavProvider>
+      {/*
+        `overflow-x-clip` porque a gaveta fechada vive em `-translate-x-full`:
+        sem isto ela fica fora do ecrã à esquerda e o telefone ganha um rolar
+        lateral para o nada.
+      */}
+      <div className="flex min-h-dvh overflow-x-clip">
+        {clientId ? <ModuleSidebar clientId={clientId} /> : <Sidebar />}
+        <MobileNavBackdrop />
+        <div className="flex min-w-0 flex-1 flex-col">
+          <TopBar />
+          <LicenseGate />
+          <main className="mx-auto w-full max-w-6xl flex-1 px-4 py-5 sm:px-5 sm:py-7">
+            <AccessGuard>{children}</AccessGuard>
+          </main>
+          <footer className="mx-auto w-full max-w-6xl px-4 py-6 text-xs text-muted sm:px-5">
 {t("app.footer")}
-        </footer>
+          </footer>
+        </div>
       </div>
-    </div>
+    </MobileNavProvider>
   );
 }

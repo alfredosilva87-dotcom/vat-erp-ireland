@@ -201,6 +201,7 @@ export default function CompanyPayroll({ params }: { params: { id: string } }) {
 
           {/* ------------------------------------------- Horas / Bruto */}
           {(aba === "hours" || aba === "gross") && (
+            <div className="-mx-1 overflow-x-auto px-1">
             <table className="row-hover w-full text-sm">
               <thead>
                 <tr className="border-b border-line text-left text-xs uppercase tracking-wide text-muted">
@@ -256,10 +257,12 @@ export default function CompanyPayroll({ params }: { params: { id: string } }) {
                 <Vazio n={employees.length} loading={loading} cols={12} texto={t("hr.noEmployees")} />
               </tbody>
             </table>
+            </div>
           )}
 
           {/* ------------------------------------------------- Férias */}
           {aba === "holidays" && (
+            <div className="-mx-1 overflow-x-auto px-1">
             <table className="row-hover w-full text-sm">
               <thead>
                 <tr className="border-b border-line text-left text-xs uppercase tracking-wide text-muted">
@@ -296,10 +299,12 @@ export default function CompanyPayroll({ params }: { params: { id: string } }) {
                 <Vazio n={employees.length} loading={loading} cols={7} texto={t("hr.noEmployees")} />
               </tbody>
             </table>
+            </div>
           )}
 
           {/* ---------------------------------------------- Feriados */}
           {aba === "bank" && (
+            <div className="-mx-1 overflow-x-auto px-1">
             <table className="row-hover w-full text-sm">
               <thead>
                 <tr className="border-b border-line text-left text-xs uppercase tracking-wide text-muted">
@@ -349,6 +354,7 @@ export default function CompanyPayroll({ params }: { params: { id: string } }) {
                 <Vazio n={employees.length} loading={loading} cols={8} texto={t("hr.noEmployees")} />
               </tbody>
             </table>
+            </div>
           )}
         </div>
 

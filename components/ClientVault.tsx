@@ -258,6 +258,7 @@ export default function ClientVault({ clientId }: { clientId: string }) {
           {t("vault.none")}
         </p>
       ) : (
+        <div className="-mx-1 overflow-x-auto px-1">
         <table className="mt-3 w-full text-[13px]">
           <thead>
             <tr className="border-b border-line text-[10px] uppercase tracking-wide text-muted">
@@ -334,6 +335,7 @@ export default function ClientVault({ clientId }: { clientId: string }) {
             })}
           </tbody>
         </table>
+        </div>
       )}
     </section>
   );

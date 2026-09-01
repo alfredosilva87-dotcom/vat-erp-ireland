@@ -81,6 +81,7 @@ export default function ClientBranches({ clientId }: { clientId: string }) {
         ) : branches.length === 0 ? (
           <p className="p-6 text-muted">Nenhuma filial ainda. Enquanto não houver, a nota é gravada sem loja.</p>
         ) : (
+          <div className="-mx-1 overflow-x-auto px-1">
           <table className="w-full text-sm">
             <thead>
               <tr className="border-b border-line bg-surface-2/60 text-left text-xs uppercase tracking-wide text-muted">
@@ -101,6 +102,7 @@ export default function ClientBranches({ clientId }: { clientId: string }) {
               ))}
             </tbody>
           </table>
+          </div>
         )}
       </div>
     </div>

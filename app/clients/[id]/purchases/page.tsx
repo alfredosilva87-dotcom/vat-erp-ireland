@@ -367,7 +367,7 @@ export default function Purchases({ params }: { params: { id: string } }) {
                       <td className="px-4 py-3 text-right tnum">{money(inv.total_gross)}</td>
                       <td className="px-4 py-3 text-right tnum font-semibold text-brand-700">{money(inv.total_credit)}</td>
                       <td className="px-4 py-3">
-                        <div className="flex items-center justify-center gap-1">
+                        <div className="flex flex-wrap items-center justify-center gap-1">
                           <Link className="btn-ghost h-8 px-3 text-xs" href={`/invoice/${inv.id}?from=${encodeURIComponent(backHref)}`} onClick={() => rememberOpenedRow(inv.id)}>{t("common.open")}</Link>
                           {inv.document_file && (
                             <a

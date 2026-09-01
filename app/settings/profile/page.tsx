@@ -128,7 +128,7 @@ export default function ProfilePage() {
             <div className="font-mono text-xs text-muted">{p?.email}</div>
             <span className="mt-1 inline-block chip bg-brand-50 text-brand-700">{papel}</span>
           </div>
-          <div className="ml-auto flex gap-2">
+          <div className="ml-auto flex flex-wrap gap-2">
             <button className="btn-ghost" onClick={() => fileRef.current?.click()}>
               {t("profile.choosePhoto")}
             </button>
@@ -176,7 +176,7 @@ export default function ProfilePage() {
           </div>
         </div>
 
-        <div className="mt-5 flex items-center gap-3 border-t border-line pt-4">
+        <div className="mt-5 flex flex-wrap items-center gap-3 border-t border-line pt-4">
           <button className="btn-primary" onClick={salvar} disabled={salvando}>
             {salvando ? t("common.saving") : t("common.saveChanges")}
           </button>

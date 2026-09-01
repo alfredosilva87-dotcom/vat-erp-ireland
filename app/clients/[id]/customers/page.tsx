@@ -80,7 +80,7 @@ export default function CustomersPage({ params }: { params: { id: string } }) {
             {t("cust.subtitle")}
           </p>
         </div>
-        <div className="flex items-center gap-3">
+        <div className="flex flex-wrap items-center gap-3">
           <input className="input h-9 w-56" placeholder={t("cust.search")}
             value={busca} onChange={(e) => setBusca(e.target.value)} />
           <button className="btn-primary h-9 px-4 text-sm" onClick={() => { setEditando({ ...VAZIO }); setErro(null); }}>
@@ -149,7 +149,7 @@ export default function CustomersPage({ params }: { params: { id: string } }) {
 
           {erro && <p className="mt-3 text-sm text-danger">{erro}</p>}
 
-          <div className="mt-4 flex items-center gap-3">
+          <div className="mt-4 flex flex-wrap items-center gap-3">
             <button className="btn-primary h-9 px-4 text-sm" disabled={gravando} onClick={gravar}>
               {gravando ? t("common.saving") : t("common.save")}
             </button>

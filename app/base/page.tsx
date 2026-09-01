@@ -156,7 +156,7 @@ export default function BasePage() {
               />
             </div>
           </div>
-          <div className="mt-4 flex items-center gap-3">
+          <div className="mt-4 flex flex-wrap items-center gap-3">
             <button className="btn-primary" onClick={addCategory} disabled={saving || !draft.description}>
               {saving ? "Saving…" : "Add category"}
             </button>

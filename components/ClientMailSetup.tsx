@@ -162,7 +162,7 @@ export default function ClientMailSetup({ clientId }: { clientId: string }) {
                           {t("mail.copy")}
                         </button>
                       )}
-                      <label className="flex items-center gap-1 text-xs text-muted">
+                      <label className="flex flex-wrap items-center gap-1 text-xs text-muted">
                         <input type="checkbox" checked={route.active} disabled={busy}
                           onChange={(e) => patchRoute(route.id, { active: e.target.checked },
                             e.target.checked ? t("mail.activeOn") : t("mail.activeOff"))} />

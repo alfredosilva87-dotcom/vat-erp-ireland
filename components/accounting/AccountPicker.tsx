@@ -68,7 +68,7 @@ export default function AccountPicker({
           placeholder={t("ledger.searchAccounts")}
           value={busca} onChange={(e) => setBusca(e.target.value)}
         />
-        <div className="mt-2 flex gap-2">
+        <div className="mt-2 flex flex-wrap gap-2">
           <button className="btn-ghost h-7 px-2 text-[11px]" onClick={() => onChange(null)}>
             {t("ledger.selectAll")}
           </button>

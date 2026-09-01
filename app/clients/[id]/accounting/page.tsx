@@ -94,7 +94,7 @@ export default function AccountingPage({ params }: { params: { id: string } }) {
           <h1 className="font-display text-2xl font-semibold tracking-tight">{t("acc.title")}</h1>
           <p className="mt-1 text-muted">{t("acc.subtitle")}</p>
         </div>
-        <div className="flex items-end gap-3">
+        <div className="flex flex-wrap items-end gap-3">
           <label className="flex flex-col leading-tight">
             <span className="text-[9.5px] font-medium uppercase tracking-wide text-muted">{t("acc.year")}</span>
             <select className="input h-9 w-auto cursor-pointer py-0 text-[13px] font-semibold"
@@ -236,6 +236,7 @@ export default function AccountingPage({ params }: { params: { id: string } }) {
           )}
 
           {aba === "trial" && (
+            <div className="-mx-1 overflow-x-auto px-1">
             <table className="row-hover w-full text-sm">
               <thead>
                 <tr className="border-b border-line text-left text-xs uppercase tracking-wide text-muted">
@@ -278,6 +279,7 @@ export default function AccountingPage({ params }: { params: { id: string } }) {
                 )}
               </tbody>
             </table>
+            </div>
           )}
         </div>
 

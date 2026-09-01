@@ -336,7 +336,7 @@ export default function Login() {
                       onChange={(e) => setForgotEmail(e.target.value)}
                       placeholder="you@company.com" required
                     />
-                    <div className="flex items-center gap-2 pt-1">
+                    <div className="flex flex-wrap items-center gap-2 pt-1">
                       <button className="btn-primary h-9 flex-1 text-sm" type="submit" disabled={forgotSending}>
                         {forgotSending ? t("login.forgotSending") : t("login.forgotSubmit")}
                       </button>

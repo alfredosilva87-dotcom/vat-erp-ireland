@@ -54,7 +54,7 @@ export default function BankRuleCard({
   return (
     <div className={`card p-4 ${draft.active ? "" : "opacity-60"}`}>
       <div className="flex flex-wrap items-start justify-between gap-3">
-        <div className="flex items-start gap-3">
+        <div className="flex flex-wrap items-start gap-3">
           <div className="flex flex-col items-center">
             <button className="btn-ghost h-6 px-2 text-xs" disabled={busy || position === 1}
               onClick={() => onMove(rule.id, "up")}>▲</button>
@@ -78,8 +78,8 @@ export default function BankRuleCard({
             </p>
           </div>
         </div>
-        <div className="flex items-center gap-2">
-          <label className="flex items-center gap-1 text-xs text-muted">
+        <div className="flex flex-wrap items-center gap-2">
+          <label className="flex flex-wrap items-center gap-1 text-xs text-muted">
             <input type="checkbox" checked={draft.active}
               onChange={(e) => { set({ active: e.target.checked }); onSave(rule.id, { active: e.target.checked }); }} />
             ativa

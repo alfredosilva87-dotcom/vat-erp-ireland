@@ -191,7 +191,7 @@ export default function NovoTituloManual({
           </label>
         </div>
 
-        <div className="mt-5 flex justify-end gap-3">
+        <div className="mt-5 flex flex-wrap justify-end gap-3">
           <button className="btn-ghost h-9 px-4 text-sm" onClick={aoFechar}>Cancelar</button>
           <button className="btn-primary h-9 px-4 text-sm" disabled={gravando} onClick={gravar}>
             {gravando ? t("common.saving") : "Lançar"}

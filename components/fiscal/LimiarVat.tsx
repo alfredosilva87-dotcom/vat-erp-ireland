@@ -95,6 +95,7 @@ export default function LimiarVat() {
         {t("vatLimit.why", { servicos: milhar(limiares.servicos), bens: milhar(limiares.bens) })}
       </p>
 
+      <div className="-mx-1 overflow-x-auto px-1">
       <table className="mt-3 w-full text-[13px]">
         <thead>
           <tr className="border-b border-line text-[10px] uppercase tracking-wide text-muted">
@@ -131,6 +132,7 @@ export default function LimiarVat() {
           ))}
         </tbody>
       </table>
+      </div>
     </section>
   );
 }

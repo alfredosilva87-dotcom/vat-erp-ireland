@@ -140,6 +140,7 @@ export default function Closing({ params }: { params: { id: string; accountId: s
 
       {/* A conta, de cima para baixo */}
       <div className="card overflow-hidden">
+        <div className="-mx-1 overflow-x-auto px-1">
         <table className="w-full text-sm">
           <tbody>
             <Row label="Saldo inicial da conta" value={report.openingBalance} />
@@ -172,6 +173,7 @@ export default function Closing({ params }: { params: { id: string; accountId: s
             </tr>
           </tbody>
         </table>
+        </div>
       </div>
 
       {!!report.notes.length && (
@@ -205,6 +207,7 @@ export default function Closing({ params }: { params: { id: string; accountId: s
                 Possíveis duplicatas — mesma data, mesmo valor e descrição parecida. Dois cafés iguais
                 no mesmo dia também são legítimos, então isto é só um aviso.
               </p>
+              <div className="-mx-1 overflow-x-auto px-1">
               <table className="w-full text-sm">
                 <tbody>
                   {duplicates.slice(0, 20).map(([a, b], i) => (
@@ -216,6 +219,7 @@ export default function Closing({ params }: { params: { id: string; accountId: s
                   ))}
                 </tbody>
               </table>
+              </div>
             </div>
           )}
 
@@ -224,6 +228,7 @@ export default function Closing({ params }: { params: { id: string; accountId: s
               <p className="border-b border-line px-4 py-2 text-sm text-muted">
                 Linhas do extrato ainda não conciliadas até {asOf}.
               </p>
+              <div className="-mx-1 overflow-x-auto px-1">
               <table className="w-full text-sm">
                 <tbody>
                   {report.unreconciled.lines.slice(0, 30).map((l: ClosingLine) => (
@@ -237,6 +242,7 @@ export default function Closing({ params }: { params: { id: string; accountId: s
                   ))}
                 </tbody>
               </table>
+              </div>
             </div>
           )}
         </section>
@@ -249,6 +255,7 @@ export default function Closing({ params }: { params: { id: string; accountId: s
             Cheque não compensado, pagamento em trânsito. É pendência legítima e não impede fechar.
           </p>
           <div className="card overflow-hidden">
+            <div className="-mx-1 overflow-x-auto px-1">
             <table className="w-full text-sm">
               <tbody>
                 {report.outstanding.transactions.slice(0, 30).map((t: ClosingTxn) => (
@@ -262,6 +269,7 @@ export default function Closing({ params }: { params: { id: string; accountId: s
                 ))}
               </tbody>
             </table>
+            </div>
           </div>
         </section>
       )}
@@ -270,6 +278,7 @@ export default function Closing({ params }: { params: { id: string; accountId: s
         <section className="space-y-3">
           <h2 className="font-display text-lg font-semibold">Fechamentos anteriores</h2>
           <div className="card overflow-hidden">
+            <div className="-mx-1 overflow-x-auto px-1">
             <table className="w-full text-sm">
               <thead>
                 <tr className="border-b border-line bg-surface-2/60 text-left text-xs uppercase tracking-wide text-muted">
@@ -299,6 +308,7 @@ export default function Closing({ params }: { params: { id: string; accountId: s
                 ))}
               </tbody>
             </table>
+            </div>
           </div>
         </section>
       )}

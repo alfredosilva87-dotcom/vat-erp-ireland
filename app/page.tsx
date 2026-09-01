@@ -24,7 +24,7 @@ export default function Home() {
           <h1 className="font-display text-3xl font-semibold tracking-tight">{t("dash.title")}</h1>
           <p className="mt-1 text-muted">{t("dash.subtitle")}</p>
         </div>
-        <div className="flex gap-2">
+        <div className="flex flex-wrap gap-2">
           <Link href="/analyze" className="btn-primary">{t("dash.analyzeDoc")}</Link>
           <Link href="/clients" className="btn-ghost">{t("nav.clients")}</Link>
         </div>

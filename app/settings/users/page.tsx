@@ -101,7 +101,7 @@ export default function Users() {
           <h1 className="mt-1 font-display text-3xl font-semibold tracking-tight">{t("users.title")}</h1>
           <p className="mt-1 text-muted">{t("users.subtitle")}</p>
         </div>
-        <div className="flex items-center gap-2">
+        <div className="flex flex-wrap items-center gap-2">
           <Link href="/settings/permissions" className="btn-ghost">{t("perm.title")}</Link>
           <button
             className="btn-primary"
@@ -164,7 +164,7 @@ export default function Users() {
             )}
           </div>
 
-          <div className="mt-4 flex items-center gap-3">
+          <div className="mt-4 flex flex-wrap items-center gap-3">
             <button className="btn-primary" onClick={submit}>
               {editId ? t("common.saveChanges") : t("common.create")}
             </button>
@@ -204,7 +204,7 @@ export default function Users() {
                     {u.active ? <span className="chip-ok">{t("common.active")}</span> : <span className="chip bg-surface-2 text-muted">{t("common.inactive")}</span>}
                   </td>
                   <td className="px-4 py-3">
-                    <div className="flex items-center justify-center gap-1">
+                    <div className="flex flex-wrap items-center justify-center gap-1">
                       <Link href={`/settings/permissions?user=${u.id}`} className="btn-ghost h-8 px-3 text-xs">
                         {t("perm.short")}
                       </Link>

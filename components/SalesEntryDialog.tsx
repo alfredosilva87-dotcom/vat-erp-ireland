@@ -201,12 +201,12 @@ export default function SalesEntryDialog({
 
   return (
     <div
-      className="fixed inset-0 z-50 flex items-center justify-center bg-ink/40 p-4 backdrop-blur-sm"
+      className="fixed inset-0 z-50 flex flex-wrap items-center justify-center bg-ink/40 p-4 backdrop-blur-sm"
       role="dialog" aria-modal="true" aria-label="Lançar vendas"
       onClick={(e) => { if (e.target === e.currentTarget) onClose(); }}
     >
       <div className="flex max-h-[88vh] w-full max-w-4xl flex-col overflow-hidden rounded-2xl border border-line bg-surface shadow-2xl">
-        <div className="flex items-center gap-3 border-b border-line px-5 py-3">
+        <div className="flex flex-wrap items-center gap-3 border-b border-line px-5 py-3">
           <h2 className="font-display text-lg font-semibold">Lançar vendas</h2>
           <span className="text-xs text-muted">débito de IVA (T1)</span>
           <button className="btn-ghost ml-auto h-8 px-3 text-sm" onClick={onClose} aria-label="Fechar">Fechar</button>

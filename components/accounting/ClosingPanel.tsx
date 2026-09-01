@@ -171,7 +171,7 @@ export default function ClosingPanel({ clientId, ano }: { clientId: string; ano:
               <p className="text-[12.5px]">{t("close.reopenAsk")}</p>
               <input className="input mt-2 w-full text-[13px]" value={motivo}
                 onChange={(e) => setMotivo(e.target.value)} placeholder={t("close.reopenReason")} />
-              <div className="mt-2 flex gap-2">
+              <div className="mt-2 flex flex-wrap gap-2">
                 <button className="btn-primary h-8 px-3 text-xs" disabled={gravando || !motivo.trim()}
                   onClick={() => reabrir(d.fechado!.id)}>
                   {gravando ? t("common.saving") : t("close.reopenBtn")}

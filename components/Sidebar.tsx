@@ -10,6 +10,7 @@ import { usePermissions } from "@/components/PermissionScope";
 import { grantsScreen, HR_SCREENS } from "@/lib/permissions";
 import RailWave from "@/components/RailWave";
 import { MARCA } from "@/lib/marca";
+import { useMobileNav } from "@/components/MobileNav";
 
 /**
  * O menu geral, em dois níveis.
@@ -75,6 +76,7 @@ export default function Sidebar() {
   const { t } = useT();
   const [client, setClient] = useState<CurrentClient>(null);
   const { ready, isMaster, screenAccess } = usePermissions();
+  const { open: gaveta } = useMobileNav();
   // Undefined until read from storage, so the first paint doesn't flash the
   // wrong width.
   const [collapsed, setCollapsed] = useState<boolean | undefined>(undefined);
@@ -123,12 +125,20 @@ export default function Sidebar() {
   const entradas = NAV
     .map((n) => ({ ...n, filhos: (n.children ?? []).filter((c) => pode(c.perm)) }))
     .filter((n) => pode(n.perm) || n.filhos.length > 0);
-  const showLabel = open ? "block" : collapsed === undefined ? "hidden lg:block" : "hidden";
+  /*
+   * No telefone a barra é gaveta de 16rem — recolhida a ícones não serviria
+   * para nada, então o rótulo aparece sempre e só some no desktop recolhido.
+   */
+  const showLabel = open || collapsed === undefined ? "block" : "block lg:hidden";
 
   return (
     <aside
-      className={`rail-surface relative isolate sticky top-0 flex h-dvh shrink-0 flex-col overflow-hidden px-3 py-5 transition-[width] duration-200 ${
-        collapsed === undefined ? "w-[68px] lg:w-64" : open ? "w-64" : "w-[68px]"
+      className={`rail-surface isolate flex h-dvh flex-col overflow-hidden px-3 py-5 transition-transform duration-200 lg:sticky lg:top-0 lg:shrink-0 lg:translate-x-0 lg:transition-[width] ${
+        /* Abaixo de lg é gaveta por cima do conteúdo; de lg para cima volta a
+           ser coluna do layout, com a largura que a preferência mandar. */
+        "fixed inset-y-0 left-0 z-50 w-64 " + (gaveta ? "translate-x-0" : "-translate-x-full")
+      } ${
+        collapsed === undefined ? "lg:w-64" : open ? "lg:w-64" : "lg:w-[68px]"
       }`}
     >
       <RailWave />
@@ -227,7 +237,7 @@ export default function Sidebar() {
       {/* Collapse / pin */}
       <button
         onClick={toggle}
-        className="mt-2 flex h-10 items-center gap-3 rounded-xl px-3 text-sm font-medium text-night-muted transition-colors hover:bg-night-hover/8 hover:text-night-ink"
+        className="mt-2 hidden h-10 items-center gap-3 rounded-xl px-3 text-sm font-medium text-night-muted transition-colors hover:bg-night-hover/8 hover:text-night-ink lg:flex"
         title={open ? t("nav.collapse") : t("nav.expand")}
         aria-label={open ? t("nav.collapse") : t("nav.expand")}
       >

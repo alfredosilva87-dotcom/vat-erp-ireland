@@ -146,7 +146,7 @@ export default function Permissions() {
               <div className="mt-4">
                 <PermissionTree value={draft} onChange={setDraft} disabled={saving} />
               </div>
-              <div className="mt-4 flex items-center gap-3 border-t border-line pt-4">
+              <div className="mt-4 flex flex-wrap items-center gap-3 border-t border-line pt-4">
                 <button className="btn-primary" onClick={save} disabled={saving || !dirty}>
                   {saving ? t("common.saving") : t("common.saveChanges")}
                 </button>

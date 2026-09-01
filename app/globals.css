@@ -173,8 +173,15 @@ body {
   }
 
   /* embossed buttons */
+  /*
+   * `whitespace-nowrap` e `shrink-0` são o que separa um botão de uma mancha de
+   * texto no telefone: numa barra de ferramentas apertada o rótulo partia-se em
+   * quatro linhas dentro da mesma cápsula ("Post documents → in Check" foi o
+   * caso que apanhou isto). Numa linha com `flex-wrap` o botão passa inteiro
+   * para a linha de baixo, que é a quebra que se quer.
+   */
   .btn {
-    @apply inline-flex items-center justify-center gap-2 rounded-xl px-4 h-11 text-sm font-semibold transition-all duration-150 select-none;
+    @apply inline-flex items-center justify-center gap-2 whitespace-nowrap rounded-xl px-4 h-11 text-sm font-semibold transition-all duration-150 select-none;
   }
   .btn-primary {
     @apply btn text-white;

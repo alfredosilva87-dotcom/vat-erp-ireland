@@ -106,7 +106,7 @@ export default function ClientPhoneLinks({ clientId }: { clientId: string }) {
             placeholder={t("phone.personPlaceholder")}
             onChange={(e) => setPerson(e.target.value)} />
         </div>
-        <label className="flex h-10 items-center gap-2 text-sm">
+        <label className="flex flex-wrap h-10 items-center gap-2 text-sm">
           <input type="checkbox" checked={allowSale} onChange={(e) => setAllowSale(e.target.checked)} />
           {t("phone.allowSale")}
         </label>

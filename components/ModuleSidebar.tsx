@@ -11,6 +11,7 @@ import { usePermissions } from "@/components/PermissionScope";
 import { cachedClient, fetchClient } from "@/lib/clientCache";
 import RailWave from "@/components/RailWave";
 import { MARCA } from "@/lib/marca";
+import { useMobileNav } from "@/components/MobileNav";
 
 /**
  * O menu de dentro de um cliente.
@@ -89,13 +90,21 @@ export default function ModuleSidebar({ clientId }: { clientId: string }) {
       items: unrestricted ? m.items : m.items.filter((i) => grantsSeg(screenAccess, m.key, i.seg)),
     }));
 
+  const { open: gaveta } = useMobileNav();
+
   async function signOut() {
     await fetch("/api/auth/logout", { method: "POST" });
     window.location.href = "/login";
   }
 
   return (
-    <aside className="rail-surface relative isolate sticky top-0 flex h-dvh w-60 shrink-0 flex-col overflow-hidden px-3 py-4">
+    <aside
+      className={`rail-surface isolate flex h-dvh w-60 flex-col overflow-hidden px-3 py-4 transition-transform duration-200 lg:sticky lg:top-0 lg:shrink-0 lg:translate-x-0 ${
+        /* 240px fixos num ecrã de 375 deixavam 135 para a tela inteira: abaixo
+           de lg a barra sai da linha do layout e vira gaveta. */
+        "fixed inset-y-0 left-0 z-50 " + (gaveta ? "translate-x-0" : "-translate-x-full")
+      }`}
+    >
       <RailWave />
 
       {/* Tudo que não é a onda fica acima dela. */}

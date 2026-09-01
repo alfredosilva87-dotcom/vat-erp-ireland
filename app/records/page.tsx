@@ -197,7 +197,7 @@ export default function Records() {
               e.preventDefault();
               setQuery(q);
             }}
-            className="flex items-center gap-2"
+            className="flex flex-wrap items-center gap-2"
           >
           <input
             className="input w-64"
@@ -250,7 +250,7 @@ export default function Records() {
             {t("records.onlyReview")}
           </label>
 
-          <div className="ml-auto flex items-center gap-2 pb-0.5">
+          <div className="ml-auto flex flex-wrap items-center gap-2 pb-0.5">
             {filtersOn && (
               <button className="btn-ghost h-9 px-3 text-xs" onClick={clearFilters}>{t("records.clearFilters")}</button>
             )}
@@ -265,7 +265,7 @@ export default function Records() {
 
       {tab === "invoices" && pending.length > 0 && (
         <div className="card flex flex-wrap items-center gap-3 p-4">
-          <label className="flex cursor-pointer items-center gap-2 text-sm">
+          <label className="flex flex-wrap cursor-pointer items-center gap-2 text-sm">
             <input type="checkbox" className="h-3.5 w-3.5 accent-[rgb(var(--c-brand))]"
               checked={picked.size > 0 && picked.size === pending.length} onChange={toggleAll} />
             marcar as {pending.length} não conferidas
@@ -346,7 +346,7 @@ export default function Records() {
                       {money(inv.total_credit)}
                     </td>
                     <td className="px-4 py-3">
-                      <div className="flex items-center justify-center gap-1">
+                      <div className="flex flex-wrap items-center justify-center gap-1">
                         <Link className="btn-ghost h-7 px-2 text-xs" href={`/invoice/${inv.id}?from=${encodeURIComponent(backHref)}`} onClick={() => rememberOpenedRow(inv.id)}>
                           Open
                         </Link>

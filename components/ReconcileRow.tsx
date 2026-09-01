@@ -101,7 +101,7 @@ export default function ReconcileRow({
           <div className="space-y-2">
             <input className="input h-9" placeholder="Descrição do lançamento"
               value={note} onChange={(e) => setNote(e.target.value)} />
-            <div className="flex gap-2">
+            <div className="flex flex-wrap gap-2">
               <button className="btn-primary h-9 px-3 text-sm" disabled={busy}
                 onClick={() => onConfirm(line.id, { description: note || line.description || "", reason: "manual" })}>
                 Lançar sem documento
@@ -230,7 +230,7 @@ export default function ReconcileRow({
             </p>
             <ul className="mt-1 space-y-0.5 text-sm">
               {rule.allocations.map((a, i) => (
-                <li key={i} className="flex items-center justify-between gap-3">
+                <li key={i} className="flex flex-wrap items-center justify-between gap-3">
                   <span>{a.account_code || "(sem conta)"}{a.vat_rate != null && ` · VAT ${a.vat_rate}%`}</span>
                   <span className="tnum">€ {money(a.amount)}</span>
                 </li>

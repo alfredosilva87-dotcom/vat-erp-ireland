@@ -254,9 +254,9 @@ export default function TitlesView({ clientId, kind }: { clientId: string; kind:
         </div>
 
         {paginas > 1 && (
-          <div className="flex items-center justify-between border-t border-line px-4 py-2 text-xs text-muted">
+          <div className="flex flex-wrap items-center justify-between border-t border-line px-4 py-2 text-xs text-muted">
             <span>Página {pagina + 1} de {paginas}</span>
-            <span className="flex gap-2">
+            <span className="flex flex-wrap gap-2">
               <button className="btn-ghost h-7 px-3" disabled={pagina === 0}
                 onClick={() => setPagina((p) => p - 1)}>Anterior</button>
               <button className="btn-ghost h-7 px-3" disabled={pagina + 1 >= paginas}

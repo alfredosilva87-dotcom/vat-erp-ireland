@@ -196,6 +196,7 @@ export default function Reconcile({ params }: { params: { id: string; accountId:
             documento. <strong>Refazer</strong> apaga o movimento e o documento volta a dever.
           </p>
           <div className="card overflow-hidden">
+            <div className="-mx-1 overflow-x-auto px-1">
             <table className="w-full text-sm">
               <thead>
                 <tr className="border-b border-line bg-surface-2/60 text-left text-xs uppercase tracking-wide text-muted">
@@ -223,6 +224,7 @@ export default function Reconcile({ params }: { params: { id: string; accountId:
                 ))}
               </tbody>
             </table>
+            </div>
           </div>
         </section>
       )}
@@ -235,6 +237,7 @@ export default function Reconcile({ params }: { params: { id: string; accountId:
             diferença entre os dois saldos.
           </p>
           <div className="card overflow-hidden">
+            <div className="-mx-1 overflow-x-auto px-1">
             <table className="w-full text-sm">
               <thead>
                 <tr className="border-b border-line bg-surface-2/60 text-left text-xs uppercase tracking-wide text-muted">
@@ -257,6 +260,7 @@ export default function Reconcile({ params }: { params: { id: string; accountId:
                 ))}
               </tbody>
             </table>
+            </div>
           </div>
         </section>
       )}

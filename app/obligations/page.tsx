@@ -74,8 +74,8 @@ export default function AgendaFiscal() {
           <h1 className="font-display text-3xl font-semibold tracking-tight">{t("agenda.title")}</h1>
           <p className="mt-1 text-muted">{t("agenda.subtitle")}</p>
         </div>
-        <div className="flex items-center gap-3">
-          <label className="flex cursor-pointer items-center gap-2 text-sm">
+        <div className="flex flex-wrap items-center gap-3">
+          <label className="flex flex-wrap cursor-pointer items-center gap-2 text-sm">
             <input type="checkbox" className="accent-brand" checked={soPendentes}
               onChange={(e) => setSoPendentes(e.target.checked)} />
             {t("agenda.onlyPending")}

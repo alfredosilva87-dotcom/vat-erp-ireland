@@ -168,6 +168,7 @@ export default function IntegrationTrace({
         * pergunta que se faz com a nota aberta à frente.
         */}
       {rastro.lines.length > 0 && (
+        <div className="-mx-1 overflow-x-auto px-1">
         <table className="mt-3 w-full text-[12.5px]">
           <thead>
             <tr className="border-b border-line text-[10px] uppercase tracking-wide text-muted">
@@ -207,6 +208,7 @@ export default function IntegrationTrace({
             </tr>
           </tbody>
         </table>
+        </div>
       )}
 
       {nada ? (
@@ -229,6 +231,7 @@ export default function IntegrationTrace({
           integração desse módulo está desligada para este cliente.
         </p>
       ) : (
+        <div className="-mx-1 overflow-x-auto px-1">
         <table className="mt-2 w-full text-[13px]">
           <thead>
             <tr className="border-b border-line text-[10px] uppercase tracking-wide text-muted">
@@ -272,6 +275,7 @@ export default function IntegrationTrace({
             ))}
           </tbody>
         </table>
+        </div>
       )}
     </div>
   );

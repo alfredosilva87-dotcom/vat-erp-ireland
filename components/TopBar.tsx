@@ -9,6 +9,7 @@ import Link from "next/link";
 import { useT } from "@/lib/i18n";
 import ThemeToggleButton from "@/components/ThemeToggleButton";
 import { useSession } from "@/components/PermissionScope";
+import { useMobileNav } from "@/components/MobileNav";
 
 /**
  * A faixa do topo: exercício fiscal, empresa ativa e quem está logado.
@@ -19,6 +20,7 @@ import { useSession } from "@/components/PermissionScope";
  */
 export default function TopBar() {
   const { t } = useT();
+  const { setOpen: abrirMenu } = useMobileNav();
   const sessao = useSession();
   const router = useRouter();
   const pathname = usePathname();
@@ -136,14 +138,30 @@ export default function TopBar() {
   }
 
   return (
-    <header className="flex items-center gap-3 border-b border-line bg-surface px-5 py-2.5">
+    <header className="flex flex-wrap items-center gap-x-2 gap-y-2 border-b border-line bg-surface px-4 py-2.5 lg:flex-nowrap lg:gap-x-3 lg:px-5">
+      {/*
+        A porta da gaveta. Só existe abaixo de `lg`, onde a barra lateral saiu
+        da linha do layout — no desktop ela está sempre à vista e um botão para
+        a abrir seria um botão para nada.
+      */}
+      <button
+        type="button"
+        onClick={() => abrirMenu(true)}
+        className="btn-ghost flex h-8 w-8 shrink-0 items-center justify-center px-0 lg:hidden"
+        aria-label={t("nav.expand")}
+      >
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+          <path d="M4 7h16M4 12h16M4 17h16" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
+        </svg>
+      </button>
+
       {/*
         Era um `div` com o texto do placeholder dentro — parecia um campo, e
         não era. Agora busca de verdade: leva para a tela de resultados, que
         procura fornecedor, número de nota, cliente e item.
       */}
       <form
-        className="flex min-w-0 flex-1 items-center gap-2 rounded-lg border border-line bg-surface-2 px-3 py-1.5 text-sm focus-within:border-brand sm:max-w-sm"
+        className="order-last flex w-full min-w-0 items-center gap-2 rounded-lg border border-line bg-surface-2 px-3 py-1.5 text-sm focus-within:border-brand lg:order-none lg:w-auto lg:flex-1 lg:max-w-sm"
         onSubmit={(e) => {
           e.preventDefault();
           const termo = busca.trim();
@@ -173,10 +191,10 @@ export default function TopBar() {
         />
       </form>
 
-      <div className="ml-auto flex items-center gap-3">
+      <div className="ml-auto flex min-w-0 items-center gap-2 lg:gap-3">
         {noPainel && (
-        <label className="flex flex-col leading-tight">
-          <span className="text-[9.5px] font-medium uppercase tracking-wide text-muted">
+        <label className="flex shrink-0 flex-col leading-tight">
+          <span className="whitespace-nowrap text-[9.5px] font-medium uppercase tracking-wide text-muted">
             {t("top.exercise")}
           </span>
           {/*
@@ -197,7 +215,7 @@ export default function TopBar() {
         </label>
         )}
 
-        {noPainel && <span className="h-7 w-px bg-line" aria-hidden="true" />}
+        {noPainel && <span className="hidden h-7 w-px bg-line lg:block" aria-hidden="true" />}
 
         {/*
           Trocar de empresa AQUI, sem passar pela lista de clientes.
@@ -205,12 +223,12 @@ export default function TopBar() {
           de abrir a lista toda vez transformava uma escolha em uma viagem.
         */}
         {!noRh && (
-        <label className="flex max-w-[190px] flex-col leading-tight">
-          <span className="text-[9.5px] font-medium uppercase tracking-wide text-muted">
+        <label className="flex min-w-0 max-w-[34vw] flex-col leading-tight lg:max-w-[190px]">
+          <span className="whitespace-nowrap text-[9.5px] font-medium uppercase tracking-wide text-muted">
             {t("top.company")}
           </span>
           <select
-            className="-ml-1 cursor-pointer truncate border-0 bg-transparent p-0 pl-1 text-[13px] font-semibold text-ink focus:outline-none focus-visible:ring-2 focus-visible:ring-brand"
+            className="-ml-1 w-full min-w-0 cursor-pointer truncate border-0 bg-transparent p-0 pl-1 text-[13px] font-semibold text-ink focus:outline-none focus-visible:ring-2 focus-visible:ring-brand"
             value={shown?.id ?? ""}
             onChange={(e) => switchTo(e.target.value)}
             aria-label={t("top.company")}
@@ -234,7 +252,7 @@ export default function TopBar() {
           </Link>
         )}
 
-        {!noRh && <span className="h-7 w-px bg-line" aria-hidden="true" />}
+        {!noRh && <span className="hidden h-7 w-px bg-line lg:block" aria-hidden="true" />}
 
         {/*
           O tema desceu do pé da barra lateral para cá.

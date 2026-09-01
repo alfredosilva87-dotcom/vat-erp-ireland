@@ -89,7 +89,7 @@ export default function HrDashboard() {
       </div>
 
       <div className="card overflow-hidden">
-        <div className="flex items-center gap-3 border-b border-line bg-surface-2/60 px-4 py-2.5">
+        <div className="flex flex-wrap items-center gap-3 border-b border-line bg-surface-2/60 px-4 py-2.5">
           <h2 className="font-display text-sm font-semibold">{t("hr.behindTitle")}</h2>
           <span className="text-xs text-muted">{t("hr.behindSub")}</span>
           <Link href="/hr/weekly" className="btn-ghost ml-auto h-8 px-3 text-xs">

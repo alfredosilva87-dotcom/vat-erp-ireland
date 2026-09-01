@@ -106,7 +106,7 @@ export default function ClientSettings({ params }: { params: { id: string } }) {
               exportados.
             </p>
           </div>
-          <div className="flex items-center gap-2">
+          <div className="flex flex-wrap items-center gap-2">
             {msg && (
               <span className={`text-sm ${msg.error ? "text-danger" : "text-brand-700"}`}>{msg.text}</span>
             )}

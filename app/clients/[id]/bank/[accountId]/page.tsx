@@ -130,6 +130,7 @@ export default function BankAccountDetail({
               Desfazer só é possível enquanto nenhuma linha do lote tiver sido conciliada.
             </p>
           </div>
+          <div className="-mx-1 overflow-x-auto px-1">
           <table className="w-full text-sm">
             <thead>
               <tr className="border-b border-line bg-surface-2/60 text-left text-xs uppercase tracking-wide text-muted">
@@ -156,6 +157,7 @@ export default function BankAccountDetail({
               ))}
             </tbody>
           </table>
+          </div>
         </div>
       )}
 

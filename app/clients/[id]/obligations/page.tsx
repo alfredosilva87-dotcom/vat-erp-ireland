@@ -120,7 +120,7 @@ export default function Obligations({ params }: { params: { id: string } }) {
               to get <strong className="text-ink">T3</strong>, the net position.
             </p>
           </div>
-          <div className="flex items-center gap-2">
+          <div className="flex flex-wrap items-center gap-2">
             <select className="input w-28" value={year} onChange={(e) => setYear(Number(e.target.value))}>
               {yearOptions.map((y) => <option key={y} value={y}>{y}</option>)}
             </select>

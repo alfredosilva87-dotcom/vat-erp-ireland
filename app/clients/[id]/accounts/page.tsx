@@ -117,6 +117,7 @@ export default function PlanoDoCliente({ params }: { params: { id: string } }) {
         {erro && <p className="mt-2 text-sm text-danger">{erro}</p>}
 
         {proprias.length > 0 ? (
+          <div className="-mx-1 overflow-x-auto px-1">
           <table className="mt-4 w-full text-[13px]">
             <tbody>
               {proprias.map((c) => (
@@ -131,6 +132,7 @@ export default function PlanoDoCliente({ params }: { params: { id: string } }) {
               ))}
             </tbody>
           </table>
+          </div>
         ) : (
           <p className="mt-4 text-sm text-muted">
             Nenhuma conta própria — este cliente usa só o plano do escritório, que é o caso normal.
@@ -152,6 +154,7 @@ export default function PlanoDoCliente({ params }: { params: { id: string } }) {
             value={busca} onChange={(e) => setBusca(e.target.value)} />
         </div>
         <div className="max-h-[26rem] overflow-y-auto">
+          <div className="-mx-1 overflow-x-auto px-1">
           <table className="row-hover w-full text-[13px]">
             <tbody>
               {filtradas.map((c) => (
@@ -167,6 +170,7 @@ export default function PlanoDoCliente({ params }: { params: { id: string } }) {
               )}
             </tbody>
           </table>
+          </div>
         </div>
       </section>
 

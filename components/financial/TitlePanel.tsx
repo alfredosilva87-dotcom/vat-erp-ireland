@@ -108,7 +108,7 @@ export default function PainelDoTitulo({
     <div className="fixed inset-0 z-40 flex items-start justify-end bg-black/35" onClick={aoFechar}>
       <div className="h-full w-full max-w-xl overflow-y-auto bg-surface p-6 shadow-xl"
         onClick={(e) => e.stopPropagation()}>
-        <div className="flex items-start justify-between gap-3">
+        <div className="flex flex-wrap items-start justify-between gap-3">
           <div className="min-w-0">
             <h2 className="font-display text-lg font-semibold">
               {t?.document_ref || tr("ttl.fallbackRef")}
@@ -181,6 +181,7 @@ export default function PainelDoTitulo({
             </div>
 
             {d.charges.length > 0 && (
+              <div className="-mx-1 overflow-x-auto px-1">
               <table className="mt-3 w-full text-[13px]">
                 <tbody>
                   {d.charges.map((c) => (
@@ -200,6 +201,7 @@ export default function PainelDoTitulo({
                   ))}
                 </tbody>
               </table>
+              </div>
             )}
 
             <h3 className="mt-6 font-display text-sm font-semibold">
@@ -251,6 +253,7 @@ export default function PainelDoTitulo({
             {d.settlements.length === 0 ? (
               <p className="mt-1 text-sm text-muted">{tr("ttl.noSettlements")}</p>
             ) : (
+              <div className="-mx-1 overflow-x-auto px-1">
               <table className="mt-2 w-full text-[13px]">
                 <tbody>
                   {d.settlements.map((s) => (
@@ -269,6 +272,7 @@ export default function PainelDoTitulo({
                   ))}
                 </tbody>
               </table>
+              </div>
             )}
 
             {/*
@@ -282,6 +286,7 @@ export default function PainelDoTitulo({
                 {tr("ttl.noEntries")}
               </p>
             ) : (
+              <div className="-mx-1 overflow-x-auto px-1">
               <table className="mt-2 w-full text-[12.5px]">
                 <thead>
                   <tr className="border-b border-line text-[10px] uppercase tracking-wide text-muted">
@@ -307,6 +312,7 @@ export default function PainelDoTitulo({
                   ))}
                 </tbody>
               </table>
+              </div>
             )}
           </>
         )}

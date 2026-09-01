@@ -29,7 +29,7 @@ export default function ClientsOverview() {
           <h2 className="font-display text-2xl font-semibold tracking-tight">Clients</h2>
           <p className="mt-1 text-sm text-muted">Registered companies and their balances.</p>
         </div>
-        <div className="flex items-center gap-2">
+        <div className="flex flex-wrap items-center gap-2">
           <span className="chip bg-brand text-white">Total credit € {money(totalCredit)}</span>
           <Link href="/clients" className="btn-ghost h-9 px-3 text-sm">Manage clients</Link>
         </div>
@@ -39,7 +39,7 @@ export default function ClientsOverview() {
         <div className="mt-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
           {clients.map((c) => (
             <div key={c.id} className="card p-5">
-              <div className="flex items-start justify-between gap-2">
+              <div className="flex flex-wrap items-start justify-between gap-2">
                 <div>
                   <Link href={`/clients/${c.id}`} className="font-display text-lg font-semibold hover:text-brand">{c.name}</Link>
                   <div className="text-xs text-muted">

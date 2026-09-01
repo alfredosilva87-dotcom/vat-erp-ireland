@@ -129,7 +129,7 @@ export default function Settings() {
             <p className="text-sm text-muted">{t("settings.usersSub")}</p>
           </div>
           {isAdmin ? (
-            <div className="flex items-center gap-2">
+            <div className="flex flex-wrap items-center gap-2">
               <Link href="/settings/permissions" className="btn-ghost h-9 px-3 text-xs">
                 {t("perm.title")}
               </Link>

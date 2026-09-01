@@ -169,7 +169,7 @@ export default function OpeningTab({ clientId }: { clientId: string }) {
             </tbody>
           </table>
         </div>
-        <div className="mt-2 flex gap-2">
+        <div className="mt-2 flex flex-wrap gap-2">
           <button className="btn-ghost h-8 px-3 text-xs"
             onClick={() => setMapa([...mapa, { external_code: "", external_name: "", account_code: "" }])}>
             + {t("open.addRow")}

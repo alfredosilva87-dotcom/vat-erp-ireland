@@ -84,7 +84,7 @@ export default function Items() {
           e.preventDefault();
           setQuery(q);
         }}
-        className="flex items-center gap-2"
+        className="flex flex-wrap items-center gap-2"
       >
         <input className="input max-w-sm" placeholder="Search items or categories…" value={q} onChange={(e) => setQ(e.target.value)} />
         <button className="btn-primary" type="submit">Search</button>
@@ -131,7 +131,7 @@ export default function Items() {
                   </td>
                   <td className="px-3 py-2 text-right tnum">{m.occurrences}</td>
                   <td className="px-3 py-2">
-                    <div className="flex items-center justify-center gap-1">
+                    <div className="flex flex-wrap items-center justify-center gap-1">
                       <button
                         className="btn-primary h-8 px-3 text-xs"
                         onClick={() => save(m)}

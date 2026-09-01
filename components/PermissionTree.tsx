@@ -64,7 +64,7 @@ export default function PermissionTree({
             ? t("perm.countAll")
             : t("perm.count", { n: count, total })}
         </p>
-        <div className="flex gap-1">
+        <div className="flex flex-wrap gap-1">
           <button className="btn-ghost h-8 px-3 text-xs" disabled={disabled}
             onClick={() => onChange(null)}>
             {t("perm.selectAll")}

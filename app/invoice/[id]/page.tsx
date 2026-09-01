@@ -305,7 +305,7 @@ export default function InvoiceEdit({ params }: { params: { id: string } }) {
         próximo, abrir de novo — a cada nota.
       */}
       {batchIds && (
-        <div className="card flex items-center justify-between gap-3 p-3">
+        <div className="card flex flex-wrap items-center justify-between gap-3 p-3">
           {/*
             No PRIMEIRO documento o "anterior" não some: volta para a lista.
             Um botão que desaparece na primeira posição faz a pessoa procurar
@@ -322,7 +322,7 @@ export default function InvoiceEdit({ params }: { params: { id: string } }) {
           {nextId ? (
             <Link href={navHref(nextId)} className="btn-ghost h-9 px-3 text-sm">Próximo →</Link>
           ) : (
-            <div className="flex items-center gap-2">
+            <div className="flex flex-wrap items-center gap-2">
               <Link href={backTo} className="btn-ghost h-9 px-3 text-sm">Pronto — voltar ao lote</Link>
               {/*
                 Conferidas as entradas, o passo seguinte do fechamento é olhar
@@ -432,7 +432,7 @@ export default function InvoiceEdit({ params }: { params: { id: string } }) {
       {/* Items edit */}
       <div className="flex flex-wrap items-center justify-between gap-3">
         <span className="chip bg-brand text-white">Credit (live) € {money(totalCredit)}</span>
-        <div className="flex gap-2">
+        <div className="flex flex-wrap gap-2">
           <button className="btn-ghost" onClick={addItem} title="e.g. a page/item missing from the read — enter the amount as printed and pick a category">+ Add item</button>
           <button className="btn-ghost" onClick={() => setAll(true)}>Credit all</button>
           <button className="btn-ghost" onClick={() => setAll(false)}>Uncredit all</button>

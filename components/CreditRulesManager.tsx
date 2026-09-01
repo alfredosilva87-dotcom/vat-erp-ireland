@@ -86,7 +86,7 @@ export default function CreditRulesManager() {
               <option value="0">Not deductible</option>
             </select>
           </div>
-          <div className="flex items-end">
+          <div className="flex flex-wrap items-end">
             <button className="btn-primary w-full" onClick={add} disabled={!draft.match_keywords.trim()}>Add</button>
           </div>
         </div>

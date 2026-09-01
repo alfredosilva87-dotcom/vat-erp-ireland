@@ -56,8 +56,8 @@ export default function SupplierRuleCard({
               : t("supCard.decidesNothing")}
           </p>
         </div>
-        <div className="flex items-center gap-2">
-          <label className="flex items-center gap-1 text-xs text-muted">
+        <div className="flex flex-wrap items-center gap-2">
+          <label className="flex flex-wrap items-center gap-1 text-xs text-muted">
             <input type="checkbox" checked={draft.active}
               onChange={(e) => { set({ active: e.target.checked }); onSave(rule.id, { active: e.target.checked }); }} />
             {t("supCard.active")}
