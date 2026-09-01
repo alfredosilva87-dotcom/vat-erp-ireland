@@ -32,6 +32,7 @@ import { useCallback, useEffect, useState } from "react";
 import Link from "next/link";
 import { useT } from "@/lib/i18n";
 import { CT_TRADING } from "@/lib/fiscal/conciliacao";
+import { memoriaDeCT, type LinhaDaMemoria } from "@/lib/fiscal/memoriaDeCalculo";
 
 type Conta = { code: string; description: string; type?: string | null };
 
@@ -90,6 +91,18 @@ export default function TaxPanel({ clientId, tipo }: { clientId: string; tipo: "
    * dobrava-a no DRE, e é um erro que o balanço não denuncia.
    */
   const [contaDespesa, setContaDespesa] = useState("501");
+  /*
+   * Os três ajustes da memória de cálculo NÃO ficam gravados.
+   *
+   * Servem este quadro e o PDF que sai dele. Guardá-los pedia tabela nova e
+   * uma decisão sobre o que fazer quando o lucro muda depois — e o que o
+   * escritório faz de verdade é lançar o ajuste no razão. Ver
+   * lib/fiscal/memoriaDeCalculo.ts para o que o sistema não sabe e por que não
+   * o adivinha.
+   */
+  const [naoDedutivel, setNaoDedutivel] = useState("");
+  const [naoTributavel, setNaoTributavel] = useState("");
+  const [passivo, setPassivo] = useState("");
 
   /**
    * O imposto apurado vira um TÍTULO A PAGAR.
@@ -266,6 +279,23 @@ export default function TaxPanel({ clientId, tipo }: { clientId: string; tipo: "
               contaDespesa={contaDespesa} setContaDespesa={setContaDespesa}
             />
           </section>
+
+          {/*
+            * A MEMÓRIA DE CÁLCULO, entre o resumo e o confronto.
+            *
+            * Fica AQUI e não no fim porque é a explicação dos cartões que estão
+            * logo acima: eles dizem o lucro e o imposto, e esta diz como se vai
+            * de um ao outro. O confronto com o razão vem depois — é conferência,
+            * e conferência lê-se quando já se percebeu a conta.
+            */}
+          <Memoria
+            clientId={clientId} de={de} ate={ate} t={t}
+            lucro={d.imposto.lucroAntesDeImposto}
+            jaReconhecido={d.imposto.despesaDeImposto}
+            naoDedutivel={naoDedutivel} setNaoDedutivel={setNaoDedutivel}
+            naoTributavel={naoTributavel} setNaoTributavel={setNaoTributavel}
+            passivo={passivo} setPassivo={setPassivo}
+          />
 
           <Confronto titulo={t("tax.incomeCheck")} linhas={d.imposto.linhas}
             estado={d.imposto.estado} total={d.imposto.diferencaTotal} t={t} />
@@ -447,5 +477,132 @@ function Confronto({ titulo, linhas, estado, total, t }: {
         </div>
       )}
     </section>
+  );
+}
+
+/**
+ * O QUADRO QUE EXPLICA O IMPOSTO, degrau a degrau.
+ *
+ * O painel já dizia o lucro e já dizia o imposto lançado. O que faltava era
+ * como se vai de um ao outro — e é esse passo que o cliente pergunta quando
+ * recebe a conta, e o que o contabilista tem de reproduzir se a Revenue
+ * perguntar. Um número final sem os degraus acredita-se ou não; com os
+ * degraus, discute-se.
+ *
+ * A conta está em lib/fiscal/memoriaDeCalculo.ts, que é puro e testado — aqui
+ * só se recolhe o que ela precisa e se desenha o que ela devolve.
+ */
+function Memoria({
+  clientId, de, ate, lucro, jaReconhecido, t,
+  naoDedutivel, setNaoDedutivel, naoTributavel, setNaoTributavel, passivo, setPassivo,
+}: {
+  clientId: string; de: string; ate: string;
+  lucro: number; jaReconhecido: number;
+  t: (k: any, v?: Record<string, string | number>) => string;
+  naoDedutivel: string; setNaoDedutivel: (v: string) => void;
+  naoTributavel: string; setNaoTributavel: (v: string) => void;
+  passivo: string; setPassivo: (v: string) => void;
+}) {
+  const n = (v: string) => Number(String(v).replace(",", ".")) || 0;
+  const m = memoriaDeCT({
+    lucroAntesDeImposto: lucro,
+    naoDedutivel: n(naoDedutivel),
+    naoTributavel: n(naoTributavel),
+    rendimentoPassivo: n(passivo),
+    jaReconhecido,
+  });
+
+  const params = new URLSearchParams({
+    de, ate,
+    nd: String(n(naoDedutivel)), nt: String(n(naoTributavel)), rp: String(n(passivo)),
+  });
+
+  return (
+    <section className="card overflow-hidden">
+      <div className="border-b border-line px-5 py-3.5">
+        <div className="flex flex-wrap items-start justify-between gap-3">
+          <div className="max-w-2xl">
+            <h2 className="font-display text-sm font-semibold">{t("memo.title")}</h2>
+            <p className="mt-1 text-[12px] leading-relaxed text-muted">{t("memo.subtitle")}</p>
+          </div>
+          {/* O PDF sai da MESMA conta que está na tela — o papel que o cliente
+              recebe não pode discordar do que o escritório está a ver. */}
+          <a className="btn-ghost h-9 shrink-0 px-4 text-sm"
+             href={`/api/clients/${clientId}/tax/memoria.pdf?${params}`}>
+            {t("memo.pdf")}
+          </a>
+        </div>
+      </div>
+
+      <div className="flex flex-wrap gap-3 border-b border-line bg-surface-2/50 px-5 py-3">
+        <span className="w-full text-[10.5px] uppercase tracking-wide text-muted">{t("memo.inputs")}</span>
+        <CampoDeAjuste rotulo={t("memo.notDeductible")} valor={naoDedutivel} aoMudar={setNaoDedutivel} />
+        <CampoDeAjuste rotulo={t("memo.notTaxable")} valor={naoTributavel} aoMudar={setNaoTributavel} />
+        <CampoDeAjuste rotulo={t("memo.passive")} valor={passivo} aoMudar={setPassivo} />
+        <p className="w-full text-[11px] text-muted">{t("memo.notStored")}</p>
+      </div>
+
+      <table className="w-full text-[13px]">
+        <tbody>
+          {m.linhas.map((l) => <Degrau key={l.chave} l={l} t={t} />)}
+        </tbody>
+      </table>
+
+      <div className="border-t border-line bg-surface-2/60 px-5 py-2.5 text-[12px] text-muted">
+        {m.prejuizo
+          ? t("memo.loss")
+          : m.taxaEfetiva !== null
+            ? t("memo.effective", { n: m.taxaEfetiva })
+            : ""}
+        {m.porReconhecer < 0 && <span className="ml-2 text-warning">{t("memo.over")}</span>}
+      </div>
+    </section>
+  );
+}
+
+function CampoDeAjuste({ rotulo, valor, aoMudar }: {
+  rotulo: string; valor: string; aoMudar: (v: string) => void;
+}) {
+  return (
+    <label className="flex flex-col leading-tight">
+      <span className="label">{rotulo}</span>
+      <input className="input h-9 w-36 text-right font-mono text-[13px]" placeholder="0,00"
+        value={valor} onChange={(e) => aoMudar(e.target.value)} />
+    </label>
+  );
+}
+
+/**
+ * Um degrau da conta.
+ *
+ * Os subtotais e o total ficam a negrito com fundo, os ajustes recuados: a
+ * hierarquia visual é a própria conta, e sem ela nove linhas iguais obrigam a
+ * ler tudo para achar o resultado.
+ */
+function Degrau({ l, t }: {
+  l: LinhaDaMemoria;
+  t: (k: any, v?: Record<string, string | number>) => string;
+}) {
+  const forte = l.tipo === "subtotal" || l.tipo === "total";
+  const recuado = l.tipo === "ajuste";
+  return (
+    <tr className={`border-b border-line/70 ${forte ? "bg-surface-2/40 font-semibold" : ""}`}>
+      <td className={`px-5 py-2 ${recuado ? "pl-9 text-muted" : ""}`}>
+        {t(("memo." + l.chave) as any)}
+        {/* A base e a alíquota vão ao lado do rótulo, não numa coluna própria:
+            só duas das nove linhas as têm, e uma coluna quase vazia lê-se pior
+            do que um parêntese. */}
+        {l.tipo === "taxa" && (
+          <span className="ml-2 font-mono text-[11.5px] font-normal text-muted">
+            {eur(l.base ?? 0)} {t("memo.at", { n: l.taxa ?? 0 })}
+          </span>
+        )}
+      </td>
+      <td className={`px-5 py-2 text-right font-mono tabular-nums ${
+        l.tipo === "total" ? "text-brand" : recuado ? "text-muted" : ""
+      }`}>
+        {eur(l.valor)}
+      </td>
+    </tr>
   );
 }
