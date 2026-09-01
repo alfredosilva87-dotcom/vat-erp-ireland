@@ -792,8 +792,21 @@ export async function getObligations(clientId: string, year: number): Promise<Cl
    * `ignoreDuplicates` é o que impede o perdedor da corrida de rebentar, e a
    * releitura é o que lhe devolve as linhas do vencedor.
    */
-  await sb().from("obligations")
+  const { error } = await sb().from("obligations")
     .upsert(rows, { onConflict: "client_id,kind,period_start,period_end", ignoreDuplicates: true });
+
+  /*
+   * O ERRO DA GRAVAÇÃO NÃO PODE MORRER AQUI.
+   *
+   * Estava sem verificação, e isso escondeu exactamente o defeito que se
+   * procurava: as obrigações novas não apareciam, a releitura devolvia as
+   * antigas, e a tela ficava igual — sem erro, sem aviso, sem nada. Passei um
+   * bom bocado a desconfiar do deploy por causa deste `await` mudo.
+   *
+   * Uma leitura que falha em silêncio mostra menos; uma ESCRITA que falha em
+   * silêncio mente sobre o que ficou gravado.
+   */
+  if (error) throw new Error(`Não deu para gerar as obrigações do ano: ${error.message}`);
   return await ler();
 }
 
@@ -1132,13 +1145,24 @@ export async function clientDashboard(clientId: string, year: number) {
 
   // Next obligations first: still open, soonest due at the top.
   const today = new Date().toISOString().slice(0, 10);
+  /*
+   * A obrigação SEM prazo vai para o fim, e não para o topo.
+   *
+   * Uma string vazia ordenaria antes de qualquer data e ela abria a lista do
+   * "o que vem a seguir" — quando é precisamente a que não se sabe quando vem.
+   * O seu lugar é o fim, com estado próprio: é cadastro por completar, não
+   * trabalho vencido.
+   */
+  const NUNCA = "9999-12-31";
   const upcoming = obligations
     .filter((o) => o.status === "open")
-    .sort((a, b) => a.due_date.localeCompare(b.due_date))
+    .sort((a, b) => (a.due_date ?? NUNCA).localeCompare(b.due_date ?? NUNCA))
     .slice(0, 5)
     .map((o) => ({
       id: o.id, kind: o.kind, period_label: o.period_label, due_date: o.due_date,
-      state: o.due_date < today ? "overdue" : withinDays(o.due_date, today, 60) ? "soon" : "pending",
+      state: !o.due_date ? "nodate"
+        : o.due_date < today ? "overdue"
+        : withinDays(o.due_date, today, 60) ? "soon" : "pending",
     }));
 
   return { client, year, kpis, series, vatByMonth, rates, upcoming, bySource };

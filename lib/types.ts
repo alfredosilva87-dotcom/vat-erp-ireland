@@ -342,11 +342,20 @@ export interface ClientWithStats extends Client {
 export interface ClientObligation {
   id: string;
   client_id: string;
-  kind: "VAT3" | "RTD";
+  /**
+   * As seis que a agenda conhece. VAT3 e RTD vêm do IVA; as outras quatro vêm
+   * da forma jurídica do cliente — ver lib/fiscal/calendario.ts.
+   */
+  kind: "VAT3" | "RTD" | "CT1" | "B1" | "FORM11" | "PRELIMINARY_TAX";
   period_label: string;
   period_start: string;
   period_end: string;
-  due_date: string;
+  /**
+   * NULO quando o cadastro ainda não dá para saber o prazo — o CT1 sem fecho
+   * do exercício, a B1 sem a data da anual. Inventar uma data punha na agenda
+   * um prazo que ninguém confirmou, e a verde. Ver selfhost/schema/044.
+   */
+  due_date: string | null;
   year: number;
   status: "open" | "filed";
   vat_on_sales: number | null;      // T1
