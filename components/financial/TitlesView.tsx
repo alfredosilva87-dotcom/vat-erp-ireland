@@ -6,6 +6,7 @@ import PainelDoTitulo from "@/components/financial/TitlePanel";
 import NovoTituloManual from "@/components/financial/NovoTituloManual";
 import type { Titulo } from "@/components/financial/tipos";
 import { eur } from "@/components/financial/tipos";
+import { useT } from "@/lib/i18n";
 
 /**
  * Contas a pagar e a receber. O mesmo ecrã, dos dois lados.
@@ -30,13 +31,14 @@ import { eur } from "@/components/financial/tipos";
 
 
 
-const ESTADOS = [
-  { v: "pendentes", r: "Pendentes" },
-  { v: "overdue", r: "Vencidos" },
-  { v: "partial", r: "Parciais" },
-  { v: "settled", r: "Quitados" },
-  { v: "todos", r: "Todos" },
-];
+/*
+ * Só as CHAVES; o texto sai do dicionário dentro do componente.
+ *
+ * Estava tudo escrito em português aqui, e esta é a tela que o escritório abre
+ * todos os dias — num ERP irlandês era a que mais mal ficava em inglês. O
+ * mesmo vale para os nomes das situações.
+ */
+const ESTADOS = ["pendentes", "overdue", "partial", "settled", "todos"] as const;
 
 
 
@@ -44,11 +46,10 @@ const CHIP: Record<string, string> = {
   open: "chip bg-surface-2 text-muted", partial: "chip-warn",
   overdue: "chip-danger", settled: "chip-ok",
 };
-const NOME: Record<string, string> = {
-  open: "Em aberto", partial: "Parcial", overdue: "Vencido", settled: "Quitado",
-};
+
 
 export default function TitlesView({ clientId, kind }: { clientId: string; kind: "payable" | "receivable" }) {
+  const { t } = useT();
   /*
    * O filtro pode vir na URL, e é isso que faz o RASTRO funcionar.
    *
@@ -103,24 +104,24 @@ export default function TitlesView({ clientId, kind }: { clientId: string; kind:
     <div className="space-y-4">
       <div className="card flex flex-wrap items-end gap-3 p-4">
         <label className="flex flex-col leading-tight">
-          <span className="text-[9.5px] font-medium uppercase tracking-wide text-muted">Situação</span>
+          <span className="text-[9.5px] font-medium uppercase tracking-wide text-muted">{t("titles.status")}</span>
           <select className="input h-9 w-auto cursor-pointer py-0 text-[13px] font-semibold"
             value={status} onChange={(e) => setStatus(e.target.value)}>
-            {ESTADOS.map((s) => <option key={s.v} value={s.v}>{s.r}</option>)}
+            {ESTADOS.map((e) => <option key={e} value={e}>{t(("titles.st_" + e) as any)}</option>)}
           </select>
         </label>
         <label className="flex flex-col leading-tight">
-          <span className="text-[9.5px] font-medium uppercase tracking-wide text-muted">Vence de</span>
+          <span className="text-[9.5px] font-medium uppercase tracking-wide text-muted">{t("titles.dueFrom")}</span>
           <input type="date" className="input h-9 w-auto py-0 text-[13px]" value={de} onChange={(e) => setDe(e.target.value)} />
         </label>
         <label className="flex flex-col leading-tight">
-          <span className="text-[9.5px] font-medium uppercase tracking-wide text-muted">até</span>
+          <span className="text-[9.5px] font-medium uppercase tracking-wide text-muted">{t("titles.dueTo")}</span>
           <input type="date" className="input h-9 w-auto py-0 text-[13px]" value={ate} onChange={(e) => setAte(e.target.value)} />
         </label>
         <label className="flex min-w-[200px] flex-1 flex-col leading-tight">
-          <span className="text-[9.5px] font-medium uppercase tracking-wide text-muted">{contraparte} ou documento</span>
+          <span className="text-[9.5px] font-medium uppercase tracking-wide text-muted">{t("titles.searchBy", { n: contraparte })}</span>
           <input className="input h-9 w-full py-0 text-[13px]" value={busca}
-            onChange={(e) => setBusca(e.target.value)} placeholder="procurar…" />
+            onChange={(e) => setBusca(e.target.value)} placeholder={t("titles.search")} />
         </label>
         {/*
           * Lançar à mão: taxa, imposto, seguro — dívida que não vem de nota.
@@ -129,7 +130,7 @@ export default function TitlesView({ clientId, kind }: { clientId: string; kind:
           * acomodar, que entra na apuração de VAT como se fosse compra.
           */}
         <button className="btn-primary h-9 shrink-0 px-4 text-sm" onClick={() => setLancando(true)}>
-          + Lançar à mão
+          {t("titles.addManual")}
         </button>
       </div>
 
@@ -147,14 +148,14 @@ export default function TitlesView({ clientId, kind }: { clientId: string; kind:
             <b className="tabular-nums">{d.total}</b> título(s) no filtro
           </span>
           <span className="flex flex-wrap gap-5 font-mono text-sm tabular-nums">
-            <span className="text-muted">Original <b className="text-ink">{eur(d.totals.original)}</b></span>
+            <span className="text-muted">{t("titles.original")} <b className="text-ink">{eur(d.totals.original)}</b></span>
             {d.totals.charges !== 0 && (
-              <span className="text-muted">Encargos <b className="text-ink">{eur(d.totals.charges)}</b></span>
+              <span className="text-muted">{t("titles.charges")} <b className="text-ink">{eur(d.totals.charges)}</b></span>
             )}
-            <span className="text-muted">Pago <b className="text-ink">{eur(d.totals.settled)}</b></span>
-            <span className="text-muted">Em aberto <b className="text-ink">{eur(d.totals.outstanding)}</b></span>
+            <span className="text-muted">{t("titles.settled")} <b className="text-ink">{eur(d.totals.settled)}</b></span>
+            <span className="text-muted">{t("titles.outstanding")} <b className="text-ink">{eur(d.totals.outstanding)}</b></span>
             {d.totals.overdue > 0 && (
-              <span className="text-danger">Vencido <b>{eur(d.totals.overdue)}</b></span>
+              <span className="text-danger">{t("titles.overdue")} <b>{eur(d.totals.overdue)}</b></span>
             )}
           </span>
         </div>
@@ -194,8 +195,8 @@ export default function TitlesView({ clientId, kind }: { clientId: string; kind:
             </span>
           </span>
           <span className="flex flex-wrap gap-5 font-mono text-sm tabular-nums">
-            <span className="text-muted">Razão <b className="text-ink">{eur(d.control.ledgerBalance)}</b></span>
-            <span className="text-muted">Títulos <b className="text-ink">{eur(d.control.agingOutstanding)}</b></span>
+            <span className="text-muted">{t("titles.ledger")} <b className="text-ink">{eur(d.control.ledgerBalance)}</b></span>
+            <span className="text-muted">{t("titles.titles")} <b className="text-ink">{eur(d.control.agingOutstanding)}</b></span>
             <span className={d.control.difference === 0 ? "text-muted" : "text-warning"}>
               Diferença <b>{eur(d.control.difference)}</b>
             </span>
@@ -208,35 +209,35 @@ export default function TitlesView({ clientId, kind }: { clientId: string; kind:
           <table className="row-hover w-full text-[13px]">
             <thead>
               <tr className="border-b border-line text-[10.5px] uppercase tracking-wide text-muted">
-                <th className="px-3 py-2 text-left font-medium">Vencimento</th>
-                <th className="px-3 py-2 text-left font-medium">Documento</th>
+                <th className="px-3 py-2 text-left font-medium">{t("titles.dueDate")}</th>
+                <th className="px-3 py-2 text-left font-medium">{t("titles.document")}</th>
                 <th className="px-3 py-2 text-left font-medium">{contraparte}</th>
-                <th className="px-3 py-2 text-right font-medium">Original</th>
-                <th className="px-3 py-2 text-right font-medium">Encargos</th>
-                <th className="px-3 py-2 text-right font-medium">Pago</th>
-                <th className="px-3 py-2 text-right font-medium">Em aberto</th>
-                <th className="px-3 py-2 text-left font-medium">Situação</th>
+                <th className="px-3 py-2 text-right font-medium">{t("titles.original")}</th>
+                <th className="px-3 py-2 text-right font-medium">{t("titles.charges")}</th>
+                <th className="px-3 py-2 text-right font-medium">{t("titles.settled")}</th>
+                <th className="px-3 py-2 text-right font-medium">{t("titles.outstanding")}</th>
+                <th className="px-3 py-2 text-left font-medium">{t("titles.status")}</th>
               </tr>
             </thead>
             <tbody>
-              {(d?.items ?? []).map((t) => (
-                <tr key={t.id} onClick={() => setAberto(t.id)}
+              {(d?.items ?? []).map((ti) => (
+                <tr key={ti.id} onClick={() => setAberto(ti.id)}
                   className="cursor-pointer border-b border-line/50 hover:bg-surface-2/60">
-                  <td className="whitespace-nowrap px-3 py-2 font-mono text-[12px]">{t.due_date || "—"}</td>
+                  <td className="whitespace-nowrap px-3 py-2 font-mono text-[12px]">{ti.due_date || "—"}</td>
                   <td className="whitespace-nowrap px-3 py-2 font-mono text-[12px]">
-                    {t.document_ref || <span className="text-muted">{t.source_module}</span>}
+                    {ti.document_ref || <span className="text-muted">{ti.source_module}</span>}
                   </td>
-                  <td className="px-3 py-2">{t.counterparty || "—"}</td>
-                  <td className="px-3 py-2 text-right font-mono tabular-nums">{eur(t.original_amount)}</td>
+                  <td className="px-3 py-2">{ti.counterparty || "—"}</td>
+                  <td className="px-3 py-2 text-right font-mono tabular-nums">{eur(ti.original_amount)}</td>
                   <td className="px-3 py-2 text-right font-mono tabular-nums">
-                    {Number(t.charges_amount) ? eur(t.charges_amount) : ""}
+                    {Number(ti.charges_amount) ? eur(ti.charges_amount) : ""}
                   </td>
                   <td className="px-3 py-2 text-right font-mono tabular-nums text-muted">
-                    {Number(t.settled_amount) ? eur(t.settled_amount) : ""}
+                    {Number(ti.settled_amount) ? eur(ti.settled_amount) : ""}
                   </td>
-                  <td className="px-3 py-2 text-right font-mono font-semibold tabular-nums">{eur(t.outstanding_amount)}</td>
+                  <td className="px-3 py-2 text-right font-mono font-semibold tabular-nums">{eur(ti.outstanding_amount)}</td>
                   <td className="px-3 py-2">
-                    <span className={`${CHIP[t.status] ?? "chip"} text-[11px]`}>{NOME[t.status] ?? t.status}</span>
+                    <span className={`${CHIP[ti.status] ?? "chip"} text-[11px]`}>{t(("titles.s_" + ti.status) as any)}</span>
                   </td>
                 </tr>
               ))}
