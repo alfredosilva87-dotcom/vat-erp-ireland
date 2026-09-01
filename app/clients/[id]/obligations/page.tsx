@@ -17,6 +17,14 @@ const emptyManual = { name: "", category: "", periodicity: "", due_date: "" };
  * fechados. CT1, B1 e Form 11 entraram agora e vêm da forma jurídica do
  * cliente — vale a pena dizer o que são ao lado da sigla.
  */
+/*
+ * A sigla como se escreve, e não como está guardada.
+ *
+ * `PRELIMINARY_TAX` é o nome da coluna no banco, e ao lado de VAT3, CT1 e B1
+ * lê-se como um erro. As outras três já são as siglas reais e ficam como estão.
+ */
+const SIGLA: Record<string, string> = { PRELIMINARY_TAX: "Prelim." };
+
 const NOME_DA: Record<string, string> = {
   CT1: "imposto sobre o lucro",
   B1: "contas anuais no CRO",
@@ -144,7 +152,7 @@ export default function Obligations({ params }: { params: { id: string } }) {
                 return (
                   <tr key={o.id} className="border-b border-line/70 align-middle">
                     <td className="px-5 py-2 font-medium">
-                      {o.kind}
+                      {SIGLA[o.kind] ?? o.kind}
                       {!deVat && <span className="ml-2 text-[11px] font-normal text-muted">{NOME_DA[o.kind] ?? ""}</span>}
                     </td>
                     <td className="px-3 py-2">{o.period_label}</td>
