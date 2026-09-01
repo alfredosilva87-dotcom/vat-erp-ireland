@@ -91,7 +91,7 @@ export type ResultadoDoTitulo =
  * 2026" em contas a pagar sabe de que declaração se trata, e a busca por esse
  * texto encontra o título a partir da agenda.
  */
-function referencia(tipo: TipoDeImposto, periodo: string | null, de: string, ate: string): string {
+export function referencia(tipo: TipoDeImposto, periodo: string | null, de: string, ate: string): string {
   const rotulo = periodo?.trim() || `${de} a ${ate}`;
   return tipo === "vat" ? `VAT3 ${rotulo}` : `CT1 ${rotulo}`;
 }

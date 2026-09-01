@@ -174,6 +174,14 @@ const en = {
   "payable.comingSoon": "This module is under construction.",
 
   // ---- manual recurring obligations ----
+  "obl.colFiled": "Filed",
+  "obl.colPaid": "Payment",
+  "obl.undoFiled": "Click to mark it back as not filed",
+  "obl.paid": "paid",
+  "obl.partial": "part paid",
+  "obl.unpaid": "outstanding",
+  "obl.noTitle": "not in payables yet",
+  "obl.seeTitle": "see it",
   "obligations.manualTitle": "Other recurring obligations",
   "obligations.manualAdd": "Add obligation",
   "obligations.manualName": "Name",

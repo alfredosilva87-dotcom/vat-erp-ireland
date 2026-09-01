@@ -177,6 +177,14 @@ const pt: Dict = {
   "payable.comingSoon": "Este módulo está em construção.",
 
   // ---- obrigações recorrentes manuais ----
+  "obl.colFiled": "Entregue",
+  "obl.colPaid": "Pagamento",
+  "obl.undoFiled": "Clique para voltar a marcar como não entregue",
+  "obl.paid": "pago",
+  "obl.partial": "pago em parte",
+  "obl.unpaid": "em aberto",
+  "obl.noTitle": "ainda não está em contas a pagar",
+  "obl.seeTitle": "ver",
   "obligations.manualTitle": "Outras obrigações recorrentes",
   "obligations.manualAdd": "Adicionar obrigação",
   "obligations.manualName": "Nome",

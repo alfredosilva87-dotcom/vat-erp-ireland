@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useState } from "react";
 import type { ClientObligation, RecurringObligation } from "@/lib/types";
+import Link from "next/link";
 import { useT } from "@/lib/i18n";
 
 const money = (n: number | null | undefined) =>
@@ -10,13 +11,6 @@ const num = (v: string): number | null => (v.trim() === "" ? null : Number(v.rep
 
 const emptyManual = { name: "", category: "", periodicity: "", due_date: "" };
 
-/**
- * O que cada sigla é, para quem não vive nisto todos os dias.
- *
- * A tabela já mostrava VAT3 e RTD, que qualquer contabilista lê de olhos
- * fechados. CT1, B1 e Form 11 entraram agora e vêm da forma jurídica do
- * cliente — vale a pena dizer o que são ao lado da sigla.
- */
 /*
  * A sigla como se escreve, e não como está guardada.
  *
@@ -32,9 +26,23 @@ const NOME_DA: Record<string, string> = {
   PRELIMINARY_TAX: "pagamento por conta",
 };
 
+type Pagamento = {
+  estado: "nao_se_aplica" | "sem_titulo" | "aberto" | "parcial" | "pago";
+  ref: string | null; total: number | null; emAberto: number | null; pagoEm: string | null;
+};
+
 export default function Obligations({ params }: { params: { id: string } }) {
   const { t } = useT();
   const [obligations, setObligations] = useState<ClientObligation[]>([]);
+  /*
+   * ENTREGAR E PAGAR são dois factos.
+   *
+   * "Mark filed" responde a "entreguei a declaração?". Não responde a "paguei
+   * o que ela apurou?" — e a Revenue cobra juros pelo atraso no pagamento
+   * mesmo com a declaração entregue a horas. Ver
+   * lib/fiscal/pagamentoDaObrigacao.ts.
+   */
+  const [pagamentos, setPagamentos] = useState<Record<string, Pagamento>>({});
   const [year, setYear] = useState(new Date().getFullYear());
   const [busy, setBusy] = useState(false);
 
@@ -47,6 +55,7 @@ export default function Obligations({ params }: { params: { id: string } }) {
       `/api/clients/${params.id}/obligations?year=${year}${refresh ? "&refresh=1" : ""}`
     )).json();
     setObligations(d.obligations || []);
+    setPagamentos(d.payments || {});
   }, [params.id, year]);
 
   const loadManual = useCallback(async () => {
@@ -131,7 +140,8 @@ export default function Obligations({ params }: { params: { id: string } }) {
                 <th className="px-3 py-3 font-medium text-right">T1 · VAT sales</th>
                 <th className="px-3 py-3 font-medium text-right">T2 · VAT purchases</th>
                 <th className="px-3 py-3 font-medium text-right">T3 · Net</th>
-                <th className="px-3 py-3 font-medium text-center">Status</th>
+                <th className="px-3 py-3 font-medium text-center">{t("obl.colFiled")}</th>
+                <th className="px-3 py-3 font-medium">{t("obl.colPaid")}</th>
               </tr>
             </thead>
             <tbody>
@@ -191,18 +201,35 @@ export default function Obligations({ params }: { params: { id: string } }) {
                     <td className={`px-3 py-2 text-right tnum font-semibold ${deVat && net > 0 ? "text-danger" : deVat ? "text-success" : "text-muted"}`}>
                       {deVat ? money(net) : "—"}
                     </td>
+                    {/*
+                      * ENTREGUE — e desde quando.
+                      *
+                      * `filed_at` sempre foi gravado e nunca foi mostrado. Um
+                      * visto sem data não responde à única pergunta que se faz
+                      * a seguir: foi dentro do prazo? Com a data ao lado do
+                      * vencimento, a resposta lê-se sem abrir nada.
+                      */}
                     <td className="px-3 py-2 text-center">
                       {o.status === "filed" ? (
-                        <button className="chip-ok" onClick={() => patchObl(o.id, { status: "open" })}>Filed ✓</button>
+                        <button className="chip-ok" title={t("obl.undoFiled")}
+                          onClick={() => patchObl(o.id, { status: "open" })}>
+                          {t("obl.filed")}
+                          {o.filed_at && <span className="ml-1 font-normal opacity-80">{o.filed_at.slice(0, 10)}</span>}
+                        </button>
                       ) : (
-                        <button className="btn-ghost h-8 px-3 text-xs" onClick={() => patchObl(o.id, { status: "filed" })}>Mark filed</button>
+                        <button className="btn-ghost h-8 px-3 text-xs" onClick={() => patchObl(o.id, { status: "filed" })}>
+                          {t("obl.markFiled")}
+                        </button>
                       )}
+                    </td>
+                    <td className="px-3 py-2">
+                      <Pago p={pagamentos[o.id]} clientId={params.id} t={t} />
                     </td>
                   </tr>
                 );
               })}
               {!obligations.length && (
-                <tr><td colSpan={7} className="px-4 py-10 text-center text-muted">No obligations generated for {year} yet.</td></tr>
+                <tr><td colSpan={8} className="px-4 py-10 text-center text-muted">No obligations generated for {year} yet.</td></tr>
               )}
             </tbody>
           </table>
@@ -279,5 +306,60 @@ export default function Obligations({ params }: { params: { id: string } }) {
         </div>
       </section>
     </div>
+  );
+}
+
+/**
+ * O ESTADO DE PAGAMENTO da obrigação, em duas palavras e um caminho.
+ *
+ * Não repete o valor da declaração — esse já está nas colunas T1/T2/T3. Diz o
+ * que falta sair do banco, que é outra pergunta e a única que o dinheiro
+ * responde. Quando há título, leva a ele: é lá que se dá a baixa.
+ */
+function Pago({ p, clientId, t }: {
+  p?: { estado: string; ref: string | null; total: number | null; emAberto: number | null; pagoEm: string | null };
+  clientId: string;
+  t: (k: any, v?: Record<string, string | number>) => string;
+}) {
+  if (!p || p.estado === "nao_se_aplica") {
+    // RTD, B1, Form 11: não é que estejam por pagar — é que o pagamento delas
+    // não passa por aqui. Um "em aberto" nessas linhas seria falso.
+    return <span className="text-muted">—</span>;
+  }
+
+  const verLista = (
+    <Link className="underline" href={`/clients/${clientId}/payable?status=todos&q=${encodeURIComponent(p.ref ?? "")}`}>
+      {t("obl.seeTitle")}
+    </Link>
+  );
+
+  if (p.estado === "sem_titulo") {
+    /* Sem título ainda: o caminho é a aba do imposto, onde o apurado vira
+       título a pagar. Ver components/fiscal/TaxPanel.tsx. */
+    return (
+      <Link className="chip text-[11px] hover:underline" href={`/clients/${clientId}/accounting`}>
+        {t("obl.noTitle")}
+      </Link>
+    );
+  }
+  if (p.estado === "pago") {
+    return (
+      <span className="flex flex-wrap items-center gap-1.5 text-[12px]">
+        <span className="chip-ok text-[11px]">{t("obl.paid")}</span>
+        {p.pagoEm && <span className="text-muted">{p.pagoEm}</span>}
+        {verLista}
+      </span>
+    );
+  }
+  return (
+    <span className="flex flex-wrap items-center gap-1.5 text-[12px]">
+      <span className={`text-[11px] ${p.estado === "parcial" ? "chip-warn" : "chip-danger"}`}>
+        {t(p.estado === "parcial" ? "obl.partial" : "obl.unpaid")}
+      </span>
+      <span className="font-mono tabular-nums">
+        €{(p.emAberto ?? 0).toLocaleString("en-IE", { minimumFractionDigits: 2 })}
+      </span>
+      {verLista}
+    </span>
   );
 }
