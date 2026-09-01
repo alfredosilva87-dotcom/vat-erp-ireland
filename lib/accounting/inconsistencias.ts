@@ -3,6 +3,9 @@ import { getServerSupabase } from "@/lib/supabase";
 import { integracoesDo } from "@/lib/integrations";
 import { conciliarControlo } from "@/lib/financial/control";
 import { documentosNaoIntegrados } from "@/lib/financial/naoIntegrados";
+import { partidasOrfasDoCliente } from "@/lib/accounting/partidasOrfas";
+import { lerTudo } from "@/lib/accounting/paginado";
+import { efeitoNasContas } from "@/lib/accounting/partidasOrfasPuro";
 
 /**
  * A varredura a pedido: o que, neste cliente, não fecha.
@@ -41,6 +44,15 @@ export type Achado = {
   detalhe: string;
   /** Para onde a pessoa vai resolver. */
   href?: string | null;
+  /**
+   * O PASSO A PASSO, não o diagnóstico.
+   *
+   * Pedido do Alfredo em 2026-09-01, e a queixa era justa: "fala que está com
+   * erro e não vejo aonde… esse caminho de mostrar o erro precisa mostrar como
+   * resolve também". Dizer "há uma diferença de 34,20" e parar aí devolve o
+   * problema a quem já sabia que o tinha.
+   */
+  comoResolver?: string;
 };
 
 export type Verificacao = {
@@ -81,12 +93,15 @@ export async function checkupDoCliente(clientId: string): Promise<Checkup> {
    * justamente quando a rede falha que se quer saber.
    */
   {
-    const { data: linhas } = await sb.from("journal_lines")
+    // Paginado: o PostgREST corta em 1000 sem avisar, e uma verificação
+    // truncada diz "está tudo bem" sobre o que nunca leu. Ver lib/accounting/paginado.ts.
+    const linhas = await lerTudo<any>((de, ate) => sb.from("journal_lines")
       .select("journal_id,debit,credit,journal!inner(client_id,document_ref)")
-      .eq("journal.client_id", clientId).limit(20000);
+      .eq("journal.client_id", clientId)
+      .order("journal_id", { ascending: true }).range(de, ate));
 
     const porLanc = new Map<string, { d: number; c: number; ref: string | null }>();
-    for (const l of ((linhas ?? []) as any[])) {
+    for (const l of linhas) {
       const a = porLanc.get(l.journal_id) ?? { d: 0, c: 0, ref: l.journal?.document_ref ?? null };
       a.d += Number(l.debit) || 0;
       a.c += Number(l.credit) || 0;
@@ -117,10 +132,11 @@ export async function checkupDoCliente(clientId: string): Promise<Checkup> {
    * fechar sem causa apontável.
    */
   {
-    const { data: usadas } = await sb.from("journal_lines")
+    const usadas = await lerTudo<any>((de, ate) => sb.from("journal_lines")
       .select("account_code,journal!inner(client_id)")
-      .eq("journal.client_id", clientId).limit(20000);
-    const codigos = Array.from(new Set(((usadas ?? []) as any[]).map((l) => l.account_code)));
+      .eq("journal.client_id", clientId)
+      .order("account_code", { ascending: true }).range(de, ate));
+    const codigos = Array.from(new Set(usadas.map((l) => l.account_code)));
 
     const { data: plano } = await sb.from("chart_of_accounts")
       .select("code,active,postable,type").or(`client_id.is.null,client_id.eq.${clientId}`);
@@ -145,6 +161,48 @@ export async function checkupDoCliente(clientId: string): Promise<Checkup> {
     });
   }
 
+  // ------------------------------- 2b. partidas cuja ORIGEM já não existe
+  /*
+   * A verificação que faltava, e que custou uma investigação inteira.
+   *
+   * Conta 812: razão 4.924,01, títulos 4.958,21, diferença −34,20 — e nada no
+   * ecrã que dissesse porquê. Eram três partidas: duas baixas (13,00 e 24,00)
+   * e um encargo (2,80) cujas linhas de origem tinham sido levadas pela
+   * CASCATA do banco de dados ao apagar o título. `ledger_settlements` e
+   * `ledger_charges` apontam a `ledger_items` com ON DELETE CASCADE; `journal`
+   * não aponta a nada disso, e por isso a partida fica.
+   *
+   * A verificação 4 (órfãos) não as via: ela pergunta pelo DOCUMENTO e só olha
+   * `purchase`/`sale`. Aqui o que falta é a baixa e o encargo, em `bank` e
+   * `charge` — invisíveis nas duas telas ao mesmo tempo.
+   */
+  const orfas = await partidasOrfasDoCliente(clientId);
+  {
+    const total = r2(orfas.reduce((s, o) =>
+      s + o.contas.reduce((x, c) => x + c.debit, 0), 0));
+    vs.push({
+      id: "partidas-sem-origem",
+      titulo: "Partidas sem origem",
+      procura: "Lançamento no razão cuja baixa, encargo ou documento já não existe.",
+      estado: orfas.length ? "erro" : "ok",
+      resumo: orfas.length
+        ? `${orfas.length} partida(s) sem origem, € ${total.toFixed(2)} de movimento. `
+          + "É lixo contábil: o razão conta um dinheiro que nada mais explica."
+        : "Toda partida no razão tem a origem dela viva.",
+      achados: orfas.slice(0, 30).map((o) => ({
+        referencia: o.documentRef || o.journalId.slice(0, 8),
+        detalhe: `${o.postingDate} · ${o.falta} · `
+          + o.contas.map((c) => `${c.code} ${c.debit ? "D" : "C"} ${r2(c.debit || c.credit)}`).join(", "),
+        href: `/clients/${clientId}/cleanup?lanc=${o.journalId}`,
+        comoResolver:
+          "Abra a Limpeza do razão pelo link e remova a partida. Estornar mantém "
+          + "as duas linhas à vista e serve período fechado; apagar só dá em período "
+          + "aberto e fica registado na mesma. Se o dinheiro MEXEU mesmo, refaça "
+          + "primeiro o título e a baixa — senão o extrato deixa de bater.",
+      })),
+    });
+  }
+
   // ---------------------------------------- 3. conta de controlo × aging
   for (const kind of ["payable", "receivable"] as const) {
     const liga = kind === "payable" ? integra.purchases_to_payable : integra.sales_to_receivable;
@@ -162,6 +220,21 @@ export async function checkupDoCliente(clientId: string): Promise<Checkup> {
     }
     const c = await conciliarControlo(clientId, kind);
     const fecha = Math.abs(c.difference) <= 0.01;
+
+    /*
+     * QUANTO da diferença as partidas órfãs explicam.
+     *
+     * Era esta a pergunta sem resposta. O ecrã dizia "diferença de −34,20" e
+     * listava três causas possíveis em texto — abertura em bloco, lançamento
+     * manual, título apagado — deixando a pessoa escolher por qual começar a
+     * procurar. Com o número das órfãs ao lado, a diferença deixa de ser um
+     * mistério: ou fecha com elas, e o caminho é a Limpeza; ou não fecha, e
+     * então sobra a parte que é mesmo abertura ou lançamento manual.
+     */
+    const explicado = efeitoNasContas(orfas, c.accounts);
+    const sobra = r2(c.difference - explicado);
+    const explicaTudo = !fecha && Math.abs(explicado) > 0.01 && Math.abs(sobra) <= 0.01;
+
     vs.push({
       id: `controlo-${kind}`,
       titulo: `${nome} × razão`,
@@ -169,12 +242,31 @@ export async function checkupDoCliente(clientId: string): Promise<Checkup> {
       estado: fecha ? "ok" : "erro",
       resumo: fecha
         ? `Batem: € ${c.ledgerBalance.toFixed(2)} dos dois lados.`
-        : `Diferença de € ${c.difference.toFixed(2)} — razão € ${c.ledgerBalance.toFixed(2)}, títulos € ${c.agingOutstanding.toFixed(2)}.`,
-      achados: fecha ? [] : [{
-        referencia: c.accounts.join(", "),
-        detalhe: "abertura carregada em bloco, lançamento manual na conta, ou título apagado sem a partida",
-        href: `/clients/${clientId}/${kind === "payable" ? "payable" : "receivable"}`,
-      }],
+        : `Diferença de € ${c.difference.toFixed(2)} — razão € ${c.ledgerBalance.toFixed(2)}, títulos € ${c.agingOutstanding.toFixed(2)}.`
+          + (Math.abs(explicado) > 0.01
+            ? ` Partidas sem origem explicam € ${explicado.toFixed(2)}${explicaTudo ? " — a diferença inteira." : `, sobrando € ${sobra.toFixed(2)}.`}`
+            : ""),
+      achados: fecha ? [] : [
+        ...(Math.abs(explicado) > 0.01 ? [{
+          referencia: "partidas sem origem",
+          detalhe: `€ ${explicado.toFixed(2)} de movimento em ${c.accounts.join(", ")} que nada explica`,
+          href: `/clients/${clientId}/cleanup`,
+          comoResolver: "Remova-as na Limpeza do razão — é o que fecha esta diferença.",
+        }] : []),
+        ...(!explicaTudo ? [{
+          referencia: c.accounts.join(", "),
+          detalhe: Math.abs(explicado) > 0.01
+            ? `sobram € ${sobra.toFixed(2)} sem explicação nas partidas órfãs`
+            : "abertura carregada em bloco, lançamento manual na conta, ou título apagado sem a partida",
+          href: `/clients/${clientId}/${kind === "payable" ? "payable" : "receivable"}`,
+          comoResolver:
+            "Abra o razão nesta conta e compare linha a linha com a lista de títulos. "
+            + "As três causas por ordem de frequência: carga de abertura lançada em bloco "
+            + "sem título por trás (some do aging e fica no razão), lançamento manual "
+            + "feito direto na conta de controlo, e título apagado deixando a partida. "
+            + "O que sobrar depois das órfãs é quase sempre a abertura.",
+        }] : []),
+      ],
     });
   }
 
@@ -249,10 +341,11 @@ export async function checkupDoCliente(clientId: string): Promise<Checkup> {
 
   // ------------------------------------------- 6. baixa acima do devido
   {
-    const { data: abertos } = await sb.from("ledger_items_open")
-      .select("document_ref,original_amount,charges_amount,settled_amount,outstanding_amount")
-      .eq("client_id", clientId).limit(20000);
-    const acima = ((abertos ?? []) as any[]).filter((t) => num(t.outstanding_amount) < -0.01);
+    const abertos = await lerTudo<any>((de, ate) => sb.from("ledger_items_open")
+      .select("id,document_ref,original_amount,charges_amount,settled_amount,outstanding_amount")
+      .eq("client_id", clientId)
+      .order("id", { ascending: true }).range(de, ate));
+    const acima = abertos.filter((t) => num(t.outstanding_amount) < -0.01);
     vs.push({
       id: "baixa-excedida",
       titulo: "Baixas acima do devido",
@@ -276,10 +369,12 @@ export async function checkupDoCliente(clientId: string): Promise<Checkup> {
    * provisão se manifestou: a 2400 devedora, a reduzir os credores no balanço.
    */
   {
-    const { data: saldos } = await sb.from("account_balances")
-      .select("account_code,account_name,type,balance").eq("client_id", clientId).limit(20000);
+    const saldos = await lerTudo<any>((de, ate) => sb.from("account_balances")
+      .select("account_code,account_name,type,balance,posting_date").eq("client_id", clientId)
+      .order("posting_date", { ascending: true })
+      .order("account_code", { ascending: true }).range(de, ate));
     const acc = new Map<string, { nome: string; tipo: string; saldo: number }>();
-    for (const l of ((saldos ?? []) as any[])) {
+    for (const l of saldos) {
       const a = acc.get(l.account_code) ?? { nome: l.account_name, tipo: l.type, saldo: 0 };
       a.saldo += Number(l.balance) || 0;
       acc.set(l.account_code, a);

@@ -96,7 +96,17 @@ export default function IntegrationTrace({
             {rastro.journalId && (
               <>
                 {" · "}
-                <Link className="underline" href={`/clients/${clientId}/ledger`}>ver no razão</Link>
+                {/*
+                  * O link leva o DOCUMENTO consigo.
+                  *
+                  * Abria o razão inteiro do exercício e deixava a pessoa a
+                  * procurar o próprio documento numa lista de centenas — que é
+                  * o contrário do que "ver no razão" promete a partir de uma
+                  * nota. Com `?doc=`, abre já recortado nas partidas desta.
+                  */}
+                <Link className="underline" href={`/clients/${clientId}/ledger?doc=${documentId ?? ""}`}>
+                  ver no razão
+                </Link>
               </>
             )}
           </p>

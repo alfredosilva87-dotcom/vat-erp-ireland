@@ -2,6 +2,7 @@ import "server-only";
 import { getServerSupabase } from "@/lib/supabase";
 import { CONTAS_PADRAO } from "@/lib/accounting/post";
 import { contasDeImposto, ehContaDeImposto } from "@/lib/fiscal/contasDeImposto";
+import { lerTudo } from "@/lib/accounting/paginado";
 
 /**
  * A conta de CONTROLO contra o aging: bate ou não bate.
@@ -118,16 +119,22 @@ export async function conciliarControlo(
     ...titulos.map((t) => String(t.account_code).trim()).filter(Boolean),
   ])).filter((c) => !ehContaDeImposto(c, deImposto));
 
-  const [ledgerBalance, { data: abertos }] = await Promise.all([
+  const [ledgerBalance, abertos] = await Promise.all([
     saldoDasContas(clientId, contas),
     // Os títulos de imposto saem TAMBÉM daqui — excluir só a conta deixaria o
     // valor deles do lado dos títulos e a diferença apareceria ao contrário.
-    sb.from("ledger_items_open").select("outstanding_amount,account_code")
-      .eq("client_id", clientId).eq("kind", kind).limit(20000),
+    //
+    // Paginado pela mesma razão do `saldoDasContas` logo acima: o `.limit()` do
+    // cliente não levanta o tecto de 1000 do PostgREST, e metade dos títulos em
+    // falta daria uma diferença inventada num ecrã que se abre todos os dias.
+    lerTudo<any>((de, ate) => sb.from("ledger_items_open")
+      .select("id,outstanding_amount,account_code")
+      .eq("client_id", clientId).eq("kind", kind)
+      .order("id", { ascending: true }).range(de, ate)),
   ]);
 
   const agingOutstanding = r2(
-    ((abertos ?? []) as any[])
+    abertos
       .filter((t) => !ehContaDeImposto(t.account_code, deImposto))
       .reduce((s, t) => s + (Number(t.outstanding_amount) || 0), 0)
   );

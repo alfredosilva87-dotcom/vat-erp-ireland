@@ -16,7 +16,7 @@ import { useT } from "@/lib/i18n";
  * e para a regra que as governa: distinguir defeito de configuração.
  */
 
-type Achado = { referencia: string; detalhe: string; href?: string | null };
+type Achado = { referencia: string; detalhe: string; href?: string | null; comoResolver?: string };
 type Verificacao = {
   id: string; titulo: string; procura: string;
   estado: "ok" | "aviso" | "erro"; resumo: string; achados: Achado[];
@@ -186,15 +186,31 @@ export default function CheckupPage({ params }: { params: { id: string } }) {
             {v.achados.length > 0 && (
               <ul className="mt-3 space-y-1.5 text-[13px]">
                 {v.achados.map((a, i) => (
-                  <li key={`${a.referencia}-${i}`} className="flex flex-wrap gap-x-3">
-                    {a.href ? (
-                      <Link className="font-mono text-[12px] font-semibold underline" href={a.href}>
-                        {a.referencia}
-                      </Link>
-                    ) : (
-                      <span className="font-mono text-[12px] font-semibold">{a.referencia}</span>
+                  <li key={`${a.referencia}-${i}`}>
+                    <div className="flex flex-wrap gap-x-3">
+                      {a.href ? (
+                        <Link className="font-mono text-[12px] font-semibold underline" href={a.href}>
+                          {a.referencia}
+                        </Link>
+                      ) : (
+                        <span className="font-mono text-[12px] font-semibold">{a.referencia}</span>
+                      )}
+                      <span className="text-muted">{a.detalhe}</span>
+                    </div>
+                    {/*
+                      * O PASSO A PASSO, e não só o diagnóstico.
+                      *
+                      * Pedido do Alfredo: "esse caminho de mostrar o erro precisa
+                      * mostrar como resolve também". Dizer "diferença de 34,20" e
+                      * parar aí devolve o problema a quem já sabia que o tinha.
+                      * Recuado e em corpo menor de propósito: é a segunda coisa
+                      * que se lê, depois de saber qual é o achado.
+                      */}
+                    {a.comoResolver && (
+                      <p className="mt-1 border-l-2 border-brand/40 pl-3 text-[12px] text-muted">
+                        {a.comoResolver}
+                      </p>
                     )}
-                    <span className="text-muted">{a.detalhe}</span>
                   </li>
                 ))}
               </ul>

@@ -103,6 +103,16 @@ export const MODULES: ModuleDef[] = [
        * É também de onde se põe o razão em dia — ver o botão de contabilizar.
        */
       { seg: "checkup", key: "client.tabCheckup" },
+      /*
+       * A LIMPEZA fica LOGO A SEGUIR à Verificação, e não no fim com o resto
+       * do que se faz raramente.
+       *
+       * É onde a Verificação manda: ela acusa a partida sem origem, esta é a
+       * tela que a tira. Duas telas que se seguem uma à outra no trabalho têm
+       * de se seguir uma à outra no menu — no fim da lista, quem viesse do
+       * aviso teria de a ir procurar.
+       */
+      { seg: "cleanup", key: "client.tabCleanup" },
       // O plano, no fim: alteração pontual, não trabalho do dia.
       { seg: "accounts", key: "client.tabAccounts" },
       /*
