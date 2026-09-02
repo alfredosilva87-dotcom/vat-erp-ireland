@@ -4,6 +4,7 @@ import { usePathname } from "next/navigation";
 import Sidebar from "@/components/Sidebar";
 import ModuleSidebar from "@/components/ModuleSidebar";
 import LicenseGate from "@/components/LicenseGate";
+import UpdateBanner from "@/components/UpdateBanner";
 import TopBar from "@/components/TopBar";
 import { ClientScopeProvider, useClientScope } from "@/components/ClientScope";
 import { PermissionProvider } from "@/components/PermissionScope";
@@ -65,6 +66,7 @@ function Frame({ children }: { children: React.ReactNode }) {
         <MobileNavBackdrop />
         <div className="flex min-w-0 flex-1 flex-col">
           <TopBar />
+          <UpdateBanner />
           <LicenseGate />
           <main className="mx-auto w-full max-w-6xl flex-1 px-4 py-5 sm:px-5 sm:py-7">
             <AccessGuard>{children}</AccessGuard>

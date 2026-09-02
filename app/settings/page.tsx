@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useCallback, useEffect, useState } from "react";
 import { useT, LANGS, type Lang } from "@/lib/i18n";
 import FirmCard from "@/components/settings/FirmCard";
+import VersionCard from "@/components/VersionCard";
 
 type Me = { id: string; email: string; name: string | null; role: string; company_id: string | null } | null;
 
@@ -159,6 +160,13 @@ export default function Settings() {
 
       {/* Firm details — o timbre das demonstracoes */}
       {isAdmin && me?.company_id && <FirmCard companyId={me.company_id} />}
+
+      {/*
+        A VERSÃO é de toda a gente, e não só do administrador.
+        "Em que versão estás?" é a primeira pergunta de qualquer chamada de
+        suporte, e quem atende o telefone é quem está a usar o sistema.
+      */}
+      <VersionCard />
 
       {/* Licence */}
       {isAdmin && me?.company_id && (
