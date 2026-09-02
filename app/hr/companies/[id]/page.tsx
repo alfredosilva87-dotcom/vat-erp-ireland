@@ -9,6 +9,7 @@ import {
   holidayFor, holidayUnit, isHourly, isoWeeksInYear, isoWeekStart,
   type Employee, type WeekHours,
 } from "@/lib/hr/payroll";
+import EmployeeForm from "@/components/hr/EmployeeForm";
 
 type Row = Employee & {
   id: string; first_name: string; surname: string | null;
@@ -37,6 +38,8 @@ export default function CompanyPayroll({ params }: { params: { id: string } }) {
   const [dados, setDados] = useState<any>(null);
   const [erro, setErro] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
+  // `null` = fechado · `{}` = a criar · `{...emp}` = a editar aquele.
+  const [aEditar, setAEditar] = useState<any | null>(null);
 
   const load = useCallback(async () => {
     try {
@@ -54,6 +57,28 @@ export default function CompanyPayroll({ params }: { params: { id: string } }) {
   useEffect(() => { load(); }, [load]);
 
   const employees: Row[] = dados?.employees ?? [];
+  /*
+   * So os blocos LIGADOS na empresa entram no formulario.
+   *
+   * Criar alguem "mensal" numa empresa que so corre semanal produz um
+   * funcionario que nunca aparece em folha nenhuma — existe no cadastro e nao
+   * existe em lado nenhum. O servidor tambem recusa; aqui nem se oferece.
+   */
+  const TODOS = ["weekly", "fortnightly", "monthly"] as const;
+  const configurados = TODOS.filter((b) =>
+    ((dados?.blocks ?? []) as any[]).some((c) => c.freq_type === b));
+  /*
+   * Empresa SEM configuracao nenhuma oferece os tres.
+   *
+   * A maior parte das empresas do escritorio ainda nao tem linha em
+   * `hr_client_config` — e nesse estado uma lista vazia deixava o formulario
+   * sem bloco nenhum para escolher, ou seja, impossivel de submeter. Recusar
+   * ali obrigava a uma ordem que ninguem adivinha (configurar antes de
+   * admitir). O servidor faz a mesma leitura: so recusa quando HA configuracao
+   * e o bloco escolhido nao esta nela.
+   */
+  const blocosDaEmpresa: ("weekly" | "fortnightly" | "monthly")[] =
+    configurados.length ? configurados : [...TODOS];
   const horas: HourRow[] = dados?.hours ?? [];
 
   /** As horas de uma pessoa numa semana — a função que os cálculos recebem. */
@@ -171,6 +196,7 @@ export default function CompanyPayroll({ params }: { params: { id: string } }) {
                   <th className="px-4 py-2.5 text-right font-medium">{t("hr.colContractAmount")}</th>
                   <th className="px-4 py-2.5 font-medium">{t("hr.colJobTitle")}</th>
                   <th className="px-4 py-2.5 font-medium">{t("hr.colNote")}</th>
+                  <th className="px-4 py-2.5 font-medium" />
                 </tr>
               </thead>
               <tbody>
@@ -195,11 +221,41 @@ export default function CompanyPayroll({ params }: { params: { id: string } }) {
                     </td>
                     <td className="px-4 py-2">{e.job_title || <span className="text-muted">—</span>}</td>
                     <td className="px-4 py-2 text-xs text-muted">{e.notes || "—"}</td>
+                    <td className="px-4 py-2 text-right">
+                      <button className="text-[12px] underline" onClick={() => setAEditar(e)}>
+                        {t("common.edit")}
+                      </button>
+                    </td>
                   </tr>
                 ))}
-                <Vazio n={employees.length} loading={loading} cols={9} texto={t("hr.noEmployees")} />
+                <Vazio n={employees.length} loading={loading} cols={11} texto={t("hr.noEmployees")} />
               </tbody>
             </table>
+          )}
+
+          {/*
+            * ADMITIR ALGUEM — a accao que nao existia.
+            *
+            * O modulo so lia funcionarios: nao havia rota nem tela para criar
+            * nenhum, e quem semeava era SQL directo. Fica ao pe da lista, que e
+            * onde se descobre que falta uma pessoa.
+            */}
+          {aba === "employees" && (
+            <div className="px-4 pb-4">
+              {aEditar === null ? (
+                <button className="btn-ghost mt-3 h-9 px-4 text-sm" onClick={() => setAEditar({})}>
+                  + {t("hr.newEmployee")}
+                </button>
+              ) : (
+                <EmployeeForm
+                  clientId={params.id}
+                  blocos={blocosDaEmpresa}
+                  inicial={aEditar.id ? aEditar : null}
+                  aoFechar={() => setAEditar(null)}
+                  aoGravar={load}
+                />
+              )}
+            </div>
           )}
 
           {/* ------------------------------------------- Horas / Bruto */}

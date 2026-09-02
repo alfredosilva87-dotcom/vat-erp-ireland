@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
+import { useT } from "@/lib/i18n";
 
 /**
  * As TABELAS FISCAIS, editáveis.
@@ -27,6 +28,14 @@ const pct = (bps: number | null | undefined) => (bps === null || bps === undefin
 const paraCents = (v: string) => (v.trim() === "" ? null : Math.round(Number(v.replace(",", ".")) * 100));
 const paraBps = (v: string) => Math.round(Number(v.replace(",", ".")) * 100);
 
+/*
+ * Estes doze ficam em INGLES nos dois idiomas, de proposito.
+ *
+ * "Cut-off", "PAYE", "USC" e "lone parent" sao os nomes que a Revenue usa nos
+ * formularios e nas circulares. Traduzi-los obrigava quem confere a tabela a
+ * fazer a correspondencia de cabeca entre o ecra e o papel — que e onde se
+ * troca uma linha pela outra.
+ */
 const CAMPOS_EUR: [string, string][] = [
   ["cutoff_single_cents", "Cut-off — single"],
   ["cutoff_lone_parent_cents", "Cut-off — lone parent"],
@@ -43,6 +52,7 @@ const CAMPOS_EUR: [string, string][] = [
 ];
 
 export default function TaxTablesPage() {
+  const { t } = useT();
   const [ano, setAno] = useState(() => new Date().getFullYear());
   const [anos, setAnos] = useState<{ year: number; confirmed_at: string | null }[]>([]);
   const [cab, setCab] = useState<Cab>(null);
@@ -86,14 +96,13 @@ export default function TaxTablesPage() {
     <div className="space-y-4">
       <div className="rise flex flex-wrap items-end justify-between gap-4">
         <div>
-          <h1 className="font-display text-2xl font-semibold tracking-tight">Tabelas fiscais</h1>
+          <h1 className="font-display text-2xl font-semibold tracking-tight">{t("taxtab.title")}</h1>
           <p className="mt-1 max-w-3xl text-muted">
-            PAYE, USC e PRSI, por ano. É daqui que a folha tira os números — mudar aqui muda
-            a folha seguinte, sem alterar o sistema.
+            {t("taxtab.subtitle")}
           </p>
         </div>
         <label className="flex flex-col leading-tight">
-          <span className="text-[9.5px] font-medium uppercase tracking-wide text-muted">Ano</span>
+          <span className="text-[9.5px] font-medium uppercase tracking-wide text-muted">{t("taxtab.year")}</span>
           <select className="input h-9 w-auto cursor-pointer py-0 text-[13px] font-semibold"
             value={ano} onChange={(e) => setAno(Number(e.target.value))}>
             {[...new Set([...anos.map((a) => a.year), ano, new Date().getFullYear() + 1])]
@@ -113,9 +122,8 @@ export default function TaxTablesPage() {
       {porConfirmar && (
         <div className="card border-l-4 border-l-warning p-4">
           <p className="text-sm">
-            <span className="chip-warn mr-2">por conferir</span>
-            Esta tabela ainda não foi conferida contra a Revenue. A folha calcula na mesma —
-            recusar deixaria o escritório parado — mas cada payslip sai marcado.
+            <span className="chip-warn mr-2">{t("taxtab.unconfirmed")}</span>
+            {t("taxtab.unconfirmedHelp")}
           </p>
           {cab?.source && <p className="mt-1 text-[12.5px] text-muted">{cab.source}</p>}
         </div>
@@ -125,19 +133,19 @@ export default function TaxTablesPage() {
         <h2 className="font-display text-base font-semibold">PAYE</h2>
         <div className="mt-3 flex flex-wrap gap-4">
           <label className="flex flex-col leading-tight">
-            <span className="text-[10px] font-medium uppercase tracking-wide text-muted">Standard rate %</span>
+            <span className="text-[10px] font-medium uppercase tracking-wide text-muted">{t("taxtab.standardRate")}</span>
             <input className="input mt-1 h-9 w-28 py-0 text-right tabular-nums"
               value={pct(cab?.rate_standard_bps)}
               onChange={(e) => mexerCab("rate_standard_bps", paraBps(e.target.value))} />
           </label>
           <label className="flex flex-col leading-tight">
-            <span className="text-[10px] font-medium uppercase tracking-wide text-muted">Higher rate %</span>
+            <span className="text-[10px] font-medium uppercase tracking-wide text-muted">{t("taxtab.higherRate")}</span>
             <input className="input mt-1 h-9 w-28 py-0 text-right tabular-nums"
               value={pct(cab?.rate_higher_bps)}
               onChange={(e) => mexerCab("rate_higher_bps", paraBps(e.target.value))} />
           </label>
           <label className="flex flex-col leading-tight">
-            <span className="text-[10px] font-medium uppercase tracking-wide text-muted">Emergency — weeks with cut-off</span>
+            <span className="text-[10px] font-medium uppercase tracking-wide text-muted">{t("taxtab.emergencyWeeks")}</span>
             <input className="input mt-1 h-9 w-28 py-0 text-right tabular-nums"
               value={cab?.emergency_weeks_with_cutoff ?? ""}
               onChange={(e) => mexerCab("emergency_weeks_with_cutoff", Number(e.target.value))} />
@@ -157,23 +165,22 @@ export default function TaxTablesPage() {
       </section>
 
       <section className="card p-5">
-        <h2 className="font-display text-base font-semibold">USC — bandas</h2>
+        <h2 className="font-display text-base font-semibold">{t("taxtab.uscBands")}</h2>
         <p className="mt-1 text-[12.5px] text-muted">
-          Limite superior anual de cada banda. Deixe o limite em branco na última: é ela que
-          apanha tudo daí para cima, e sem ela rendimento alto ficava por tributar em silêncio.
+          {t("taxtab.uscBandsHelp")}
         </p>
         {[false, true].map((red) => (
           <div key={String(red)} className="mt-3">
             <h3 className="text-[11px] font-semibold uppercase tracking-wide text-muted">
-              {red ? "Taxas reduzidas (cartão médico, 70+)" : "Taxas normais"}
+              {red ? t("taxtab.reducedRates") : t("taxtab.normalRates")}
             </h3>
             <div className="-mx-1 mt-1 overflow-x-auto px-1">
               <table className="w-full text-[13px]">
                 <thead>
                   <tr className="border-b border-line text-[10px] uppercase tracking-wide text-muted">
-                    <th className="py-1.5 text-left">Ordem</th>
-                    <th className="py-1.5 text-right">Até €/ano</th>
-                    <th className="py-1.5 text-right">Taxa %</th>
+                    <th className="py-1.5 text-left">{t("taxtab.order")}</th>
+                    <th className="py-1.5 text-right">{t("taxtab.upTo")}</th>
+                    <th className="py-1.5 text-right">{t("taxtab.rate")}</th>
                     <th className="py-1.5" />
                   </tr>
                 </thead>
@@ -183,7 +190,7 @@ export default function TaxTablesPage() {
                       <td className="py-1.5 font-mono text-muted">{b.ord}</td>
                       <td className="py-1.5">
                         <input className="input h-8 w-full py-0 text-right tabular-nums"
-                          placeholder="(sem topo)"
+                          placeholder={t("taxtab.noCeiling")}
                           value={eur(b.upto_cents)}
                           onChange={(e) => setBandas((bs) => bs.map((x) =>
                             x === b ? { ...x, upto_cents: paraCents(e.target.value) } : x))} />
@@ -196,7 +203,7 @@ export default function TaxTablesPage() {
                       </td>
                       <td className="py-1.5 text-right">
                         <button className="text-[12px] text-danger underline"
-                          onClick={() => setBandas((bs) => bs.filter((x) => x !== b))}>remover</button>
+                          onClick={() => setBandas((bs) => bs.filter((x) => x !== b))}>{t("taxtab.remove")}</button>
                       </td>
                     </tr>
                   ))}
@@ -208,7 +215,7 @@ export default function TaxTablesPage() {
                 reduced: red, ord: bs.filter((x) => !!x.reduced === red).length + 1,
                 upto_cents: null, rate_bps: 0,
               }])}>
-              + banda
+              + {t("taxtab.addBand")}
             </button>
           </div>
         ))}
@@ -217,21 +224,20 @@ export default function TaxTablesPage() {
       <section className="card p-5">
         <h2 className="font-display text-base font-semibold">PRSI</h2>
         <p className="mt-1 text-[12.5px] text-muted">
-          Cada linha vale a partir da data dela. É por isso que há mais de uma por ano: uma
-          alteração de Outubro não pode reescrever o que já foi pago em Setembro.
+          {t("taxtab.prsiHelp")}
         </p>
         <div className="-mx-1 mt-3 overflow-x-auto px-1">
           <table className="w-full text-[12.5px]">
             <thead>
               <tr className="border-b border-line text-[10px] uppercase tracking-wide text-muted">
-                <th className="py-1.5 text-left">Vale desde</th>
-                <th className="py-1.5 text-right">Empregado %</th>
-                <th className="py-1.5 text-right">Isento até €/sem</th>
-                <th className="py-1.5 text-right">Crédito máx €</th>
-                <th className="py-1.5 text-right">Crédito até €/sem</th>
-                <th className="py-1.5 text-right">Patrão baixo %</th>
-                <th className="py-1.5 text-right">Patrão alto %</th>
-                <th className="py-1.5 text-right">Degrau €/sem</th>
+                <th className="py-1.5 text-left">{t("taxtab.from")}</th>
+                <th className="py-1.5 text-right">{t("taxtab.employee")}</th>
+                <th className="py-1.5 text-right">{t("taxtab.exemptUpTo")}</th>
+                <th className="py-1.5 text-right">{t("taxtab.creditMax")}</th>
+                <th className="py-1.5 text-right">{t("taxtab.creditUpTo")}</th>
+                <th className="py-1.5 text-right">{t("taxtab.employerLow")}</th>
+                <th className="py-1.5 text-right">{t("taxtab.employerHigh")}</th>
+                <th className="py-1.5 text-right">{t("taxtab.threshold")}</th>
                 <th className="py-1.5" />
               </tr>
             </thead>
@@ -276,7 +282,7 @@ export default function TaxTablesPage() {
             credit_upto_weekly_cents: 42400, employer_lower_bps: 900,
             employer_higher_bps: 1125, employer_threshold_weekly_cents: 49600,
           }])}>
-          + linha
+          + {t("taxtab.addRow")}
         </button>
       </section>
 
@@ -285,34 +291,33 @@ export default function TaxTablesPage() {
           <input type="checkbox" className="mt-0.5" checked={confirmar}
             onChange={(e) => setConfirmar(e.target.checked)} />
           <span className="text-sm">
-            <strong>Conferida contra a Revenue.</strong>
+            <strong>{t("taxtab.confirmed")}</strong>
             <span className="ml-1 text-muted">
-              Fica gravado quem marcou e quando. Sem isto, cada payslip sai com aviso —
-              e é essa marca que alguém vai invocar daqui a seis meses para justificar um número.
+              {t("taxtab.confirmedHelp")}
             </span>
           </span>
         </label>
         {cab?.confirmed_at && (
           <p className="mt-2 text-[12.5px] text-muted">
-            Conferida em {String(cab.confirmed_at).slice(0, 10)}.
+            {t("taxtab.confirmedOn", { data: String(cab.confirmed_at).slice(0, 10) })}
           </p>
         )}
 
         <label className="mt-4 block">
-          <span className="text-[10px] font-medium uppercase tracking-wide text-muted">Procedência</span>
+          <span className="text-[10px] font-medium uppercase tracking-wide text-muted">{t("taxtab.source")}</span>
           <input className="input mt-1 w-full text-sm" value={cab?.source ?? ""}
             onChange={(e) => mexerCab("source", e.target.value)}
-            placeholder="De onde vieram estes números — Budget 2026, circular da Revenue, etc." />
+            placeholder={t("taxtab.sourcePlaceholder")} />
         </label>
 
         {erro && <p className="mt-3 text-sm text-danger">{erro}</p>}
-        {feito && <p className="mt-3 text-sm text-ok">Gravado. A folha seguinte já usa estes números.</p>}
+        {feito && <p className="mt-3 text-sm text-ok">{t("taxtab.saved")}</p>}
 
         <div className="mt-3 flex flex-wrap items-center gap-3">
           <button className="btn-primary h-9 px-4 text-sm" disabled={ocupado} onClick={gravar}>
-            {ocupado ? "A gravar…" : "Guardar tabela"}
+            {ocupado ? t("common.saving") : t("taxtab.save")}
           </button>
-          <span className="text-[11.5px] text-muted">Alterar uma taxa exige administrador.</span>
+          <span className="text-[11.5px] text-muted">{t("taxtab.adminOnly")}</span>
         </div>
       </section>
     </div>
