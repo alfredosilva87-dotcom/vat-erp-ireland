@@ -66,6 +66,7 @@ export default function EmployeeForm({
     active: true, notes: "",
     pps_number: "", prsi_class: "A1", tax_basis: "cumulativa", marital_status: "solteiro",
     usc_reduced: false, usc_exempt: false,
+    date_of_birth: "", ae_enrolled: null, has_occupational_pension: false,
     rpn_number: "", rpn_effective_from: "", rpn_cutoff_cents: null, rpn_credits_cents: null,
     ytd_opening_gross_cents: null, ytd_opening_paye_cents: null,
     ytd_opening_usc_cents: null, ytd_opening_prsi_cents: null, ytd_opening_year: null,
@@ -248,6 +249,60 @@ export default function EmployeeForm({
                   onChange={(e) => set("usc_exempt", e.target.checked)} />
                 {t("emp.uscExempt")}
               </label>
+            </div>
+          </div>
+
+          {/*
+            * AUTO-ENROLMENT.
+            *
+            * A data de nascimento vive aqui e nao no bloco de cima porque e
+            * aqui que ela SERVE para alguma coisa: a inscricao automatica so
+            * apanha dos 23 aos 60, e sem a data a folha nao consegue aplicar o
+            * teste — inscreve na duvida, que e o lado seguro mas errado para
+            * quem tem 62 anos.
+            */}
+          <p className="mt-4 text-[11px] font-semibold uppercase tracking-wide text-muted">
+            {t("emp.aeHeading")}
+          </p>
+          <p className="text-[12px] text-muted">{t("emp.aeHelp")}</p>
+          <div className="mt-2 grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+            {campo("date_of_birth", t("emp.dob"), "date")}
+            <label className="flex flex-col leading-tight">
+              <span className="text-[10px] font-medium uppercase tracking-wide text-muted">
+                {t("emp.aeEnrolled")}
+              </span>
+              {/*
+                Tres estados, e nao uma caixa. "Nao inscrito" e "ainda nao
+                avaliado" sao coisas diferentes: a primeira e uma escolha da
+                pessoa, a segunda e trabalho por fazer — e uma caixa desmarcada
+                nao sabe dizer qual das duas e.
+              */}
+              <select className="input mt-1 h-9 py-0 text-sm"
+                value={f.ae_enrolled === null || f.ae_enrolled === undefined
+                  ? "" : (f.ae_enrolled ? "sim" : "nao")}
+                onChange={(e) => set("ae_enrolled",
+                  e.target.value === "" ? null : e.target.value === "sim")}>
+                <option value="">{t("emp.ae_unassessed")}</option>
+                <option value="sim">{t("emp.ae_in")}</option>
+                <option value="nao">{t("emp.ae_out")}</option>
+              </select>
+            </label>
+            <div className="flex flex-col justify-end gap-1 pb-1 text-[12.5px]">
+              <label className="flex items-center gap-2">
+                <input type="checkbox" checked={!!f.has_occupational_pension}
+                  onChange={(e) => set("has_occupational_pension", e.target.checked)} />
+                {t("emp.occPension")}
+              </label>
+              {f.ae_enrolled === false && (
+                <label className="flex flex-col leading-tight">
+                  <span className="text-[10px] font-medium uppercase tracking-wide text-muted">
+                    {t("emp.aeOptOut")}
+                  </span>
+                  <input type="date" className="input mt-1 h-8 py-0 text-sm"
+                    value={f.ae_opt_out_date ?? ""}
+                    onChange={(e) => set("ae_opt_out_date", e.target.value)} />
+                </label>
+              )}
             </div>
           </div>
 

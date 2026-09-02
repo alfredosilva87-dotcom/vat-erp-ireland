@@ -139,5 +139,40 @@ console.log("\n== o basico ==");
   ok(r.ok && r.limpo.prsi_class === "A1", "classe de PRSI cai em A1 por omissao");
 }
 
+console.log("\n== auto-enrolment ==");
+{
+  /*
+   * Tres estados, e nao dois. O <select> vazio manda "" e isso NAO e "nao
+   * inscrito": e "ainda nao se avaliou". Confundi-los faria o sistema tratar
+   * trabalho por fazer como uma decisao ja tomada, e ninguem voltaria la.
+   */
+  const porAvaliar = criticarFuncionario({ ...bom, ae_enrolled: "" });
+  ok(porAvaliar.ok && porAvaliar.limpo.ae_enrolled === null,
+     "o select vazio vira null, e nao false", porAvaliar.ok && porAvaliar.limpo.ae_enrolled);
+
+  const dentro = criticarFuncionario({ ...bom, ae_enrolled: true, date_of_birth: "1990-04-12" });
+  ok(dentro.ok && dentro.limpo.ae_enrolled === true, "inscrito fica inscrito");
+  ok(dentro.ok && dentro.limpo.date_of_birth === "1990-04-12", "e a data de nascimento passa");
+
+  /*
+   * `""` numa coluna `date` do Postgres nao e vazio: e erro de sintaxe. E o
+   * formulario manda string vazia em todo o campo que ninguem tocou.
+   */
+  const semData = criticarFuncionario({ ...bom, date_of_birth: "" });
+  ok(semData.ok && semData.limpo.date_of_birth === null,
+     "data de nascimento vazia vira null, e nao string vazia");
+  ok(semData.ok && semData.avisos.some((a) => /auto-enrolment/i.test(a)),
+     "e sem ela avisa-se que o teste de idade nao se consegue aplicar");
+
+  // Uma data de saida sem saida e lixo que contradiz o estado.
+  const semSair = criticarFuncionario({ ...bom, ae_enrolled: true, ae_opt_out_date: "2026-03-01" });
+  ok(semSair.ok && semSair.limpo.ae_opt_out_date === null,
+     "quem esta inscrito nao guarda data de opt-out");
+
+  const saiu = criticarFuncionario({ ...bom, ae_enrolled: false, ae_opt_out_date: "2026-03-01" });
+  ok(saiu.ok && saiu.limpo.ae_opt_out_date === "2026-03-01",
+     "quem saiu guarda a data em que saiu");
+}
+
 console.log(`\n=========== ${pass} passaram, ${fail} falharam ===========\n`);
 process.exit(fail ? 1 : 0);

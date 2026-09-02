@@ -58,6 +58,10 @@ export type Funcionario = {
   rpn_credits_cents?: number | null;
   ytd_opening_gross_cents?: number | null;
   ytd_opening_year?: number | null;
+  date_of_birth?: string | null;
+  ae_enrolled?: boolean | null;
+  ae_opt_out_date?: string | null;
+  has_occupational_pension?: boolean | null;
   [k: string]: unknown;
 };
 
@@ -188,8 +192,39 @@ export function criticarFuncionario(f: Funcionario): Critica {
     );
   }
 
+  /*
+   * AUTO-ENROLMENT: a decisao e tri-estado, e as datas vazias tem de virar
+   * nulas.
+   *
+   * `""` numa coluna `date` do Postgres nao e "vazio", e um erro de sintaxe —
+   * e o formulario manda string vazia sempre que o campo nao foi tocado. As
+   * outras duas datas (`start_date`, `end_date`) ja passavam por aqui; estas
+   * duas chegaram depois e teriam ido cruas.
+   */
+  const nascimento = texto(f.date_of_birth);
+  const optOut = texto(f.ae_opt_out_date);
+  // O `""` vem do <select> vazio do formulario, e nao e "false": e "ainda nao
+  // se decidiu". Distingui-los e a razao de o campo ser tri-estado.
+  const inscrito = f.ae_enrolled === null || f.ae_enrolled === undefined
+    || (f.ae_enrolled as unknown) === "" ? null : !!f.ae_enrolled;
+  if (inscrito === null && !nascimento) {
+    // Nao e erro: e o estado normal de quem entrou hoje. Mas sem data de
+    // nascimento o teste da lei nao se consegue aplicar, e a folha decide sem
+    // saber a idade.
+    avisos.push(
+      "Sem data de nascimento a folha nao consegue aplicar o teste de idade do "
+      + "auto-enrolment (23 a 60). Preencha-a, ou decida a inscricao a mao."
+    );
+  }
+
   const limpo: Funcionario = {
     ...f,
+    date_of_birth: nascimento || null,
+    ae_enrolled: inscrito,
+    // Uma data de saida sem saida e lixo que fica no registo a contradizer o
+    // estado: so se guarda quando alguem DECIDIU sair.
+    ae_opt_out_date: inscrito === false ? (optOut || null) : null,
+    has_occupational_pension: !!f.has_occupational_pension,
     first_name: nome,
     surname: texto(f.surname) || null,
     freq_type: freq,

@@ -21,16 +21,26 @@ export async function GET(req: NextRequest) {
   const sb = getServerSupabase();
   const ano = Number(new URL(req.url).searchParams.get("year")) || new Date().getFullYear();
 
-  const [{ data: anos }, { data: cab }, { data: bandas }, { data: prsi }] = await Promise.all([
-    sb.from("hr_tax_year").select("year,confirmed_at").order("year", { ascending: false }),
-    sb.from("hr_tax_year").select("*").eq("year", ano).maybeSingle(),
-    sb.from("hr_usc_band").select("*").eq("year", ano).order("ord", { ascending: true }),
-    sb.from("hr_prsi_rate").select("*").eq("year", ano).order("effective_from", { ascending: true }),
-  ]);
+  const [{ data: anos }, { data: cab }, { data: bandas }, { data: prsi }, { data: ae }] =
+    await Promise.all([
+      sb.from("hr_tax_year").select("year,confirmed_at").order("year", { ascending: false }),
+      sb.from("hr_tax_year").select("*").eq("year", ano).maybeSingle(),
+      sb.from("hr_usc_band").select("*").eq("year", ano).order("ord", { ascending: true }),
+      sb.from("hr_prsi_rate").select("*").eq("year", ano).order("effective_from", { ascending: true }),
+      /*
+       * A AE NAO se filtra pelo ano, e isso e de propósito.
+       *
+       * O auto-enrolment é uma escada de degraus com datas — 1,5% agora, 3% em
+       * 2029, 4,5% em 2032, 6% em 2035 — e um degrau vale de lá para a frente.
+       * Filtrar por ano dava uma tabela vazia em 2027 e 2028, e alguém
+       * concluiria que a contribuição tinha acabado.
+       */
+      sb.from("hr_ae_rate").select("*").order("effective_from", { ascending: true }),
+    ]);
 
   return NextResponse.json({
     anos: anos ?? [], ano, cabecalho: cab ?? null,
-    bandas: bandas ?? [], prsi: prsi ?? [],
+    bandas: bandas ?? [], prsi: prsi ?? [], ae: ae ?? [],
   });
 }
 
@@ -149,8 +159,55 @@ export async function POST(req: NextRequest) {
     if (error) return NextResponse.json({ error: error.message }, { status: 500 });
   }
 
-  // A cache de 30s tem de morrer AQUI, senão recalcular logo a seguir a gravar
-  // devolve o número velho e a edição parece não ter funcionado.
-  esquecerTabela(ano);
+  /*
+   * A ESCADA DA AE, gravada por DATA e nunca apagada em bloco.
+   *
+   * As bandas de USC e as linhas de PRSI reescrevem-se por inteiro porque são
+   * do ano que se está a editar. A AE não é: ao apagá-la para regravar,
+   * qualquer erro no meio deixava a folha sem auto-enrolment nenhum — e uma
+   * contribuição que desaparece em silêncio é dinheiro que a pessoa devia ter
+   * descontado e não descontou.
+   *
+   * Por isso vai por `upsert` degrau a degrau, e remover um é um acto próprio.
+   */
+  let mexeuNaAe = false;
+  if (Array.isArray(body?.ae)) {
+    mexeuNaAe = true;
+    const degraus = body.ae
+      .filter((a: any) => /^\d{4}-\d{2}-\d{2}$/.test(String(a?.effective_from || "")))
+      .map((a: any) => ({
+        effective_from: a.effective_from,
+        employee_bps: Number(a.employee_bps) || 0,
+        employer_bps: Number(a.employer_bps) || 0,
+        state_bps: Number(a.state_bps) || 0,
+        min_annual_earnings_cents: Number(a.min_annual_earnings_cents) || 0,
+        earnings_cap_cents: Number(a.earnings_cap_cents) || 0,
+        min_age: Number(a.min_age) || 0,
+        max_age: Number(a.max_age) || 0,
+        source: String(a.source ?? ""),
+        confirmed_at: a.confirmar ? new Date().toISOString() : (a.confirmed_at ?? null),
+      }));
+    if (degraus.length) {
+      const { error } = await sb.from("hr_ae_rate")
+        .upsert(degraus, { onConflict: "effective_from" });
+      if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+    }
+    for (const d of (Array.isArray(body?.aeRemovidos) ? body.aeRemovidos : [])) {
+      if (/^\d{4}-\d{2}-\d{2}$/.test(String(d))) {
+        await sb.from("hr_ae_rate").delete().eq("effective_from", d);
+      }
+    }
+  }
+
+  /*
+   * A cache de 30s tem de morrer AQUI, senão recalcular logo a seguir a gravar
+   * devolve o número velho e a edição parece não ter funcionado.
+   *
+   * Mexer na AE deita fora a cache de TODOS os anos, e não só a deste: um
+   * degrau que começa em 2029 vale de 2029 em diante, portanto entra na tabela
+   * de qualquer ano posterior — limpar só o ano editado deixava os outros a
+   * calcular com o degrau antigo até a cache expirar sozinha.
+   */
+  esquecerTabela(mexeuNaAe ? undefined : ano);
   return NextResponse.json({ ok: true });
 }

@@ -22,6 +22,7 @@ import { useT } from "@/lib/i18n";
 type Cab = Record<string, any> | null;
 type Banda = { reduced: boolean; ord: number; upto_cents: number | null; rate_bps: number };
 type Prsi = Record<string, any>;
+type Ae = Record<string, any>;
 
 const eur = (c: number | null | undefined) => (c === null || c === undefined ? "" : (Number(c) / 100).toFixed(2));
 const pct = (bps: number | null | undefined) => (bps === null || bps === undefined ? "" : (Number(bps) / 100).toFixed(2));
@@ -58,6 +59,15 @@ export default function TaxTablesPage() {
   const [cab, setCab] = useState<Cab>(null);
   const [bandas, setBandas] = useState<Banda[]>([]);
   const [prsi, setPrsi] = useState<Prsi[]>([]);
+  const [ae, setAe] = useState<Ae[]>([]);
+  /*
+   * Quem foi removido do ecra, para o servidor apagar.
+   *
+   * A escada da AE nao se reescreve por inteiro (ver a rota): um erro no meio
+   * deixava a folha sem auto-enrolment nenhum, e uma contribuicao que
+   * desaparece em silencio e dinheiro que a pessoa devia ter descontado.
+   */
+  const [aeRemovidos, setAeRemovidos] = useState<string[]>([]);
   const [confirmar, setConfirmar] = useState(false);
   const [erro, setErro] = useState<string | null>(null);
   const [feito, setFeito] = useState(false);
@@ -69,6 +79,7 @@ export default function TaxTablesPage() {
     const j = await r.json();
     if (!r.ok) { setErro(j.error || "Falhou."); return; }
     setAnos(j.anos); setCab(j.cabecalho); setBandas(j.bandas); setPrsi(j.prsi);
+    setAe(j.ae ?? []); setAeRemovidos([]);
     setConfirmar(!!j.cabecalho?.confirmed_at);
   }, [ano]);
 
@@ -81,7 +92,7 @@ export default function TaxTablesPage() {
     try {
       const r = await fetch("/api/hr/tax-tables", {
         method: "POST", headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ year: ano, cabecalho: cab, bandas, prsi, confirmar }),
+        body: JSON.stringify({ year: ano, cabecalho: cab, bandas, prsi, ae, aeRemovidos, confirmar }),
       });
       const j = await r.json();
       if (!r.ok) { setErro(j.error || "Falhou."); return; }
@@ -284,6 +295,90 @@ export default function TaxTablesPage() {
           }])}>
           + {t("taxtab.addRow")}
         </button>
+      </section>
+
+      {/*
+        * AUTO-ENROLMENT — a única tabela deste ecrã que NÃO é do ano.
+        *
+        * É uma escada de degraus com datas: 1,5% de cada lado agora, e sobe de
+        * três em três anos até 6%. Um degrau vale da sua data em diante, por
+        * isso a lista é a mesma em qualquer ano que se esteja a ver — e é isso
+        * que permite deixar 2029 e 2032 já cadastrados hoje, em vez de alguém
+        * ter de se lembrar deles daqui a três anos.
+        */}
+      <section className="card p-5">
+        <h2 className="font-display text-base font-semibold">{t("taxtab.aeTitle")}</h2>
+        <p className="mt-1 max-w-3xl text-[12.5px] text-muted">{t("taxtab.aeHelp")}</p>
+        <div className="-mx-1 mt-3 overflow-x-auto px-1">
+          <table className="w-full text-[12.5px]">
+            <thead>
+              <tr className="border-b border-line text-[10px] uppercase tracking-wide text-muted">
+                <th className="py-1.5 text-left">{t("taxtab.from")}</th>
+                <th className="py-1.5 text-right">{t("taxtab.employee")}</th>
+                <th className="py-1.5 text-right">{t("taxtab.aeEmployer")}</th>
+                <th className="py-1.5 text-right">{t("taxtab.aeState")}</th>
+                <th className="py-1.5 text-right">{t("taxtab.aeMinEarnings")}</th>
+                <th className="py-1.5 text-right">{t("taxtab.aeCap")}</th>
+                <th className="py-1.5 text-right">{t("taxtab.aeMinAge")}</th>
+                <th className="py-1.5 text-right">{t("taxtab.aeMaxAge")}</th>
+                <th className="py-1.5" />
+              </tr>
+            </thead>
+            <tbody>
+              {ae.map((a, i) => {
+                const mexer = (k: string, v: any) =>
+                  setAe((xs) => xs.map((x, j) => (j === i ? { ...x, [k]: v } : x)));
+                const campo = (k: string, conv: (s: string) => any, mostra: (v: any) => string) => (
+                  <td className="py-1.5 pl-2">
+                    <input className="input h-8 w-24 py-0 text-right tabular-nums"
+                      value={mostra(a[k])} onChange={(e) => mexer(k, conv(e.target.value))} />
+                  </td>
+                );
+                return (
+                  <tr key={i} className="border-b border-line/50">
+                    <td className="py-1.5">
+                      <input type="date" className="input h-8 w-36 py-0"
+                        value={String(a.effective_from || "").slice(0, 10)}
+                        onChange={(e) => mexer("effective_from", e.target.value)} />
+                    </td>
+                    {campo("employee_bps", paraBps, pct)}
+                    {campo("employer_bps", paraBps, pct)}
+                    {campo("state_bps", paraBps, pct)}
+                    {campo("min_annual_earnings_cents", (v) => paraCents(v), eur)}
+                    {campo("earnings_cap_cents", (v) => paraCents(v), eur)}
+                    {campo("min_age", (v) => Number(v) || 0, (v) => String(v ?? ""))}
+                    {campo("max_age", (v) => Number(v) || 0, (v) => String(v ?? ""))}
+                    <td className="py-1.5 pl-2 text-right">
+                      <button className="text-[12px] text-danger underline"
+                        onClick={() => {
+                          if (a.effective_from) {
+                            setAeRemovidos((rs) => [...rs, String(a.effective_from).slice(0, 10)]);
+                          }
+                          setAe((xs) => xs.filter((_, j) => j !== i));
+                        }}>
+                        {t("taxtab.remove")}
+                      </button>
+                    </td>
+                  </tr>
+                );
+              })}
+              {!ae.length && (
+                <tr><td className="py-3 text-muted" colSpan={9}>{t("taxtab.aeEmpty")}</td></tr>
+              )}
+            </tbody>
+          </table>
+        </div>
+        <button className="btn-ghost mt-2 h-8 px-3 text-xs"
+          onClick={() => setAe((xs) => [...xs, {
+            effective_from: `${ano}-01-01`, employee_bps: 150, employer_bps: 150, state_bps: 50,
+            min_annual_earnings_cents: 2000000, earnings_cap_cents: 8000000,
+            min_age: 23, max_age: 60, source: "",
+          }])}>
+          + {t("taxtab.addRow")}
+        </button>
+        <p className="mt-3 rounded-lg border border-warning/40 bg-warning/10 px-3 py-2 text-[12px]">
+          {t("taxtab.aeNoRelief")}
+        </p>
       </section>
 
       <section className="card p-5">
