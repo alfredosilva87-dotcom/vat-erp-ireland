@@ -953,6 +953,7 @@ const en = {
   "hr.colRate": "Hour rate",
   "hr.colSundayRate": "Sunday rate",
   "hr.colContractAmount": "Contract rate",
+  "hr.colJobTitle": "Job title",
   "hr.colNote": "Note",
   "hr.colYearTotal": "Year to date",
   "hr.colUnit": "Unit",

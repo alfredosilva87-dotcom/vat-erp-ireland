@@ -954,6 +954,7 @@ const pt: Dict = {
   "hr.colRate": "Hora normal",
   "hr.colSundayRate": "Hora domingo",
   "hr.colContractAmount": "Contrato",
+  "hr.colJobTitle": "Função",
   "hr.colNote": "Nota",
   "hr.colYearTotal": "Acumulado no ano",
   "hr.colUnit": "Unidade",

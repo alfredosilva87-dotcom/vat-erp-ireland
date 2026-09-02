@@ -14,6 +14,7 @@ type Row = Employee & {
   id: string; first_name: string; surname: string | null;
   start_date: string | null; end_date: string | null;
   contract_type: string; bank_holiday_mode: string; data_source: string;
+  job_title: string | null;
   freq_type: string; active: boolean; notes: string | null;
 };
 type HourRow = WeekHours & { employee_id: string; week_no: number };
@@ -168,6 +169,7 @@ export default function CompanyPayroll({ params }: { params: { id: string } }) {
                   <th className="px-4 py-2.5 text-right font-medium">{t("hr.colRate")}</th>
                   <th className="px-4 py-2.5 text-right font-medium">{t("hr.colSundayRate")}</th>
                   <th className="px-4 py-2.5 text-right font-medium">{t("hr.colContractAmount")}</th>
+                  <th className="px-4 py-2.5 font-medium">{t("hr.colJobTitle")}</th>
                   <th className="px-4 py-2.5 font-medium">{t("hr.colNote")}</th>
                 </tr>
               </thead>
@@ -191,6 +193,7 @@ export default function CompanyPayroll({ params }: { params: { id: string } }) {
                     <td className="px-4 py-2 text-right font-mono tabular-nums">
                       {isHourly(e) ? <span className="text-muted">n/a</span> : eur(Number(e.fixed_amount ?? 0))}
                     </td>
+                    <td className="px-4 py-2">{e.job_title || <span className="text-muted">—</span>}</td>
                     <td className="px-4 py-2 text-xs text-muted">{e.notes || "—"}</td>
                   </tr>
                 ))}
