@@ -10,6 +10,7 @@ import {
   type Employee, type WeekHours,
 } from "@/lib/hr/payroll";
 import EmployeeForm from "@/components/hr/EmployeeForm";
+import PayrollRun from "@/components/hr/PayrollRun";
 
 type Row = Employee & {
   id: string; first_name: string; surname: string | null;
@@ -20,7 +21,7 @@ type Row = Employee & {
 };
 type HourRow = WeekHours & { employee_id: string; week_no: number };
 
-const ABAS = ["employees", "hours", "gross", "holidays", "bank"] as const;
+const ABAS = ["employees", "hours", "gross", "holidays", "bank", "run"] as const;
 type Aba = (typeof ABAS)[number];
 
 /**
@@ -256,6 +257,17 @@ export default function CompanyPayroll({ params }: { params: { id: string } }) {
                 />
               )}
             </div>
+          )}
+
+          {/*
+            * CORRER A FOLHA — a aba que fecha o ciclo.
+            *
+            * As cinco anteriores param no BRUTO, que e onde o sistema do
+            * Matheus parava (o imposto dele vinha do CollSoft). Esta pega no
+            * bruto e leva-o ate ao liquido e ao custo do patrao.
+            */}
+          {aba === "run" && (
+            <PayrollRun clientId={params.id} year={year} freqType={blocosDaEmpresa[0] ?? "weekly"} />
           )}
 
           {/* ------------------------------------------- Horas / Bruto */}

@@ -302,17 +302,63 @@ export function calcular(e: Entrada, tabelaDada?: TabelaAno): Resultado {
     ? prsi.empregadorSuperiorBps : prsi.empregadorInferiorBps;
   const prsiEmpregador = r0((e.brutoPeriodo * taxaEmpregador) / 10000);
 
-  const liquido = e.brutoPeriodo - paye - usc - prsiEmpregado;
+  /*
+   * ---------------------------------------------------------------------------
+   * O TECTO: um periodo NAO pode reter mais do que a pessoa ganhou.
+   *
+   * Apanhado a correr a folha a serio, e nao em teste: alguem com acumulado de
+   * abertura de 20.014 e PAYE ja retido de zero (o caso de quem migra e ainda
+   * nao preencheu o retido) devia, pelo cumulativo, 1.695,21 nesta semana — e a
+   * semana valia 660,00. O liquido saiu **-1.401,44**.
+   *
+   * Nenhum sistema de folha entrega um numero negativo a uma pessoa, e a lei
+   * tambem nao o permite: o que nao cabe **transita**. E o cumulativo recolhe-o
+   * sozinho no periodo seguinte, porque o retido acumulado fica abaixo do
+   * devido e a diferenca volta a aparecer — nao e preciso guardar divida em
+   * lado nenhum.
+   *
+   * A ORDEM do corte nao e arbitraria:
+   *
+   *   PRSI primeiro, e nunca se corta. Nao e cumulativo, e semana a semana, e
+   *   paga seguro social — cortar aqui tirava direitos a pessoa.
+   *
+   *   USC a seguir, com o que sobrar.
+   *
+   *   PAYE por ultimo, porque e o UNICO que se corrige sozinho. Cortar o que se
+   *   auto-corrige e a escolha que nao deixa divida perdida.
+   *
+   * Um PAYE NEGATIVO (devolucao) nao se corta: ele AUMENTA o liquido, e cortar
+   * uma devolucao seria ficar com dinheiro que nao e nosso.
+   */
+  let payeFinal = paye;
+  let uscFinal = usc;
+  const disponivel = e.brutoPeriodo - prsiEmpregado;
+  if (disponivel - uscFinal - Math.max(0, payeFinal) < 0) {
+    const antes = { paye: payeFinal, usc: uscFinal };
+    uscFinal = Math.max(0, Math.min(uscFinal, disponivel));
+    if (payeFinal > 0) payeFinal = Math.max(0, disponivel - uscFinal);
+    const naoCobrado = (antes.paye - payeFinal) + (antes.usc - uscFinal);
+    if (naoCobrado > 0) {
+      avisos.push(
+        `Nao coube ${(naoCobrado / 100).toFixed(2)} de retencao neste periodo — o bruto nao chegava. `
+          + "Transita: o cumulativo recolhe-o no periodo seguinte."
+      );
+    }
+  }
+
+  const liquido = e.brutoPeriodo - payeFinal - uscFinal - prsiEmpregado;
 
   return {
     brutoPeriodo: e.brutoPeriodo,
-    paye, usc, prsiEmpregado, prsiEmpregador,
+    paye: payeFinal, usc: uscFinal, prsiEmpregado, prsiEmpregador,
     liquido,
     custoEmpregador: e.brutoPeriodo + prsiEmpregador,
     acumulado: {
       bruto: brutoAcum,
-      paye: anterior.paye + paye,
-      usc: anterior.usc + usc,
+      // O acumulado soma o que foi MESMO retido. Somar o devido faria o
+      // periodo seguinte pensar que ja se tinha cobrado o que nao coube.
+      paye: anterior.paye + payeFinal,
+      usc: anterior.usc + uscFinal,
       prsiEmpregado: anterior.prsiEmpregado + prsiEmpregado,
     },
     aplicado: { cutOffPeriodo, creditosPeriodo, base: e.base },

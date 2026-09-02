@@ -255,6 +255,48 @@ console.log("\n== o quinzenal e o mensal ==");
      euros(quinzenal.prsiEmpregador));
 }
 
+console.log("\n== o TECTO: nao se retem mais do que a pessoa ganhou ==");
+{
+  /*
+   * Apanhado a correr a folha a serio, e nao aqui: alguem com acumulado de
+   * abertura de 20.014 e PAYE retido de zero devia 1.695,21 numa semana de
+   * 660,00, e o liquido saiu -1.401,44.
+   *
+   * Nenhum sistema entrega um numero negativo a uma pessoa. O que nao cabe
+   * TRANSITA, e o cumulativo recolhe-o sozinho: o retido acumulado fica abaixo
+   * do devido e a diferenca volta a aparecer no periodo seguinte.
+   */
+  const r = calcular({
+    ...BASE, periodoNo: 30, brutoPeriodo: eur(660),
+    acumuladoAnterior: { bruto: eur(19354.5), paye: 0, usc: 0, prsiEmpregado: eur(720.72) },
+  });
+  ok(r.liquido >= 0, "o liquido nunca e negativo", euros(r.liquido));
+  ok(r.paye + r.usc + r.prsiEmpregado <= r.brutoPeriodo,
+     "as retencoes juntas nao passam o bruto",
+     [euros(r.paye + r.usc + r.prsiEmpregado), euros(r.brutoPeriodo)]);
+  ok(r.avisos.some((a) => /Transita/.test(a)), "e diz o que ficou por cobrar", r.avisos);
+
+  // O PRSI e o primeiro e NUNCA se corta: nao e cumulativo, e paga seguro
+  // social — cortar ali tirava direitos a pessoa.
+  ok(r.prsiEmpregado > 0, "o PRSI e cobrado por inteiro", euros(r.prsiEmpregado));
+
+  // Uma DEVOLUCAO nao se corta: ela aumenta o liquido.
+  const dev = calcular({
+    ...BASE, periodoNo: 30, brutoPeriodo: eur(100),
+    acumuladoAnterior: { bruto: eur(5000), paye: eur(900), usc: 0, prsiEmpregado: 0 },
+  });
+  ok(dev.paye < 0, "devolucao continua negativa", euros(dev.paye));
+  ok(dev.liquido > dev.brutoPeriodo, "e faz o liquido passar o bruto, que e o que uma devolucao e",
+     [euros(dev.liquido), euros(dev.brutoPeriodo)]);
+
+  // Semana normal nao e tocada pelo tecto.
+  const normal = calcular({
+    ...BASE, periodoNo: 30, brutoPeriodo: eur(800),
+    acumuladoAnterior: { bruto: eur(23200), paye: eur(2400), usc: eur(500), prsiEmpregado: eur(970) },
+  });
+  ok(!normal.avisos.some((a) => /Transita/.test(a)), "semana normal nao aciona o tecto");
+}
+
 console.log("\n== o liquido fecha ==");
 {
   const r = calcular({
