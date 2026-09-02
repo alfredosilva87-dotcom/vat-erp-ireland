@@ -195,8 +195,10 @@ console.log("\n== o PRSI do empregador ==");
   ok(perto(alto.prsiEmpregador, eur(500 * 0.1125)), "acima de 496: 11,25% sobre TUDO",
      euros(alto.prsiEmpregador));
 
-  ok(alto.custoEmpregador === alto.brutoPeriodo + alto.prsiEmpregador,
-     "custo do empregador = bruto + PRSI dele");
+  // Desde a AE Pension, o custo tambem leva a contribuicao patronal dela.
+  ok(alto.custoEmpregador === alto.brutoPeriodo + alto.prsiEmpregador + alto.aeEmpregador,
+     "custo do empregador = bruto + PRSI dele + AE dele",
+     [euros(alto.custoEmpregador), euros(alto.brutoPeriodo + alto.prsiEmpregador + alto.aeEmpregador)]);
 }
 
 console.log("\n== o PRSI muda a meio do ano, e a tabela tem datas ==");
@@ -296,9 +298,13 @@ console.log("\n== o TECTO: nao se retem mais do que a pessoa ganhou ==");
     acumuladoAnterior: { bruto: eur(19354.5), paye: 0, usc: 0, prsiEmpregado: eur(720.72) },
   });
   ok(r.liquido >= 0, "o liquido nunca e negativo", euros(r.liquido));
-  ok(r.paye + r.usc + r.prsiEmpregado <= r.brutoPeriodo,
-     "as retencoes juntas nao passam o bruto",
-     [euros(r.paye + r.usc + r.prsiEmpregado), euros(r.brutoPeriodo)]);
+  /*
+   * A AE conta para o tecto, e isto foi um defeito a serio: com ela descontada
+   * DEPOIS, o tecto concluia que cabia tudo e o liquido saia a -9,90.
+   */
+  ok(r.paye + r.usc + r.prsiEmpregado + r.aeEmpregado <= r.brutoPeriodo,
+     "as retencoes juntas, AE incluida, nao passam o bruto",
+     [euros(r.paye + r.usc + r.prsiEmpregado + r.aeEmpregado), euros(r.brutoPeriodo)]);
   ok(temAviso(r, "aviso.naoCoube"), "e diz o que ficou por cobrar", codigos(r));
 
   // O PRSI e o primeiro e NUNCA se corta: nao e cumulativo, e paga seguro
@@ -418,6 +424,7 @@ console.log("\n== CONTRA UM PAYSLIP REAL DO SAGE (semana 35 de 2026) ==");
       bruto: eur2(22241.26 - 653.85), paye: eur2(1755.70 - 53.84),
       usc: eur2(352.79 - 10.63), prsiEmpregado: eur2(934.11 - 27.46),
     },
+    aeInscrito: true,
   });
   const bate = (meu, sage, label) => ok(Math.abs(meu - eur2(sage)) <= 1, label,
     [euros(meu).toFixed(2), sage.toFixed(2)]);
@@ -432,15 +439,18 @@ console.log("\n== CONTRA UM PAYSLIP REAL DO SAGE (semana 35 de 2026) ==");
   bate(r.prsiEmpregador, 73.56, "EMPER PRSI do periodo");
 
   /*
-   * O liquido NAO bate, e e suposto nao bater: o Sage desconta 9,81 de AE
-   * Pension que o motor ainda nao conhece. Fica escrito para o dia em que a
-   * auto-enrolment entrar — e ai este numero passa a 552,11.
+   * A AE PENSION — a ultima linha que faltava, e a que mais se erra.
+   *
+   * 9,81 sobre 653,85 e 1,5%, de cada lado. E ela NAO desgrava: repare-se que
+   * o proprio payslip diz GROSS PAY 22.241,26 e TAXABLE PAY 22.241,26, iguais
+   * ao centimo, com 333,66 de AE ja descontados no acumulado. Se desgravasse, a
+   * base tributavel teria de ser MENOR.
    */
-  const semPensao = 653.85 - 53.84 - 27.46 - 10.63;
-  bate(r.liquido, semPensao, "liquido ANTES da AE Pension");
-  ok(Math.abs(euros(r.liquido) - 552.11 - 9.81) < 0.02,
-     "e a diferenca para o NETT do Sage e exactamente a AE Pension de 9,81",
-     [euros(r.liquido).toFixed(2), (552.11 + 9.81).toFixed(2)]);
+  bate(r.aeEmpregado, 9.81, "AE Pension do empregado (1,5%)");
+  bate(r.aeEmpregador, 9.81, "AE Pension do empregador (1,5%)");
+  bate(r.liquido, 552.11, "NETT PAY — o payslip inteiro fecha");
+  // O imposto NAO muda por causa da AE: e a prova de que ela nao desgrava.
+  bate(r.paye, 53.84, "e o PAYE continua o mesmo — a AE nao reduziu a base");
 }
 
 console.log("\n== o liquido fecha ==");
@@ -449,8 +459,8 @@ console.log("\n== o liquido fecha ==");
     ...BASE, brutoPeriodo: eur(1000),
     acumuladoAnterior: { bruto: eur(9000), paye: eur(1000), usc: eur(200), prsiEmpregado: eur(378) },
   });
-  ok(r.liquido === r.brutoPeriodo - r.paye - r.usc - r.prsiEmpregado,
-     "liquido = bruto - PAYE - USC - PRSI, ao centimo");
+  ok(r.liquido === r.brutoPeriodo - r.paye - r.usc - r.prsiEmpregado - r.aeEmpregado,
+     "liquido = bruto - PAYE - USC - PRSI - AE, ao centimo");
   ok(Number.isInteger(r.paye) && Number.isInteger(r.usc) && Number.isInteger(r.liquido),
      "e tudo sao centimos INTEIROS — sem dizima a acumular");
 }

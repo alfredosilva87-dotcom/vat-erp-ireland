@@ -11,6 +11,7 @@ import {
 } from "@/lib/hr/payroll";
 import EmployeeForm from "@/components/hr/EmployeeForm";
 import PayrollRun from "@/components/hr/PayrollRun";
+import ImportEmployees from "@/components/hr/ImportEmployees";
 
 type Row = Employee & {
   id: string; first_name: string; surname: string | null;
@@ -21,7 +22,7 @@ type Row = Employee & {
 };
 type HourRow = WeekHours & { employee_id: string; week_no: number };
 
-const ABAS = ["employees", "hours", "gross", "holidays", "bank", "run"] as const;
+const ABAS = ["employees", "hours", "gross", "holidays", "bank", "run", "import"] as const;
 type Aba = (typeof ABAS)[number];
 
 /**
@@ -267,6 +268,8 @@ export default function CompanyPayroll({ params }: { params: { id: string } }) {
               )}
             </div>
           )}
+
+          {aba === "import" && <ImportEmployees clientId={params.id} year={year} />}
 
           {/*
             * CORRER A FOLHA — a aba que fecha o ciclo.

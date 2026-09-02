@@ -46,10 +46,18 @@ export async function tabelaDoBanco(ano: number): Promise<{ tabela: TabelaAno; d
   }
 
   const sb = getServerSupabase();
-  const [{ data: cab }, { data: bandas }, { data: prsi }] = await Promise.all([
+  const [{ data: cab }, { data: bandas }, { data: prsi }, { data: ae }] = await Promise.all([
     sb.from("hr_tax_year").select("*").eq("year", ano).maybeSingle(),
     sb.from("hr_usc_band").select("*").eq("year", ano).order("ord", { ascending: true }),
     sb.from("hr_prsi_rate").select("*").eq("year", ano).order("effective_from", { ascending: true }),
+    /*
+     * O auto-enrolment NAO e por ano: e uma escada de degraus com datas, e um
+     * degrau que comeca em 2029 vale de 2029 em diante. Por isso le-se a linha
+     * mais recente que ja entrou em vigor, e nao a "linha de 2026".
+     */
+    sb.from("hr_ae_rate").select("*")
+      .lte("effective_from", `${ano}-12-31`)
+      .order("effective_from", { ascending: false }).limit(1),
   ]);
 
   /*
@@ -114,6 +122,16 @@ export async function tabelaDoBanco(ano: number): Promise<{ tabela: TabelaAno; d
       empregadorSuperiorBps: p.employer_higher_bps,
       empregadorLimiteSemanal: Number(p.employer_threshold_weekly_cents),
     })),
+    ae: ((ae ?? []) as any[]).length ? (() => {
+      const a = (ae as any[])[0];
+      return {
+        desde: String(a.effective_from).slice(0, 10),
+        empregadoBps: a.employee_bps, empregadorBps: a.employer_bps, estadoBps: a.state_bps,
+        rendimentoMinimoAnual: Number(a.min_annual_earnings_cents),
+        tectoRendimento: Number(a.earnings_cap_cents),
+        idadeMinima: a.min_age, idadeMaxima: a.max_age,
+      };
+    })() : null,
     confirmadoEm: c.confirmed_at ? String(c.confirmed_at).slice(0, 10) : null,
     fonte: c.source || "",
   };

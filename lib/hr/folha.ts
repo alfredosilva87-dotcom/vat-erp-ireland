@@ -40,6 +40,8 @@ export type LinhaDaFolha = {
   prsiErCents: number;
   liquidoCents: number;
   custoEmpregadorCents: number;
+  aeEeCents: number;
+  aeErCents: number;
   acumulado: { bruto: number; paye: number; usc: number; prsi: number };
   aplicado: { cutOff: number; creditos: number; base: Base };
   avisos: Aviso[];
@@ -58,7 +60,7 @@ export type Folha = {
   linhas: LinhaDaFolha[];
   totais: {
     bruto: number; paye: number; usc: number; prsiEe: number; prsiEr: number;
-    liquido: number; custoEmpregador: number;
+    aeEe: number; aeEr: number; liquido: number; custoEmpregador: number;
   };
   /** O que impede esta folha de ser tomada por definitiva. */
   avisos: Aviso[];
@@ -185,6 +187,12 @@ export async function correrFolha(args: {
       isentoUSC: !!e.usc_exempt,
       classePRSI: e.prsi_class,
       segurarDevolucao: segurados.has(e.id),
+      // `null` no banco quer dizer "por avaliar": ai o motor aplica o teste da
+      // lei. `undefined` e o que ele espera para esse caso.
+      aeInscrito: e.ae_enrolled === null || e.ae_enrolled === undefined
+        ? undefined : !!e.ae_enrolled,
+      dataNascimento: e.date_of_birth ?? null,
+      temPensaoOcupacional: !!e.has_occupational_pension,
     }, tabela);
 
     const jaGravado = payslips.find((p) => p.employee_id === e.id && p.period_no === periodNo);
@@ -245,6 +253,8 @@ export async function correrFolha(args: {
       prsiErCents: r.prsiEmpregador,
       liquidoCents: r.liquido,
       custoEmpregadorCents: r.custoEmpregador,
+      aeEeCents: r.aeEmpregado,
+      aeErCents: r.aeEmpregador,
       acumulado: {
         bruto: r.acumulado.bruto, paye: r.acumulado.paye,
         usc: r.acumulado.usc, prsi: r.acumulado.prsiEmpregado,
@@ -270,6 +280,8 @@ export async function correrFolha(args: {
       usc: soma((l) => l.uscCents),
       prsiEe: soma((l) => l.prsiEeCents),
       prsiEr: soma((l) => l.prsiErCents),
+      aeEe: soma((l) => l.aeEeCents),
+      aeEr: soma((l) => l.aeErCents),
       liquido: soma((l) => l.liquidoCents),
       custoEmpregador: soma((l) => l.custoEmpregadorCents),
     },
@@ -310,6 +322,7 @@ export async function fecharFolha(args: {
     pay_date: folha.payDate,
     gross_cents: l.brutoCents, paye_cents: l.payeCents, usc_cents: l.uscCents,
     prsi_ee_cents: l.prsiEeCents, prsi_er_cents: l.prsiErCents, net_cents: l.liquidoCents,
+    ae_ee_cents: l.aeEeCents, ae_er_cents: l.aeErCents,
     cum_gross_cents: l.acumulado.bruto, cum_paye_cents: l.acumulado.paye,
     cum_usc_cents: l.acumulado.usc, cum_prsi_cents: l.acumulado.prsi,
     cutoff_used_cents: l.aplicado.cutOff, credits_used_cents: l.aplicado.creditos,

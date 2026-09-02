@@ -32,7 +32,7 @@ type Linha = {
   employeeId: string; nome: string; jobTitle: string | null;
   brutoCents: number; payeCents: number; uscCents: number;
   prsiEeCents: number; prsiErCents: number; liquidoCents: number;
-  custoEmpregadorCents: number;
+  custoEmpregadorCents: number; aeEeCents: number; aeErCents: number;
   acumulado: { bruto: number; paye: number; usc: number; prsi: number };
   aplicado: { cutOff: number; creditos: number; base: string };
   avisos: Aviso[]; devolucaoSeguraCents: number; status: "draft" | "final" | null;
@@ -40,7 +40,7 @@ type Linha = {
 type Folha = {
   year: number; periodNo: number; freqType: string; payDate: string;
   linhas: Linha[];
-  totais: { bruto: number; paye: number; usc: number; prsiEe: number; prsiEr: number; liquido: number; custoEmpregador: number };
+  totais: { bruto: number; paye: number; usc: number; prsiEe: number; prsiEr: number; aeEe: number; aeEr: number; liquido: number; custoEmpregador: number };
   avisos: Aviso[];
 };
 
@@ -157,6 +157,7 @@ export default function PayrollRun({
               <th className="px-3 py-2 text-right font-medium">{t("run.colPaye")}</th>
               <th className="px-3 py-2 text-right font-medium">{t("run.colUsc")}</th>
               <th className="px-3 py-2 text-right font-medium">{t("run.colPrsiEe")}</th>
+              <th className="px-3 py-2 text-right font-medium">{t("run.colAe")}</th>
               <th className="px-3 py-2 text-right font-medium">{t("run.colNet")}</th>
               <th className="px-3 py-2 text-right font-medium">{t("run.colPrsiEr")}</th>
               <th className="px-3 py-2 text-right font-medium">{t("run.colCost")}</th>
@@ -201,6 +202,7 @@ export default function PayrollRun({
                 </td>
                 <td className="px-3 py-2 text-right font-mono tabular-nums">{eur(l.uscCents)}</td>
                 <td className="px-3 py-2 text-right font-mono tabular-nums">{eur(l.prsiEeCents)}</td>
+                <td className="px-3 py-2 text-right font-mono tabular-nums">{eur(l.aeEeCents)}</td>
                 <td className="px-3 py-2 text-right font-mono font-semibold tabular-nums">{eur(l.liquidoCents)}</td>
                 <td className="px-3 py-2 text-right font-mono tabular-nums text-muted">{eur(l.prsiErCents)}</td>
                 <td className="px-3 py-2 text-right font-mono tabular-nums text-muted">{eur(l.custoEmpregadorCents)}</td>
@@ -211,7 +213,7 @@ export default function PayrollRun({
               </tr>
             ))}
             {!(d?.linhas ?? []).length && (
-              <tr><td className="px-3 py-6 text-center text-muted" colSpan={9}>{t("run.nobody")}</td></tr>
+              <tr><td className="px-3 py-6 text-center text-muted" colSpan={10}>{t("run.nobody")}</td></tr>
             )}
           </tbody>
           {!!(d?.linhas ?? []).length && (
@@ -222,6 +224,7 @@ export default function PayrollRun({
                 <td className="px-3 py-2 text-right font-mono tabular-nums">{eur(d!.totais.paye)}</td>
                 <td className="px-3 py-2 text-right font-mono tabular-nums">{eur(d!.totais.usc)}</td>
                 <td className="px-3 py-2 text-right font-mono tabular-nums">{eur(d!.totais.prsiEe)}</td>
+                <td className="px-3 py-2 text-right font-mono tabular-nums">{eur(d!.totais.aeEe)}</td>
                 <td className="px-3 py-2 text-right font-mono tabular-nums">{eur(d!.totais.liquido)}</td>
                 <td className="px-3 py-2 text-right font-mono tabular-nums">{eur(d!.totais.prsiEr)}</td>
                 <td className="px-3 py-2 text-right font-mono tabular-nums">{eur(d!.totais.custoEmpregador)}</td>

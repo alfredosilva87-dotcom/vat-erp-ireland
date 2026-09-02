@@ -104,6 +104,15 @@ export type Entrada = {
    * tabela fiscal mudar.
    */
   segurarDevolucao?: boolean;
+
+  /**
+   * Auto-enrolment: `true`/`false` = decisão tomada; `undefined` = aplica-se o
+   * teste da lei (idade, rendimento, e não ter pensão ocupacional).
+   */
+  aeInscrito?: boolean;
+  /** Para o teste da idade. Sem ela, o teste da idade não corre. */
+  dataNascimento?: string | null;
+  temPensaoOcupacional?: boolean;
 };
 
 export type Resultado = {
@@ -121,6 +130,9 @@ export type Resultado = {
   aplicado: { cutOffPeriodo: Cents; creditosPeriodo: Cents; base: Base };
   /** Devolução apurada e SEGURA para o período seguinte. Zero quando não há. */
   devolucaoSegura: Cents;
+  /** Auto-enrolment: sai do líquido, e NUNCA da base tributável. */
+  aeEmpregado: Cents;
+  aeEmpregador: Cents;
   /** O que impede este número de ser tomado por definitivo. */
   avisos: Aviso[];
 };
@@ -381,6 +393,65 @@ export function calcular(e: Entrada, tabelaDada?: TabelaAno): Resultado {
    * Um PAYE NEGATIVO (devolucao) nao se corta: ele AUMENTA o liquido, e cortar
    * uma devolucao seria ficar com dinheiro que nao e nosso.
    */
+  /*
+   * ---------------------------------------------------------------------------
+   * AUTO-ENROLMENT — e a regra que mais se erra
+   *
+   * A contribuição do empregado **não desgrava**. Ela sai do LÍQUIDO, depois de
+   * PAYE, USC e PRSI, e nunca reduz o rendimento tributável — o Estado põe um
+   * bónus por cima em vez de dar desgravação, ao contrário de um PRSA.
+   *
+   * O payslip do Sage prova-o: GROSS PAY 22.241,26 e TAXABLE PAY 22.241,26,
+   * iguais ao cêntimo, com 333,66 de AE já descontados no acumulado.
+   *
+   * Quem a trata como pensão normal desconta-a antes do imposto e dá um PAYE
+   * mais baixo do que o devido — todas as semanas, a toda a gente, sem dar erro.
+   * Por isso este bloco vem DEPOIS de tudo, e é o último a mexer no líquido.
+   */
+  let aeEmpregado = 0;
+  let aeEmpregador = 0;
+  if (tabela.ae && e.dataPagamento >= tabela.ae.desde) {
+    const ae = tabela.ae;
+    const anualizado = (e.brutoPeriodo * e.periodosNoAno);
+
+    /*
+     * A decisão MANDA sobre o teste.
+     *
+     * `aeInscrito` definido é alguém que decidiu — opt-out, ou uma inscrição
+     * feita à mão. Só quando ninguém decidiu é que se aplicam os três testes da
+     * lei. Deixar o teste ganhar apagava a escolha da pessoa a cada folha.
+     */
+    let inscrito: boolean;
+    if (e.aeInscrito !== undefined) {
+      inscrito = e.aeInscrito;
+    } else if (e.temPensaoOcupacional) {
+      // Quem já tem pensão da empresa fica fora, por lei.
+      inscrito = false;
+    } else {
+      const idade = e.dataNascimento
+        ? Math.floor(
+          (new Date(e.dataPagamento).getTime() - new Date(e.dataNascimento).getTime())
+          / (365.25 * 24 * 3600 * 1000))
+        : null;
+      const idadeOk = idade === null ? true : idade >= ae.idadeMinima && idade <= ae.idadeMaxima;
+      if (idade === null) {
+        // Sem data de nascimento o teste da idade não corre. Diz-se, em vez de
+        // deixar passar em silêncio uma inscrição que pode estar errada.
+        avisos.push({ codigo: "aviso.aeSemIdade" });
+      }
+      inscrito = idadeOk && anualizado >= ae.rendimentoMinimoAnual;
+    }
+
+    if (inscrito) {
+      // O tecto é sobre o rendimento ANUAL: rateia-se para este período.
+      const tectoPeriodo = Math.floor(ae.tectoRendimento / e.periodosNoAno);
+      const base = Math.min(e.brutoPeriodo, tectoPeriodo);
+      aeEmpregado = r0((base * ae.empregadoBps) / 10000);
+      aeEmpregador = r0((base * ae.empregadorBps) / 10000);
+    }
+  }
+
+
   let payeFinal = paye;
   let uscFinal = usc;
 
@@ -401,7 +472,16 @@ export function calcular(e: Entrada, tabelaDada?: TabelaAno): Resultado {
       params: { v: (devolucaoSegura / 100).toFixed(2) },
     });
   }
-  const disponivel = e.brutoPeriodo - prsiEmpregado;
+  /*
+   * A AE entra no que JÁ NÃO ESTÁ disponível, ao lado do PRSI.
+   *
+   * Apanhado por um teste que passava e deixou de passar: com a AE descontada
+   * DEPOIS do tecto, o tecto concluía que cabia tudo e o líquido saía a −9,90.
+   * PRSI e AE são os dois fixos e não cumulativos — não há nada neles que se
+   * corrija sozinho depois —, então são os dois que o tecto tem de respeitar,
+   * e são o USC e o PAYE que absorvem o aperto.
+   */
+  const disponivel = e.brutoPeriodo - prsiEmpregado - aeEmpregado;
   if (disponivel - uscFinal - Math.max(0, payeFinal) < 0) {
     const antes = { paye: payeFinal, usc: uscFinal };
     uscFinal = Math.max(0, Math.min(uscFinal, disponivel));
@@ -412,13 +492,14 @@ export function calcular(e: Entrada, tabelaDada?: TabelaAno): Resultado {
     }
   }
 
-  const liquido = e.brutoPeriodo - payeFinal - uscFinal - prsiEmpregado;
+  const liquido = e.brutoPeriodo - payeFinal - uscFinal - prsiEmpregado - aeEmpregado;
 
   return {
     brutoPeriodo: e.brutoPeriodo,
     paye: payeFinal, usc: uscFinal, prsiEmpregado, prsiEmpregador,
     liquido,
-    custoEmpregador: e.brutoPeriodo + prsiEmpregador,
+    // O que a pessoa custa mesmo: bruto + PRSI patronal + AE patronal.
+    custoEmpregador: e.brutoPeriodo + prsiEmpregador + aeEmpregador,
     acumulado: {
       bruto: brutoAcum,
       // O acumulado soma o que foi MESMO retido. Somar o devido faria o
@@ -429,6 +510,7 @@ export function calcular(e: Entrada, tabelaDada?: TabelaAno): Resultado {
     },
     aplicado: { cutOffPeriodo, creditosPeriodo, base: e.base },
     devolucaoSegura,
+    aeEmpregado, aeEmpregador,
     avisos,
   };
 }

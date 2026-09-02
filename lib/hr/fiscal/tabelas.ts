@@ -96,12 +96,38 @@ export type TabelaPRSI = {
   empregadorLimiteSemanal: Cents;
 };
 
+/**
+ * Auto-enrolment ("My Future Fund").
+ *
+ * A regra que mais se erra: a contribuição do empregado **não desgrava**. Ela
+ * sai do líquido, depois do imposto, e nunca reduz o rendimento tributável — o
+ * Estado põe um bónus por cima em vez de dar desgravação.
+ *
+ * O payslip do Sage prova-o: GROSS PAY e TAXABLE PAY iguais ao cêntimo, com a
+ * AE já descontada. Tratá-la como um PRSA dava um PAYE mais baixo do que o
+ * devido, todas as semanas, a toda a gente, sem dar erro nenhum.
+ */
+export type TabelaAE = {
+  desde: string;
+  empregadoBps: number;
+  empregadorBps: number;
+  /** O bónus do Estado. Não passa pela folha — fica aqui para o payslip o dizer. */
+  estadoBps: number;
+  /** Os três testes que decidem a inscrição automática. */
+  rendimentoMinimoAnual: Cents;
+  tectoRendimento: Cents;
+  idadeMinima: number;
+  idadeMaxima: number;
+};
+
 export type TabelaAno = {
   ano: number;
   paye: TabelaPAYE;
   usc: TabelaUSC;
   /** Ordenada por `desde`. A folha usa a linha em vigor na data do pagamento. */
   prsi: TabelaPRSI[];
+  /** Auto-enrolment em vigor. `null` antes de o esquema existir. */
+  ae: TabelaAE | null;
   /** `null` = ainda não foi conferida contra a Revenue. */
   confirmadoEm: string | null;
   fonte: string;
@@ -170,6 +196,8 @@ const A2025: TabelaAno = {
       empregadorLimiteSemanal: eur(496),
     },
   ],
+  // O auto-enrolment só arranca em 2026.
+  ae: null,
   confirmadoEm: null,
   fonte: "Orcamento 2025 + alteracoes PRSI de 01-10-2025. POR CONFERIR contra revenue.ie.",
 };
@@ -217,6 +245,14 @@ const A2026: TabelaAno = {
       empregadorLimiteSemanal: eur(496),
     },
   ],
+  ae: {
+    desde: "2026-01-01",
+    // Fase 1 (anos 1-3). Confere com o payslip: 9,81 sobre 653,85 = 1,5%.
+    empregadoBps: 150, empregadorBps: 150, estadoBps: 50,
+    rendimentoMinimoAnual: eur(20000),
+    tectoRendimento: eur(80000),
+    idadeMinima: 23, idadeMaxima: 60,
+  },
   confirmadoEm: null,
   fonte: "Base de 2025 + tecto do USC de 2% a 28.700, deduzido de um payslip Sage real de 2026. "
     + "O resto do Orcamento 2026 NAO foi aplicado. Conferir contra revenue.ie.",
