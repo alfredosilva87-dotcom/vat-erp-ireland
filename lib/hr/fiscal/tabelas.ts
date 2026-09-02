@@ -186,6 +186,26 @@ const A2025: TabelaAno = {
 const A2026: TabelaAno = {
   ...A2025,
   ano: 2026,
+  /*
+   * O TECTO DA BANDA DE 2% DO USC SUBIU: 27.382 → 28.700.
+   *
+   * Não é palpite. Saiu de um payslip REAL do Sage de 2026 (semana 35, pago a
+   * 02-09-2026): USC acumulado de 352,79 sobre 22.241,26 de bruto. Com o tecto
+   * de 2025 dava 361,66; com 28.700 dá 352,79 — erro de menos de meio cêntimo.
+   *
+   * Fecha com o resto: no mesmo payslip o cut-off (44.000) e os créditos
+   * (4.000) batem ao cêntimo, e o PRSI dos dois lados também. É a única peça
+   * que estava fora, e 28.700 é número redondo, como estas coisas costumam ser.
+   *
+   * Continua POR CONFERIR contra revenue.ie — um payslip é uma evidência forte,
+   * não é a publicação oficial.
+   */
+  usc: { ...A2025.usc, bandas: [
+    { ate: eur(12012), taxaBps: 50 },
+    { ate: eur(28700), taxaBps: 200 },
+    { ate: eur(70044), taxaBps: 300 },
+    { ate: null, taxaBps: 800 },
+  ] },
   prsi: [
     {
       desde: "2026-01-01",
@@ -198,7 +218,8 @@ const A2026: TabelaAno = {
     },
   ],
   confirmadoEm: null,
-  fonte: "HERDADA DE 2025 — o Orcamento 2026 NAO foi aplicado. Conferir antes da primeira folha.",
+  fonte: "Base de 2025 + tecto do USC de 2% a 28.700, deduzido de um payslip Sage real de 2026. "
+    + "O resto do Orcamento 2026 NAO foi aplicado. Conferir contra revenue.ie.",
 };
 
 const TABELAS: Record<number, TabelaAno> = { 2025: A2025, 2026: A2026 };

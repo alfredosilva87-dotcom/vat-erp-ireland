@@ -1,7 +1,7 @@
 import "server-only";
 import { getServerSupabase } from "@/lib/supabase";
 import { tabelaDoBanco } from "@/lib/hr/fiscal/tabelasDb";
-import { calcular, type Base, type Situacao } from "@/lib/hr/fiscal/motor";
+import { calcular, type Aviso, type Base, type Situacao } from "@/lib/hr/fiscal/motor";
 import { grossFor, isoWeekStart, type Employee, type WeekHours } from "@/lib/hr/payroll";
 
 /**
@@ -42,7 +42,9 @@ export type LinhaDaFolha = {
   custoEmpregadorCents: number;
   acumulado: { bruto: number; paye: number; usc: number; prsi: number };
   aplicado: { cutOff: number; creditos: number; base: Base };
-  avisos: string[];
+  avisos: Aviso[];
+  /** Devolução apurada e segura para o período seguinte. Zero quando não há. */
+  devolucaoSeguraCents: number;
   /** Já fechado? Então não se recalcula por cima. */
   status: "draft" | "final" | null;
 };
@@ -59,7 +61,7 @@ export type Folha = {
     liquido: number; custoEmpregador: number;
   };
   /** O que impede esta folha de ser tomada por definitiva. */
-  avisos: string[];
+  avisos: Aviso[];
 };
 
 const PERIODOS: Record<string, 52 | 26 | 12> = { weekly: 52, fortnightly: 26, monthly: 12 };
@@ -110,13 +112,17 @@ export async function correrFolha(args: {
 
   const { tabela, deFabrica } = await tabelaDoBanco(Number(payDate.slice(0, 4)));
 
-  const [{ data: emps }, { data: horas }, { data: fechados }] = await Promise.all([
+  const [{ data: emps }, { data: horas }, { data: fechados }, { data: seguros }] = await Promise.all([
     sb.from("hr_employees").select("*")
       .eq("client_id", args.clientId).eq("freq_type", freqType).eq("active", true)
       .order("first_name"),
     sb.from("hr_employee_hours").select("*").eq("year", year),
     sb.from("hr_payslip").select("*")
       .eq("client_id", args.clientId).eq("year", year).eq("freq_type", freqType),
+    // As devolucoes que alguem decidiu segurar NESTE periodo.
+    sb.from("hr_refund_hold").select("employee_id,reason")
+      .eq("client_id", args.clientId).eq("year", year)
+      .eq("period_no", periodNo).eq("freq_type", freqType),
   ]);
 
   const funcionarios = ((emps ?? []) as any[]);
@@ -126,13 +132,11 @@ export async function correrFolha(args: {
     a.push(h); porFuncionario.set(h.employee_id, a);
   }
   const payslips = ((fechados ?? []) as any[]);
+  const segurados = new Set(((seguros ?? []) as any[]).map((r) => r.employee_id));
 
-  const avisos: string[] = [];
+  const avisos: Aviso[] = [];
   if (deFabrica) {
-    avisos.push(
-      `Nao ha tabela fiscal cadastrada para ${payDate.slice(0, 4)}; foi usada a de fabrica. `
-        + "Cadastre-a em RH -> Tabelas fiscais."
-    );
+    avisos.push({ codigo: "aviso.tabelaDeFabrica", params: { ano: payDate.slice(0, 4) } });
   }
 
   const linhas: LinhaDaFolha[] = funcionarios.map((e) => {
@@ -180,12 +184,13 @@ export async function correrFolha(args: {
       uscReduzido: !!e.usc_reduced,
       isentoUSC: !!e.usc_exempt,
       classePRSI: e.prsi_class,
+      segurarDevolucao: segurados.has(e.id),
     }, tabela);
 
     const jaGravado = payslips.find((p) => p.employee_id === e.id && p.period_no === periodNo);
 
     const proprios = [...r.avisos];
-    if (!e.pps_number) proprios.push("Sem PPS: esta folha nao se pode submeter a Revenue.");
+    if (!e.pps_number) proprios.push({ codigo: "aviso.semPps" });
 
     /*
      * O BURACO NO ACUMULADO — o aviso mais importante desta tela.
@@ -218,12 +223,13 @@ export async function correrFolha(args: {
         if (semanasDoPeriodo(freqType, year, p).some((w) => comHoras.has(w))) buracos.push(p);
       }
       if (buracos.length && !aberturaDoAno) {
-        proprios.push(
-          `${buracos.length} periodo(s) anteriores com horas e SEM folha fechada `
-            + `(${buracos.slice(0, 6).join(", ")}${buracos.length > 6 ? "…" : ""}). `
-            + "Na base cumulativa isso da um imposto baixo a mais: feche-os primeiro, "
-            + "ou preencha o acumulado de abertura no cadastro."
-        );
+        proprios.push({
+          codigo: "aviso.buracoAcumulado",
+          params: {
+            n: buracos.length,
+            quais: buracos.slice(0, 6).join(", ") + (buracos.length > 6 ? "…" : ""),
+          },
+        });
       }
     }
 
@@ -249,6 +255,7 @@ export async function correrFolha(args: {
         base: r.aplicado.base,
       },
       avisos: proprios,
+      devolucaoSeguraCents: r.devolucaoSegura,
       status: jaGravado?.status ?? null,
     };
   });

@@ -65,6 +65,49 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
     return NextResponse.json({ ok: true, reabertos: count ?? 0 });
   }
 
+  /*
+   * SEGURAR e SOLTAR uma devolucao.
+   *
+   * A decisao e um ACTO de alguem, numa data, por uma razao — nao se deduz de
+   * numero nenhum. Sem a gravar, reabrir e recalcular voltava a pagar a
+   * devolucao que alguem tinha decidido segurar.
+   */
+  if (corpo?.acao === "segurar" || corpo?.acao === "soltar") {
+    const sb = getServerSupabase();
+    const empId = String(corpo?.employeeId || "");
+    if (!empId) return NextResponse.json({ error: "Falta o funcionario." }, { status: 400 });
+
+    // O funcionario tem de ser DESTE cliente: sem isto o id do pedido bastava
+    // para mexer na folha de outra empresa.
+    const { data: dono } = await sb.from("hr_employees")
+      .select("id").eq("id", empId).eq("client_id", params.id).maybeSingle();
+    if (!dono) return NextResponse.json({ error: "Not found." }, { status: 404 });
+
+    if (corpo.acao === "soltar") {
+      const { error } = await sb.from("hr_refund_hold").delete()
+        .eq("employee_id", empId).eq("year", a.year)
+        .eq("period_no", a.periodNo).eq("freq_type", a.freqType);
+      if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+      return NextResponse.json({ ok: true });
+    }
+
+    const motivo = String(corpo?.reason || "").trim();
+    // Uma decisao de tesouraria sem motivo escrito e indefensavel tres meses
+    // depois, e e justamente ai que alguem pergunta.
+    if (motivo.length < 3) {
+      return NextResponse.json(
+        { error: "Escreva porque esta a segurar a devolucao — fica no registo." }, { status: 400 }
+      );
+    }
+    const { error } = await sb.from("hr_refund_hold").upsert({
+      client_id: params.id, employee_id: empId, year: a.year,
+      period_no: a.periodNo, freq_type: a.freqType,
+      reason: motivo, created_by: user?.id ?? null,
+    }, { onConflict: "employee_id,year,period_no,freq_type" });
+    if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+    return NextResponse.json({ ok: true });
+  }
+
   const r = await fecharFolha({ clientId: params.id, ...a, userId: user?.id ?? null });
   if (!r.ok) return NextResponse.json({ error: r.erro }, { status: 409 });
   return NextResponse.json(r);

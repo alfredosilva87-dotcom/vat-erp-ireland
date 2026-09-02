@@ -66,8 +66,17 @@ export default function CompanyPayroll({ params }: { params: { id: string } }) {
    * existe em lado nenhum. O servidor tambem recusa; aqui nem se oferece.
    */
   const TODOS = ["weekly", "fortnightly", "monthly"] as const;
-  const configurados = TODOS.filter((b) =>
-    ((dados?.blocks ?? []) as any[]).some((c) => c.freq_type === b));
+  /*
+   * Os blocos LIGADOS vivem em `hr_client` (`freq_weekly`, `freq_fortnightly`,
+   * `freq_monthly`) — e nao em `hr_client_config`, onde eu os fui procurar
+   * primeiro. `hr_client_config` tem a CONFIGURACAO de cada bloco (dia de
+   * emissao, offset, base da semana); nao diz quais estao ligados.
+   *
+   * Deu para nao reparar porque as duas coisas parecem a mesma de fora, e a
+   * empresa de teste tinha linha em `hr_client_config` sem ter nenhum
+   * `freq_*` — o que aliás e um estado que nao devia existir.
+   */
+  const configurados = TODOS.filter((b) => dados?.config?.[`freq_${b}`]);
   /*
    * Empresa SEM configuracao nenhuma oferece os tres.
    *

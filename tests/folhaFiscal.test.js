@@ -24,6 +24,15 @@ const ok = (cond, label, extra) => {
   else { fail++; console.log("  FALHA " + label + (extra !== undefined ? "  -> " + JSON.stringify(extra) : "")); }
 };
 const perto = (a, b, tol = 2) => Math.abs(a - b) <= tol;
+/*
+ * O aviso e {codigo, params}, e o teste confere o CODIGO.
+ *
+ * A frase mudou-se para o dicionario (en/pt/es) porque o servidor nao sabe em
+ * que idioma esta quem vai ler. Testar a frase passava a testar a traducao, e
+ * quebrava a cada retoque de texto.
+ */
+const temAviso = (r, codigo) => r.avisos.some((a) => a.codigo === codigo);
+const codigos = (r) => r.avisos.map((a) => a.codigo);
 const eur = (v) => Math.round(v * 100);
 
 const BASE = {
@@ -33,24 +42,33 @@ const BASE = {
 
 console.log("\n== a base cumulativa: imposto sobre o ANO, menos o ja retido ==");
 {
-  // Solteiro, EUR 800/semana. Cut-off 44.000/ano, creditos 4.000/ano.
-  // Na semana 10: cut-off 8.461,54 · creditos 769,23 · bruto acumulado 8.000.
-  // Tudo abaixo do cut-off -> 20% de 8.000 = 1.600; menos 769,23 = 830,77 devido.
-  // Ja retido 747,69 (as 9 semanas anteriores) -> a semana paga 83,08.
+  /*
+   * Solteiro, EUR 800/semana, semana 10.
+   *
+   * O rateio NAO e `anual x 10 / 52`. E o valor SEMANAL arredondado para CIMA,
+   * vezes 10 — regra que so descobri ao bater o motor contra um payslip real do
+   * Sage (ver o bloco no fim deste ficheiro). Escrevi estas tres asseroes com a
+   * conta obvia e as tres estavam erradas por cents.
+   *
+   *   cut-off:  ceil(44.000/52) = 846,16  x10 = 8.461,60
+   *   creditos: ceil( 4.000/52) =  76,93  x10 =   769,30
+   *   imposto devido: 20% de 8.000 = 1.600; menos 769,30 = 830,70
+   *   ja retido 747,69 -> a semana paga 83,01
+   */
   const r = calcular({
     ...BASE, brutoPeriodo: eur(800),
     acumuladoAnterior: { bruto: eur(7200), paye: eur(747.69), usc: 0, prsiEmpregado: 0 },
   });
-  ok(perto(r.aplicado.cutOffPeriodo, eur(44000 * 10 / 52)), "cut-off rateado por 10/52",
+  ok(perto(r.aplicado.cutOffPeriodo, eur(846.16 * 10)), "cut-off = semanal arredondado para cima x 10",
      euros(r.aplicado.cutOffPeriodo));
-  ok(perto(r.aplicado.creditosPeriodo, eur(4000 * 10 / 52)), "creditos rateados por 10/52",
+  ok(perto(r.aplicado.creditosPeriodo, eur(76.93 * 10)), "creditos = semanal arredondado para cima x 10",
      euros(r.aplicado.creditosPeriodo));
-  ok(perto(r.paye, eur(83.08)), "PAYE da semana = devido no acumulado - ja retido", euros(r.paye));
+  ok(perto(r.paye, eur(83.01)), "PAYE da semana = devido no acumulado - ja retido", euros(r.paye));
 
   // A mesma pessoa em Week 1 basis: a semana vive sozinha.
+  // cut-off 846,16 -> os 800 todos a 20% = 160; menos 76,93 de credito = 83,07.
   const w1 = calcular({ ...BASE, base: "semana1", brutoPeriodo: eur(800) });
-  // cut-off 44.000/52 = 846,15 -> 800 todo a 20% = 160; creditos 4.000/52 = 76,92
-  ok(perto(w1.paye, eur(83.08)), "Week 1 da o mesmo quando o salario e constante", euros(w1.paye));
+  ok(perto(w1.paye, eur(83.07)), "Week 1 da quase o mesmo quando o salario e constante", euros(w1.paye));
 }
 
 console.log("\n== a devolucao que o cumulativo faz sozinho ==");
@@ -103,9 +121,15 @@ console.log("\n== o penhasco da isencao de USC ==");
      [euros(acima), euros(esperadoNoPenhasco)]);
   ok(acima > 0 && abaixo === 0, "e o salto por causa de UM euro e real");
 
-  // As bandas: 0,5% ate 12.012 · 2% ate 27.382 · 3% ate 70.044 · 8% acima.
+  /*
+   * As bandas de 2026: 0,5% ate 12.012 · 2% ate **28.700** · 3% ate 70.044 · 8%.
+   *
+   * O tecto de 28.700 nao veio de mim: saiu do payslip real do Sage, onde o USC
+   * acumulado so fecha com ele. Escrevi este teste com os 27.382 de 2025 e ele
+   * ficou a acusar o motor de estar errado quando o errado era o meu numero.
+   */
   const em30k = uscSobre(eur(30000), tabela.usc, 52, 52, false);
-  const esperado = eur(12012 * 0.005 + (27382 - 12012) * 0.02 + (30000 - 27382) * 0.03);
+  const esperado = eur(12012 * 0.005 + (28700 - 12012) * 0.02 + (30000 - 28700) * 0.03);
   ok(perto(em30k, esperado, 5), "30.000/ano bate com as bandas", [euros(em30k), euros(esperado)]);
 
   // Taxas reduzidas (cartao medico / 70+): so 0,5% e 2%.
@@ -199,7 +223,7 @@ console.log("\n== base de emergencia: punitiva de proposito ==");
   ok(emerg.paye > normal.paye * 3, "sem RPN retem-se MUITO mais",
      [euros(normal.paye), euros(emerg.paye)]);
   ok(emerg.aplicado.creditosPeriodo === 0, "e sem creditos nenhuns");
-  ok(emerg.avisos.some((a) => /RPN/.test(a)), "e o aviso diz para pedir o RPN");
+  ok(temAviso(emerg, "aviso.emergencia"), "e o aviso diz para pedir o RPN", codigos(emerg));
 
   // Nas primeiras semanas ainda ha cut-off; depois nao.
   const cedo = calcular({ ...BASE, base: "emergencia", periodoNo: 2, brutoPeriodo: eur(800) });
@@ -216,24 +240,25 @@ console.log("\n== o RPN manda sobre o cadastro ==");
   });
   ok(daRevenue.paye > doCadastro.paye, "o RPN substitui o palpite da situacao familiar",
      [euros(doCadastro.paye), euros(daRevenue.paye)]);
-  ok(!daRevenue.avisos.some((a) => /Sem RPN/.test(a)), "e o aviso de 'sem RPN' desaparece");
-  ok(doCadastro.avisos.some((a) => /Sem RPN/.test(a)), "sem ele, o aviso aparece");
+  ok(!temAviso(daRevenue, "aviso.semRpn"), "e o aviso de 'sem RPN' desaparece", codigos(daRevenue));
+  ok(temAviso(doCadastro, "aviso.semRpn"), "sem ele, o aviso aparece", codigos(doCadastro));
 }
 
 console.log("\n== os avisos, que impedem um numero por confirmar de passar por confirmado ==");
 {
   const r = calcular({ ...BASE, base: "semana1", brutoPeriodo: eur(800) });
-  ok(r.avisos.some((a) => /NAO foi conferida/.test(a)),
-     "a tabela por confirmar diz-se por confirmar", r.avisos);
+  ok(temAviso(r, "aviso.tabelaPorConferir"),
+     "a tabela por confirmar diz-se por confirmar", codigos(r));
 
   // Ano sem tabela: usa a mais proxima E avisa. Nao rebenta — uma folha que nao
   // corre por falta de tabela e um escritorio parado.
   const futuro = calcular({ ...BASE, base: "semana1", dataPagamento: "2031-03-05", brutoPeriodo: eur(800) });
   ok(futuro.paye > 0, "ano sem tabela continua a calcular");
-  ok(futuro.avisos.some((a) => /Nao ha tabela fiscal/.test(a)), "mas diz que herdou", futuro.avisos);
+  ok(temAviso(futuro, "aviso.tabelaHerdada"), "mas diz que herdou", codigos(futuro));
 
   const classeB = calcular({ ...BASE, base: "semana1", brutoPeriodo: eur(800), classePRSI: "B" });
-  ok(classeB.avisos.some((a) => /Classe de PRSI B/.test(a)), "classe nao implementada avisa");
+  ok(temAviso(classeB, "aviso.classePrsi") && classeB.avisos.find((a) => a.codigo === "aviso.classePrsi").params.classe === "B",
+     "classe nao implementada avisa, e diz QUAL", codigos(classeB));
 }
 
 console.log("\n== o quinzenal e o mensal ==");
@@ -274,11 +299,15 @@ console.log("\n== o TECTO: nao se retem mais do que a pessoa ganhou ==");
   ok(r.paye + r.usc + r.prsiEmpregado <= r.brutoPeriodo,
      "as retencoes juntas nao passam o bruto",
      [euros(r.paye + r.usc + r.prsiEmpregado), euros(r.brutoPeriodo)]);
-  ok(r.avisos.some((a) => /Transita/.test(a)), "e diz o que ficou por cobrar", r.avisos);
+  ok(temAviso(r, "aviso.naoCoube"), "e diz o que ficou por cobrar", codigos(r));
 
   // O PRSI e o primeiro e NUNCA se corta: nao e cumulativo, e paga seguro
   // social — cortar ali tirava direitos a pessoa.
   ok(r.prsiEmpregado > 0, "o PRSI e cobrado por inteiro", euros(r.prsiEmpregado));
+  const naoCoube = r.avisos.find((a) => a.codigo === "aviso.naoCoube");
+  ok(naoCoube && /^\d+\.\d{2}$/.test(String(naoCoube.params.v)),
+     "e o valor vai JA FORMATADO nos parametros — o dicionario nao sabe se e dinheiro",
+     naoCoube && naoCoube.params);
 
   // Uma DEVOLUCAO nao se corta: ela aumenta o liquido.
   const dev = calcular({
@@ -294,7 +323,124 @@ console.log("\n== o TECTO: nao se retem mais do que a pessoa ganhou ==");
     ...BASE, periodoNo: 30, brutoPeriodo: eur(800),
     acumuladoAnterior: { bruto: eur(23200), paye: eur(2400), usc: eur(500), prsiEmpregado: eur(970) },
   });
-  ok(!normal.avisos.some((a) => /Transita/.test(a)), "semana normal nao aciona o tecto");
+  ok(!temAviso(normal, "aviso.naoCoube"), "semana normal nao aciona o tecto", codigos(normal));
+}
+
+console.log("\n== segurar a devolucao para o periodo seguinte ==");
+{
+  /*
+   * Quem sai da base de emergencia recebe de volta o que la se reteve a mais —
+   * as vezes centenas de euros numa semana. Esse dinheiro sai do bolso do
+   * EMPREGADOR na hora (ele desconta depois no que remete a Revenue), e numa
+   * semana de tesouraria apertada isso e um problema real.
+   *
+   * A decisao de segurar e de quem paga; o sistema so tem de a respeitar e
+   * gravar. O valor nao se guarda: o cumulativo volta a apura-lo sozinho.
+   */
+  const entrada = {
+    ...BASE, periodoNo: 30, brutoPeriodo: eur(600),
+    acumuladoAnterior: { bruto: eur(17400), paye: eur(2500), usc: eur(300), prsiEmpregado: eur(730) },
+  };
+  const paga = calcular(entrada);
+  ok(paga.paye < 0, "sem segurar, ha devolucao", euros(paga.paye));
+
+  const segura = calcular({ ...entrada, segurarDevolucao: true });
+  ok(segura.paye === 0, "segurando, o PAYE do periodo e zero", euros(segura.paye));
+  ok(segura.devolucaoSegura === -paga.paye,
+     "e a devolucao apurada fica registada, inteira",
+     [euros(segura.devolucaoSegura), euros(-paga.paye)]);
+  ok(segura.liquido < paga.liquido,
+     "o liquido e menor: e o dinheiro que nao saiu esta semana",
+     [euros(segura.liquido), euros(paga.liquido)]);
+  ok(temAviso(segura, "aviso.devolucaoSegura"), "e diz-se que foi segurada", codigos(segura));
+
+  /*
+   * O QUE FAZ ISTO FUNCIONAR: o acumulado retido NAO baixa.
+   *
+   * E por isso que nao e preciso guardar o valor seguro em lado nenhum — o
+   * periodo seguinte ve o retido ainda alto e volta a apurar a devolucao.
+   */
+  ok(segura.acumulado.paye === entrada.acumuladoAnterior.paye,
+     "o retido acumulado nao baixa — e o que faz a devolucao voltar a aparecer",
+     [euros(segura.acumulado.paye), euros(entrada.acumuladoAnterior.paye)]);
+
+  const seguinte = calcular({
+    ...BASE, periodoNo: 31, brutoPeriodo: eur(600),
+    acumuladoAnterior: {
+      bruto: segura.acumulado.bruto, paye: segura.acumulado.paye,
+      usc: segura.acumulado.usc, prsiEmpregado: segura.acumulado.prsiEmpregado,
+    },
+  });
+  ok(seguinte.paye < 0, "e no periodo seguinte ela volta, sozinha", euros(seguinte.paye));
+
+  // Segurar quando NAO ha devolucao nao faz nada.
+  const semDevolucao = calcular({
+    ...BASE, base: "semana1", brutoPeriodo: eur(800), segurarDevolucao: true,
+  });
+  ok(semDevolucao.devolucaoSegura === 0 && semDevolucao.paye > 0,
+     "segurar sem haver devolucao e um no-op");
+}
+
+console.log("\n== CONTRA UM PAYSLIP REAL DO SAGE (semana 35 de 2026) ==");
+{
+  /*
+   * O teste mais valioso deste ficheiro: numeros de um payslip a serio, de um
+   * sistema a serio, do ano corrente. Os testes acima provam que o motor faz o
+   * que EU acho que a lei diz; este prova que faz o que o Sage faz.
+   *
+   * Sem nome nem PPS — so os numeros, que sao o que importa.
+   *
+   *   Bruto do periodo   653,85      Cumulativo bruto   22.241,26
+   *   PAYE                53,84      Cumulativo PAYE     1.755,70
+   *   USC                 10,63      Cumulativo USC        352,79
+   *   PRSI empregado      27,46      Cumulativo PRSI       934,11
+   *   PRSI patrao         73,56      STD.CUT OFF        29.615,60
+   *   Base N (cumulativa) A1         TAX CREDIT          2.692,55
+   *
+   * TRES defeitos meus sairam daqui, e nenhum deles teria saido de mais testes
+   * meus — porque eram enganos sobre a REGRA, e um teste meu repete o engano:
+   *
+   *   1. O arredondamento do cut-off e dos creditos: a conta obvia
+   *      (anual x n / 52, arredondado no fim) dava 29.615,38 contra os
+   *      29.615,60 do Sage. A regra e valor DO PERIODO arredondado para CIMA,
+   *      vezes o numero do periodo. O 76,93 esta impresso no proprio payslip.
+   *
+   *   2. O tecto da banda de 2% do USC em 2026: 28.700 e nao os 27.382 de 2025.
+   *
+   *   3. A AE Pension (auto-enrolment) existe e o motor nao a tem. E a unica
+   *      linha do payslip que ele ainda nao sabe fazer.
+   */
+  const eur2 = (v) => Math.round(v * 100);
+  const r = calcular({
+    brutoPeriodo: eur2(653.85), dataPagamento: "2026-09-02",
+    periodosNoAno: 52, periodoNo: 35, base: "cumulativa", situacao: "solteiro",
+    acumuladoAnterior: {
+      bruto: eur2(22241.26 - 653.85), paye: eur2(1755.70 - 53.84),
+      usc: eur2(352.79 - 10.63), prsiEmpregado: eur2(934.11 - 27.46),
+    },
+  });
+  const bate = (meu, sage, label) => ok(Math.abs(meu - eur2(sage)) <= 1, label,
+    [euros(meu).toFixed(2), sage.toFixed(2)]);
+
+  bate(r.aplicado.cutOffPeriodo, 29615.60, "STD.CUT OFF acumulado");
+  bate(r.aplicado.creditosPeriodo, 2692.55, "TAX CREDIT acumulado");
+  bate(r.paye, 53.84, "PAYE do periodo");
+  bate(r.acumulado.paye, 1755.70, "TAX PAID acumulado");
+  bate(r.usc, 10.63, "USC do periodo");
+  bate(r.acumulado.usc, 352.79, "USC acumulado");
+  bate(r.prsiEmpregado, 27.46, "PRSI do empregado");
+  bate(r.prsiEmpregador, 73.56, "EMPER PRSI do periodo");
+
+  /*
+   * O liquido NAO bate, e e suposto nao bater: o Sage desconta 9,81 de AE
+   * Pension que o motor ainda nao conhece. Fica escrito para o dia em que a
+   * auto-enrolment entrar — e ai este numero passa a 552,11.
+   */
+  const semPensao = 653.85 - 53.84 - 27.46 - 10.63;
+  bate(r.liquido, semPensao, "liquido ANTES da AE Pension");
+  ok(Math.abs(euros(r.liquido) - 552.11 - 9.81) < 0.02,
+     "e a diferenca para o NETT do Sage e exactamente a AE Pension de 9,81",
+     [euros(r.liquido).toFixed(2), (552.11 + 9.81).toFixed(2)]);
 }
 
 console.log("\n== o liquido fecha ==");

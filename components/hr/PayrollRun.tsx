@@ -1,7 +1,10 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
-import { useT } from "@/lib/i18n";
+import { useT, type TKey } from "@/lib/i18n";
+
+/** O servidor manda chave + parametros; a traducao acontece aqui. */
+type Aviso = { codigo: string; params?: Record<string, string | number> };
 
 /**
  * CORRER A FOLHA — bruto, imposto, líquido, e o que a pessoa custa.
@@ -32,13 +35,13 @@ type Linha = {
   custoEmpregadorCents: number;
   acumulado: { bruto: number; paye: number; usc: number; prsi: number };
   aplicado: { cutOff: number; creditos: number; base: string };
-  avisos: string[]; status: "draft" | "final" | null;
+  avisos: Aviso[]; devolucaoSeguraCents: number; status: "draft" | "final" | null;
 };
 type Folha = {
   year: number; periodNo: number; freqType: string; payDate: string;
   linhas: Linha[];
   totais: { bruto: number; paye: number; usc: number; prsiEe: number; prsiEr: number; liquido: number; custoEmpregador: number };
-  avisos: string[];
+  avisos: Aviso[];
 };
 
 const eur = (c: number) =>
@@ -69,6 +72,35 @@ export default function PayrollRun({
   }, [clientId, year, periodo, freqType]);
 
   useEffect(() => { carregar(); }, [carregar]);
+
+  /*
+   * SEGURAR uma devolucao.
+   *
+   * Quem sai da base de emergencia recebe de volta centenas de euros numa
+   * semana, e esse dinheiro sai do bolso do empregador na hora. A decisao de
+   * adiar e de quem paga; aqui so se respeita e se grava — com o motivo, que e
+   * o que torna a decisao defensavel tres meses depois.
+   */
+  async function segurar(l: Linha, segurar: boolean) {
+    let reason = "";
+    if (segurar) {
+      reason = window.prompt(t("run.holdWhy")) ?? "";
+      if (!reason.trim()) return;
+    }
+    setOcupado(true); setErro(null);
+    try {
+      const r = await fetch(`/api/hr/companies/${clientId}/payroll`, {
+        method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          year, period: periodo, freq: freqType,
+          acao: segurar ? "segurar" : "soltar", employeeId: l.employeeId, reason,
+        }),
+      });
+      const j = await r.json();
+      if (!r.ok) { setErro(j.error || "Falhou."); return; }
+      await carregar();
+    } finally { setOcupado(false); }
+  }
 
   async function acao(acao: "fechar" | "reabrir") {
     setOcupado(true); setErro(null); setRecado(null);
@@ -110,7 +142,7 @@ export default function PayrollRun({
 
       {!!avisos.length && (
         <ul className="mt-3 space-y-1 rounded-lg border border-warning/40 bg-warning/10 px-3 py-2 text-[12.5px]">
-          {avisos.map((a, i) => <li key={i}>{a}</li>)}
+          {avisos.map((a, i) => <li key={i}>{t(a.codigo as TKey, a.params)}</li>)}
         </ul>
       )}
       {erro && <p className="mt-3 rounded-lg border border-danger/40 bg-danger/10 px-3 py-2 text-sm text-danger">{erro}</p>}
@@ -140,7 +172,7 @@ export default function PayrollRun({
                   {/* O aviso vive ao pé do nome de quem ele é. */}
                   {!!l.avisos.length && (
                     <ul className="mt-0.5 space-y-0.5 text-[11px] text-warning">
-                      {l.avisos.map((a, i) => <li key={i}>· {a}</li>)}
+                      {l.avisos.map((a, i) => <li key={i}>· {t(a.codigo as TKey, a.params)}</li>)}
                     </ul>
                   )}
                 </td>
@@ -148,6 +180,24 @@ export default function PayrollRun({
                 {/* PAYE negativo é DEVOLUÇÃO, e o cumulativo fá-la sozinho. */}
                 <td className={`px-3 py-2 text-right font-mono tabular-nums ${l.payeCents < 0 ? "text-ok" : ""}`}>
                   {eur(l.payeCents)}
+                  {/*
+                    O botao so aparece quando ha decisao a tomar: com devolucao
+                    por pagar, ou com uma ja segura para soltar. Um botao sempre
+                    visivel que na maior parte das vezes nao faz nada ensina a
+                    ignora-lo.
+                  */}
+                  {l.status !== "final" && l.payeCents < 0 && (
+                    <button className="mt-0.5 block w-full text-right text-[11px] underline"
+                      disabled={ocupado} onClick={() => segurar(l, true)}>
+                      {t("run.hold")}
+                    </button>
+                  )}
+                  {l.status !== "final" && l.devolucaoSeguraCents > 0 && (
+                    <button className="mt-0.5 block w-full text-right text-[11px] text-warning underline"
+                      disabled={ocupado} onClick={() => segurar(l, false)}>
+                      {t("run.release", { v: eur(l.devolucaoSeguraCents) })}
+                    </button>
+                  )}
                 </td>
                 <td className="px-3 py-2 text-right font-mono tabular-nums">{eur(l.uscCents)}</td>
                 <td className="px-3 py-2 text-right font-mono tabular-nums">{eur(l.prsiEeCents)}</td>

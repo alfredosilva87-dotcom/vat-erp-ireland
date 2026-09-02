@@ -43,6 +43,20 @@ import {
  */
 
 export type Base = "cumulativa" | "semana1" | "emergencia";
+
+/**
+ * Um aviso é CHAVE + PARÂMETROS, e nunca uma frase pronta.
+ *
+ * Ficou a frase em português no primeiro corte, e apareceu escrita a meio de um
+ * ecrã em inglês — que e a divida que o Alfredo ja tinha marcado. Uma frase
+ * montada aqui nao tem como ser traduzida do lado de la: o servidor nao sabe em
+ * que idioma esta quem vai ler, e o payslip de um cliente espanhol e lido por
+ * quem fala espanhol.
+ *
+ * Os parametros ja vao formatados (numeros como texto): quem os monta sabe se
+ * aquilo e dinheiro, ano ou contagem; o dicionario nao sabe.
+ */
+export type Aviso = { codigo: string; params?: Record<string, string | number> };
 export type Situacao = "solteiro" | "familiaMonoparental" | "casadoUmSalario" | "casadoDoisSalarios";
 
 export type Entrada = {
@@ -75,6 +89,21 @@ export type Entrada = {
   isentoUSC?: boolean;
   /** Classe de PRSI. Só A está implementada; ver `NAO_IMPLEMENTADAS`. */
   classePRSI?: string;
+
+  /**
+   * SEGURAR a devolução: apura-se, mostra-se, e não se paga neste período.
+   *
+   * Quem sai da base de emergência recebe de volta o que lá se reteve a mais —
+   * às vezes centenas de euros numa única semana. Esse dinheiro sai do bolso do
+   * empregador na hora (ele desconta depois no que remete à Revenue), e numa
+   * semana de tesouraria apertada isso é um problema real.
+   *
+   * Não é preciso guardar o VALOR seguro: o cumulativo vê o retido acumulado
+   * ainda alto e volta a apurar a devolução no período seguinte, sozinho.
+   * Guardar o valor criava uma segunda verdade, que diverge no dia em que a
+   * tabela fiscal mudar.
+   */
+  segurarDevolucao?: boolean;
 };
 
 export type Resultado = {
@@ -90,15 +119,39 @@ export type Resultado = {
   acumulado: { bruto: Cents; paye: Cents; usc: Cents; prsiEmpregado: Cents };
   /** Cut-off e créditos que ESTE período usou — o payslip mostra-os. */
   aplicado: { cutOffPeriodo: Cents; creditosPeriodo: Cents; base: Base };
+  /** Devolução apurada e SEGURA para o período seguinte. Zero quando não há. */
+  devolucaoSegura: Cents;
   /** O que impede este número de ser tomado por definitivo. */
-  avisos: string[];
+  avisos: Aviso[];
 };
 
 const r0 = Math.round;
 
-/** Rateio de um valor anual pelo pedaço do ano já decorrido. */
+/**
+ * Rateio de um valor anual pelo pedaço do ano já decorrido.
+ *
+ * ---------------------------------------------------------------------------
+ * O ARREDONDAMENTO É POR PERÍODO E PARA CIMA, E ISSO NÃO É DETALHE
+ *
+ * A conta óbvia — `anual × n / periodos`, arredondada uma vez no fim — dava
+ * **€0,22 a menos** de cut-off que o Sage, num payslip real de 2026 do Alfredo:
+ * 29.615,38 contra 29.615,60. Vinte e dois cêntimos de cut-off são
+ * quatro cêntimos de imposto, e um payslip que não bate ao cêntimo com o do
+ * sistema anterior é um payslip que ninguém aceita.
+ *
+ * A regra a sério é outra: calcula-se o valor **do período**, arredondado para
+ * CIMA ao cêntimo, e multiplica-se pelo número do período.
+ *
+ *     44.000 / 52 = 846,1538  →  846,16  ×35 = 29.615,60  ✓ Sage
+ *      4.000 / 52 =  76,9231  →   76,93  ×35 =  2.692,55  ✓ Sage
+ *
+ * O `76,93` está impresso no próprio payslip, no campo TAX CREDIT — é o
+ * semanal, e é dele que sai o acumulado. Arredondar para cima favorece o
+ * contribuinte, que é o lado para que a Revenue arredonda.
+ */
 function ateAqui(anual: Cents, periodoNo: number, periodosNoAno: number): Cents {
-  return r0((anual * Math.min(periodoNo, periodosNoAno)) / periodosNoAno);
+  const doPeriodo = Math.ceil(anual / periodosNoAno);
+  return doPeriodo * Math.min(periodoNo, periodosNoAno);
 }
 
 /** Imposto por bandas progressivas sobre um valor anualizado. */
@@ -140,11 +193,15 @@ export function uscSobre(
   const bandas = reduzido && anualizado <= tabela.limiteReduzidas
     ? tabela.bandasReduzidas : tabela.bandas;
 
-  // As bandas são anuais: rateia-se o LIMITE de cada uma pelo ano decorrido, e
-  // não o resultado. Ratear no fim empurrava rendimento para bandas erradas.
-  const proporcao = Math.min(periodoNo, periodosNoAno) / periodosNoAno;
+  /*
+   * As bandas são anuais: rateia-se o LIMITE de cada uma, e não o resultado —
+   * ratear no fim empurrava rendimento para bandas erradas.
+   *
+   * E rateia-se com a MESMA regra do cut-off: valor do período arredondado para
+   * cima, vezes o número do período. Ver `ateAqui`.
+   */
   const bandasAteAqui = bandas.map((b) => ({
-    ate: b.ate === null ? null : r0(b.ate * proporcao),
+    ate: b.ate === null ? null : ateAqui(b.ate, periodoNo, periodosNoAno),
     taxaBps: b.taxaBps,
   }));
   return porBandas(acumulado, bandasAteAqui);
@@ -178,23 +235,21 @@ export const NAO_IMPLEMENTADAS = ["B", "C", "D", "H", "J", "K", "M", "P", "S"];
  * cada conta sem Postgres nenhum de pé.
  */
 export function calcular(e: Entrada, tabelaDada?: TabelaAno): Resultado {
-  const avisos: string[] = [];
+  const avisos: Aviso[] = [];
   const ano = Number(e.dataPagamento.slice(0, 4));
   const daFabrica = tabelaDoAno(ano);
   const tabela = tabelaDada ?? daFabrica.tabela;
   const herdada = tabelaDada ? tabela.ano !== ano : daFabrica.herdada;
   if (herdada) {
-    avisos.push(`Nao ha tabela fiscal para ${ano}; foi usada a de ${tabela.ano}.`);
+    avisos.push({ codigo: "aviso.tabelaHerdada", params: { ano, usada: tabela.ano } });
   }
   if (!tabela.confirmadoEm) {
-    avisos.push(
-      `A tabela de ${tabela.ano} ainda NAO foi conferida contra a Revenue. ${tabela.fonte}`
-    );
+    avisos.push({ codigo: "aviso.tabelaPorConferir", params: { ano: tabela.ano, fonte: tabela.fonte } });
   }
 
   const classe = (e.classePRSI || "A").toUpperCase().charAt(0);
   if (NAO_IMPLEMENTADAS.includes(classe)) {
-    avisos.push(`Classe de PRSI ${classe} nao esta implementada; foi calculada como A.`);
+    avisos.push({ codigo: "aviso.classePrsi", params: { classe } });
   }
 
   const anterior = e.base === "cumulativa" && e.acumuladoAnterior
@@ -223,18 +278,14 @@ export function calcular(e: Entrada, tabelaDada?: TabelaAno): Resultado {
     const semanal = tabela.paye.emergencia.cutOffSemanal;
     cutOffPeriodo = dentro ? r0((semanal * 52) / e.periodosNoAno) : 0;
     creditosPeriodo = 0;
-    avisos.push(
-      "Base de EMERGENCIA: sem RPN da Revenue. Peca o RPN — assim retem-se a mais de proposito."
-    );
+    avisos.push({ codigo: "aviso.emergencia" });
   } else {
     const coAnual = e.rpn?.cutOffAnual ?? cutOffAnual(tabela.paye, e.situacao);
     const crAnual = e.rpn?.creditosAnuais ?? creditosAnuais(tabela.paye, e.situacao);
     cutOffPeriodo = ateAqui(coAnual, nPeriodo, e.periodosNoAno);
     creditosPeriodo = ateAqui(crAnual, nPeriodo, e.periodosNoAno);
     if (!e.rpn) {
-      avisos.push(
-        "Sem RPN: o cut-off e os creditos vieram da situacao familiar do cadastro, nao da Revenue."
-      );
+      avisos.push({ codigo: "aviso.semRpn" });
     }
   }
 
@@ -332,6 +383,24 @@ export function calcular(e: Entrada, tabelaDada?: TabelaAno): Resultado {
    */
   let payeFinal = paye;
   let uscFinal = usc;
+
+  /*
+   * A devolução SEGURA entra antes do tecto, e a ordem importa.
+   *
+   * Segurar uma devolução deixa o líquido igual ao de uma semana sem
+   * devolução — que é exactamente o efeito desejado. Se corresse depois do
+   * tecto, o tecto teria calculado com um PAYE negativo e concluído que cabia
+   * tudo, e a conta saía errada.
+   */
+  let devolucaoSegura = 0;
+  if (e.segurarDevolucao && payeFinal < 0) {
+    devolucaoSegura = -payeFinal;
+    payeFinal = 0;
+    avisos.push({
+      codigo: "aviso.devolucaoSegura",
+      params: { v: (devolucaoSegura / 100).toFixed(2) },
+    });
+  }
   const disponivel = e.brutoPeriodo - prsiEmpregado;
   if (disponivel - uscFinal - Math.max(0, payeFinal) < 0) {
     const antes = { paye: payeFinal, usc: uscFinal };
@@ -339,10 +408,7 @@ export function calcular(e: Entrada, tabelaDada?: TabelaAno): Resultado {
     if (payeFinal > 0) payeFinal = Math.max(0, disponivel - uscFinal);
     const naoCobrado = (antes.paye - payeFinal) + (antes.usc - uscFinal);
     if (naoCobrado > 0) {
-      avisos.push(
-        `Nao coube ${(naoCobrado / 100).toFixed(2)} de retencao neste periodo — o bruto nao chegava. `
-          + "Transita: o cumulativo recolhe-o no periodo seguinte."
-      );
+      avisos.push({ codigo: "aviso.naoCoube", params: { v: (naoCobrado / 100).toFixed(2) } });
     }
   }
 
@@ -362,6 +428,7 @@ export function calcular(e: Entrada, tabelaDada?: TabelaAno): Resultado {
       prsiEmpregado: anterior.prsiEmpregado + prsiEmpregado,
     },
     aplicado: { cutOffPeriodo, creditosPeriodo, base: e.base },
+    devolucaoSegura,
     avisos,
   };
 }
