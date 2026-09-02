@@ -852,6 +852,7 @@ const pt: Dict = {
   "hr.navPayroll": "Folha da empresa",
   "hr.navSubmissions": "Horas recebidas",
   "hr.navContacts": "Comunicação",
+  "hr.navTaxTables": "Tabelas fiscais",
 
   // ---- RH: telas ----
   "hr.dashSubtitle": "O que está atrasado, e o que vence agora",

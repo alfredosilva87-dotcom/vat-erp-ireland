@@ -1,0 +1,243 @@
+/**
+ * As tabelas fiscais irlandesas — DADOS, não código.
+ *
+ * ---------------------------------------------------------------------------
+ * POR QUE ISTO É UMA TABELA E NÃO UMAS CONSTANTES
+ *
+ * As taxas mudam **todos os anos** no Orçamento de Outubro, e o PRSI já mudou
+ * **a meio do ano** duas vezes seguidas (1 de Outubro de 2024 e 1 de Outubro de
+ * 2025). Um sistema que traz os números escritos no meio da conta obriga a uma
+ * alteração de código — e a um `deploy` — a cada mudança, e a folha de Janeiro
+ * não espera por isso.
+ *
+ * Pior: com os números espalhados pelo código, recalcular Novembro do ano
+ * passado passa a dar o resultado deste ano. Um recálculo tem de usar a tabela
+ * **da data do pagamento**, e não a tabela de hoje.
+ *
+ * ---------------------------------------------------------------------------
+ * O QUE `confirmadoEm` SIGNIFICA, E POR QUE EXISTE
+ *
+ * Cada tabela diz quando foi conferida contra a publicação da Revenue, e por
+ * quem. **Uma tabela sem confirmação continua a calcular** — recusar deixaria o
+ * escritório sem folha nenhuma, que é pior — mas o resultado sai marcado, e o
+ * ecrã mostra o aviso.
+ *
+ * É a mesma regra da verificação de actualizações: um sistema que não sabe se
+ * está certo tem de o dizer, e não pode dar a garantia sem a fazer. Um número
+ * de imposto errado não dá erro — dá um líquido plausível e uma dívida à
+ * Revenue que aparece meses depois.
+ *
+ * **Antes da primeira folha a sério, cada tabela abaixo tem de ser conferida
+ * linha a linha contra revenue.ie e marcada aqui.**
+ */
+
+/** Tudo em CÊNTIMOS inteiros. Ver a nota sobre dinheiro no fim do ficheiro. */
+export type Cents = number;
+
+export type Banda = {
+  /** Limite SUPERIOR da banda, em cêntimos/ano. `null` = daí para cima. */
+  ate: Cents | null;
+  /** Milésimos de por cento, para 0,5% caber sem vírgula: 0,5% = 50. */
+  taxaBps: number;
+};
+
+export type TabelaUSC = {
+  bandas: Banda[];
+  /** Rendimento anual até ao qual NÃO se paga USC nenhum. */
+  isencaoAnual: Cents;
+  /**
+   * Bandas de quem tem cartão médico completo ou 70+ anos com rendimento
+   * abaixo do limite. A lei chama-lhes "reduced rates".
+   */
+  bandasReduzidas: Banda[];
+  /** Rendimento acima do qual as reduzidas deixam de se aplicar. */
+  limiteReduzidas: Cents;
+};
+
+export type TabelaPAYE = {
+  taxaNormalBps: number;
+  taxaSuperiorBps: number;
+  /** Cut-off anual por situação familiar. */
+  cutOff: {
+    solteiro: Cents;
+    familiaMonoparental: Cents;
+    casadoUmSalario: Cents;
+    /** Base do casal com dois salários; o segundo acresce até `acrescimoMax`. */
+    casadoDoisSalarios: Cents;
+    acrescimoMax: Cents;
+  };
+  creditos: {
+    pessoalSolteiro: Cents;
+    pessoalCasado: Cents;
+    empregado: Cents;
+    familiaMonoparental: Cents;
+  };
+  /**
+   * Emergency basis: sem RPN, o cut-off é zero a partir da 5.ª semana e tudo é
+   * tributado à taxa superior. As primeiras 4 semanas têm cut-off semanal.
+   */
+  emergencia: { semanasComCutOff: number; cutOffSemanal: Cents };
+};
+
+export type TabelaPRSI = {
+  /** A partir de quando esta linha vale (ISO). O PRSI muda a meio do ano. */
+  desde: string;
+  empregadoBps: number;
+  /** Ganho SEMANAL até ao qual o empregado não paga nada. */
+  isencaoSemanal: Cents;
+  /**
+   * O crédito que suaviza o degrau logo acima da isenção.
+   * Sem ele, ganhar €1 a mais que €352 custava €14,50 de PRSI de uma vez.
+   */
+  credito: { maximo: Cents; ateSemanal: Cents };
+  /** Escalão inferior do empregador, e o tecto semanal dele. */
+  empregadorInferiorBps: number;
+  empregadorSuperiorBps: number;
+  empregadorLimiteSemanal: Cents;
+};
+
+export type TabelaAno = {
+  ano: number;
+  paye: TabelaPAYE;
+  usc: TabelaUSC;
+  /** Ordenada por `desde`. A folha usa a linha em vigor na data do pagamento. */
+  prsi: TabelaPRSI[];
+  /** `null` = ainda não foi conferida contra a Revenue. */
+  confirmadoEm: string | null;
+  fonte: string;
+};
+
+const eur = (v: number): Cents => Math.round(v * 100);
+
+/*
+ * 2025 — o ano de referência.
+ *
+ * Os números vêm do Orçamento 2025 e das alterações de PRSI de 1 de Outubro de
+ * 2025. Continuam por conferir linha a linha contra revenue.ie.
+ */
+const A2025: TabelaAno = {
+  ano: 2025,
+  paye: {
+    taxaNormalBps: 2000,
+    taxaSuperiorBps: 4000,
+    cutOff: {
+      solteiro: eur(44000),
+      familiaMonoparental: eur(48000),
+      casadoUmSalario: eur(53000),
+      casadoDoisSalarios: eur(53000),
+      acrescimoMax: eur(35000),
+    },
+    creditos: {
+      pessoalSolteiro: eur(2000),
+      pessoalCasado: eur(4000),
+      empregado: eur(2000),
+      familiaMonoparental: eur(1900),
+    },
+    emergencia: { semanasComCutOff: 4, cutOffSemanal: eur(44000 / 52) },
+  },
+  usc: {
+    bandas: [
+      { ate: eur(12012), taxaBps: 50 },
+      { ate: eur(27382), taxaBps: 200 },
+      { ate: eur(70044), taxaBps: 300 },
+      { ate: null, taxaBps: 800 },
+    ],
+    isencaoAnual: eur(13000),
+    bandasReduzidas: [
+      { ate: eur(12012), taxaBps: 50 },
+      { ate: null, taxaBps: 200 },
+    ],
+    limiteReduzidas: eur(60000),
+  },
+  prsi: [
+    {
+      desde: "2025-01-01",
+      empregadoBps: 410,
+      isencaoSemanal: eur(352),
+      credito: { maximo: eur(12), ateSemanal: eur(424) },
+      empregadorInferiorBps: 890,
+      empregadorSuperiorBps: 1115,
+      empregadorLimiteSemanal: eur(496),
+    },
+    {
+      // A subida de Outubro. É por isto que a tabela tem datas.
+      desde: "2025-10-01",
+      empregadoBps: 420,
+      isencaoSemanal: eur(352),
+      credito: { maximo: eur(12), ateSemanal: eur(424) },
+      empregadorInferiorBps: 900,
+      empregadorSuperiorBps: 1125,
+      empregadorLimiteSemanal: eur(496),
+    },
+  ],
+  confirmadoEm: null,
+  fonte: "Orcamento 2025 + alteracoes PRSI de 01-10-2025. POR CONFERIR contra revenue.ie.",
+};
+
+/*
+ * 2026 — herda 2025 e ESPERA CONFIRMAÇÃO.
+ *
+ * Herdar em vez de inventar é deliberado: um palpite sobre o Orçamento 2026
+ * seria um número errado com ar de número certo, e um número desses não dá
+ * erro — dá um líquido plausível e uma dívida à Revenue meses depois. Repetir
+ * 2025 é uma escolha visivelmente conservadora, e o aviso na tela diz que
+ * ainda não foi conferida.
+ */
+const A2026: TabelaAno = {
+  ...A2025,
+  ano: 2026,
+  prsi: [
+    {
+      desde: "2026-01-01",
+      empregadoBps: 420,
+      isencaoSemanal: eur(352),
+      credito: { maximo: eur(12), ateSemanal: eur(424) },
+      empregadorInferiorBps: 900,
+      empregadorSuperiorBps: 1125,
+      empregadorLimiteSemanal: eur(496),
+    },
+  ],
+  confirmadoEm: null,
+  fonte: "HERDADA DE 2025 — o Orcamento 2026 NAO foi aplicado. Conferir antes da primeira folha.",
+};
+
+const TABELAS: Record<number, TabelaAno> = { 2025: A2025, 2026: A2026 };
+
+/**
+ * A tabela do ano, ou a mais recente que se conhece.
+ *
+ * Cair na mais recente em vez de rebentar é a escolha certa aqui: uma folha que
+ * não corre por falta de tabela é um escritório parado, e o aviso de "não
+ * confirmada" já diz o que é preciso saber. `herdada` distingue os dois casos
+ * para o ecrã poder ser mais específico.
+ */
+export function tabelaDoAno(ano: number): { tabela: TabelaAno; herdada: boolean } {
+  const exacta = TABELAS[ano];
+  if (exacta) return { tabela: exacta, herdada: false };
+  const anos = Object.keys(TABELAS).map(Number).sort((a, b) => a - b);
+  const maisProximo = anos.filter((a) => a <= ano).pop() ?? anos[0];
+  return { tabela: TABELAS[maisProximo], herdada: true };
+}
+
+/** A linha de PRSI em vigor na data do pagamento. */
+export function prsiEmVigor(tabela: TabelaAno, dataPagamento: string): TabelaPRSI {
+  const validas = tabela.prsi.filter((p) => p.desde <= dataPagamento);
+  // Data anterior à primeira linha (recálculo de um ano antigo): usa a primeira,
+  // que é a mais benigna, em vez de não haver PRSI nenhum.
+  return validas.length ? validas[validas.length - 1] : tabela.prsi[0];
+}
+
+export const anosConhecidos = () => Object.keys(TABELAS).map(Number).sort((a, b) => a - b);
+
+/*
+ * ---------------------------------------------------------------------------
+ * DINHEIRO É CÊNTIMO INTEIRO, E ISSO NÃO É PREFERÊNCIA
+ *
+ * O módulo de contabilidade já pagou esta lição (`lib/accounting/post.ts`):
+ * três linhas de €33,333 dão €99,99 numa nota de €100,00. Na folha é pior,
+ * porque o erro não fica num relatório — vai para a conta bancária de uma
+ * pessoa e para uma declaração à Revenue.
+ *
+ * Por isso tudo aqui é `Cents`, e a única divisão que arredonda é a que produz
+ * o valor final do período.
+ */

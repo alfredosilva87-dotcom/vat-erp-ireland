@@ -851,6 +851,7 @@ const en = {
   "hr.navPayroll": "Company payroll",
   "hr.navSubmissions": "Submitted hours",
   "hr.navContacts": "Communication",
+  "hr.navTaxTables": "Tax tables",
 
   // ---- RH: telas ----
   "hr.dashSubtitle": "What is running late, and what is due now",

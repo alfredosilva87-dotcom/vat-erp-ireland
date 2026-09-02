@@ -48,9 +48,13 @@ const EXEMPT = {
   "app/api/auth/forgot-password/route.ts": "publica, fluxo de recuperacao",
   "app/api/auth/reset-password/route.ts": "publica, fluxo de recuperacao",
   "app/api/updates/route.ts":
-    "pergunta se ha versao nova. Nao le nem escreve dado de cliente nenhum: "
-    "fala com o GitHub e compara duas versoes. Nao recebe id no pedido, entao "
+    "pergunta se ha versao nova. Nao le nem escreve dado de cliente nenhum: " +
+    "fala com o GitHub e compara duas versoes. Nao recebe id no pedido, entao " +
     "nao ha empresa que guardar — e `requireRole('user')` ja exige sessao.",
+  "app/api/hr/tax-tables/route.ts":
+    "tabelas fiscais (PAYE/USC/PRSI): a lei irlandesa e a mesma para os 35 " +
+    "clientes do escritorio, entao e referencia global como a base de aliquotas. " +
+    "Gravar exige `requireRole('admin')`.",
   "app/api/base/route.ts": "tabela de aliquotas: referencia global, igual para todos",
   "app/api/base/category/route.ts": "tabela de aliquotas: referencia global",
   "app/api/credit-rules/route.ts": "regras de credito por tipo de negocio: referencia global",

@@ -70,6 +70,10 @@ export const HR_SCREENS: PermScreen[] = [
   { id: "rh.folha", labelKey: "hr.navPayroll", href: "/hr/companies/:id" },
   { id: "rh.recebidas", labelKey: "hr.navSubmissions", href: "/hr/submissions" },
   { id: "rh.comunicacao", labelKey: "hr.navContacts", href: "/hr/contacts" },
+  // As tabelas fiscais sao referencia GLOBAL — a lei irlandesa e a mesma para
+  // os 35 clientes. Por isso vivem no menu geral do RH, e nao dentro de um
+  // cliente: edita-las de dentro de um deles mentia sobre o alcance.
+  { id: "rh.tabelas", labelKey: "hr.navTaxTables", href: "/hr/tax-tables" },
 ];
 
 export const PERM_TREE: PermGroup[] = [
