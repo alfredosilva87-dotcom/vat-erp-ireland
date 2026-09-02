@@ -279,7 +279,11 @@ export default function CompanyPayroll({ params }: { params: { id: string } }) {
             * bruto e leva-o ate ao liquido e ao custo do patrao.
             */}
           {aba === "run" && (
-            <PayrollRun clientId={params.id} year={year} freqType={blocosDaEmpresa[0] ?? "weekly"} />
+            <PayrollRun
+              clientId={params.id} year={year} freqType={blocosDaEmpresa[0] ?? "weekly"}
+              mostrarHoras={dados?.config?.payslip_show_hours !== false}
+              aoMudarConfig={load}
+            />
           )}
 
           {/* ------------------------------------------- Horas / Bruto */}

@@ -28,15 +28,43 @@ const cor = (c: CorDaMarca) => {
 export type Fontes = { normal: PDFFont; negrito: PDFFont };
 
 /**
- * O texto vai para fontes WinAnsi, que não escrevem tudo o que um nome de
- * conta pode trazer. `drawText` REBENTA nesses casos em vez de ignorar — então
- * limpa-se antes, e o relatório sai com um acento a menos em vez de não sair.
+ * O texto vai para fontes WinAnsi, que não escrevem tudo o que um nome pode
+ * trazer. `drawText` REBENTA nesses casos em vez de ignorar — então limpa-se
+ * antes, e o documento sai com um acento a menos em vez de não sair.
+ *
+ * ---------------------------------------------------------------------------
+ * O QUE ISTO DEIXOU DE FAZER, E PORQUÊ
+ *
+ * A versão anterior atirava fora TUDO o que não fosse ASCII — e com a letra
+ * junto: "José" saía "Jos", "Ação" saía "Ao". Passava despercebido porque
+ * ninguém confere o nome de um cliente num relatório interno.
+ *
+ * Mas o WinAnsi (cp1252) escreve o latim acentuado inteiro — á, ç, ã, ñ, ü —
+ * e isto foi confirmado contra o próprio pdf-lib. O que ele recusa mesmo são
+ * caracteres fora do cp1252, como o ł polaco ou o ș romeno; esses perdem o
+ * acento (`ł` → `l`) em vez de perderem a letra.
+ *
+ * Começou por causa do recibo de vencimento, que sai em português e espanhol e
+ * vai para a mão de quem trabalha — um nome próprio estropiado no documento
+ * que a pessoa recebe todas as semanas não é um detalhe. Mas a correcção vale
+ * para todos os PDFs do sistema, que tinham o mesmo defeito em silêncio.
  */
-export const ascii = (s: string, max = 90): string =>
-  String(s ?? "")
+const semAcento = (s: string): string =>
+  s.normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/[^\x20-\x7E]/g, "");
+
+export const ascii = (s: string, max = 90): string => {
+  const limpo = String(s ?? "")
     .replace(/[’‘]/g, "'").replace(/[“”]/g, '"').replace(/[–—]/g, "-")
-    .replace(/[·•]/g, "-").replace(/€/g, "EUR ")
-    .replace(/[^\x20-\x7E]/g, "").slice(0, max);
+    .replace(/[·•]/g, "-").replace(/€/g, "EUR ");
+
+  let out = "";
+  for (const ch of limpo) {
+    const c = ch.codePointAt(0) ?? 0;
+    // ASCII imprimível, ou Latin-1 acentuado (que o cp1252 escreve).
+    out += (c >= 0x20 && c <= 0x7e) || (c >= 0xa0 && c <= 0xff) ? ch : semAcento(ch);
+  }
+  return out.slice(0, max);
+};
 
 // --------------------------------------------------------------- a folha
 

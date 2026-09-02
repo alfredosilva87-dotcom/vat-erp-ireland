@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { requireClient, denied } from "@/lib/access";
+import { requireRole } from "@/lib/auth";
 import { getServerSupabase } from "@/lib/supabase";
 
 export const runtime = "nodejs";
@@ -53,4 +54,34 @@ export async function GET(req: NextRequest, { params }: { params: { id: string }
     bankHolidays: bankHolidays ?? [],
     year,
   });
+}
+
+/**
+ * A CONFIGURAÇÃO DE FOLHA da empresa — por enquanto, só o recibo.
+ *
+ * `upsert` e não `update` porque a maior parte das empresas ainda não tem linha
+ * em `hr_client`: com `update`, ligar a opção numa empresa nova não dava erro
+ * nenhum e também não gravava nada — o pior dos dois mundos.
+ */
+export async function PATCH(req: NextRequest, { params }: { params: { id: string } }) {
+  const acesso = await requireClient(params.id);
+  if (denied(acesso)) return acesso.error;
+  const guard = await requireRole("admin");
+  if ("error" in guard) return guard.error;
+
+  const corpo = await req.json().catch(() => ({}));
+  const campos: Record<string, unknown> = {};
+  if (typeof corpo?.payslip_show_hours === "boolean") {
+    campos.payslip_show_hours = corpo.payslip_show_hours;
+  }
+  if (!Object.keys(campos).length) {
+    return NextResponse.json({ error: "Nada para gravar." }, { status: 400 });
+  }
+
+  const sb = getServerSupabase();
+  const { error } = await sb.from("hr_client")
+    .upsert({ client_id: params.id, ...campos, updated_at: new Date().toISOString() },
+      { onConflict: "client_id" });
+  if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+  return NextResponse.json({ ok: true });
 }

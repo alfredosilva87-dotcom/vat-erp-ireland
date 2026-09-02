@@ -48,9 +48,12 @@ const eur = (c: number) =>
   (c / 100).toLocaleString("en-IE", { style: "currency", currency: "EUR" });
 
 export default function PayrollRun({
-  clientId, year, freqType,
+  clientId, year, freqType, mostrarHoras = true, aoMudarConfig,
 }: {
   clientId: string; year: number; freqType: "weekly" | "fortnightly" | "monthly";
+  /** `hr_client.payslip_show_hours` — vale para a empresa inteira. */
+  mostrarHoras?: boolean;
+  aoMudarConfig?: () => void;
 }) {
   const { t } = useT();
   const maxPeriodo = freqType === "weekly" ? 53 : freqType === "fortnightly" ? 27 : 12;
@@ -59,6 +62,24 @@ export default function PayrollRun({
   const [erro, setErro] = useState<string | null>(null);
   const [recado, setRecado] = useState<string | null>(null);
   const [ocupado, setOcupado] = useState(false);
+  const [horas, setHoras] = useState(mostrarHoras);
+
+  /** O endereço do recibo. Sem `employee`, sai a empresa inteira. */
+  const linkDoRecibo = (employeeId?: string) =>
+    `/api/hr/companies/${clientId}/payslips?year=${year}&period=${periodo}&freq=${freqType}`
+    + (employeeId ? `&employee=${employeeId}` : "");
+
+  async function trocarHoras(valor: boolean) {
+    // Optimista: a caixa mexe já, e volta atrás se o servidor recusar. Uma
+    // caixa que fica presa até a rede responder parece partida.
+    setHoras(valor);
+    const r = await fetch(`/api/hr/companies/${clientId}`, {
+      method: "PATCH", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ payslip_show_hours: valor }),
+    });
+    if (!r.ok) { setHoras(!valor); setErro((await r.json()).error || "Falhou."); return; }
+    aoMudarConfig?.();
+  }
 
   const carregar = useCallback(async () => {
     setErro(null);
@@ -138,6 +159,23 @@ export default function PayrollRun({
             {t("run.payDate")}: <span className="font-mono">{d.payDate}</span>
           </p>
         )}
+        {/*
+          A opção das horas vive AQUI, ao lado dos recibos que ela muda.
+          Enterrada num ecrã de configuração, ninguém a encontrava — e o pedido
+          nasceu de olhar para um recibo, não para uma tela de definições.
+        */}
+        <label className="flex cursor-pointer items-center gap-2 pb-2 text-[12.5px]"
+          title={t("run.showHoursHelp")}>
+          <input type="checkbox" className="h-4 w-4 cursor-pointer" checked={horas}
+            onChange={(e) => trocarHoras(e.target.checked)} />
+          {t("run.showHours")}
+        </label>
+        {!!(d?.linhas ?? []).length && (
+          <a className="btn-ghost mb-1 h-9 px-4 text-sm" href={linkDoRecibo()}
+            target="_blank" rel="noopener noreferrer">
+            {t("run.payslipsAll")}
+          </a>
+        )}
       </div>
 
       {!!avisos.length && (
@@ -209,6 +247,15 @@ export default function PayrollRun({
                 <td className="px-3 py-2">
                   {l.status === "final" ? <span className="chip-ok">{t("run.final")}</span>
                     : <span className="chip">{t("run.draft")}</span>}
+                  {/*
+                    O recibo abre em separador novo, e não descarrega: quem
+                    confere quer VER antes de entregar, e no telemóvel um
+                    download é um ficheiro que se perde na pasta.
+                  */}
+                  <a className="mt-0.5 block text-[11px] underline" href={linkDoRecibo(l.employeeId)}
+                    target="_blank" rel="noopener noreferrer">
+                    {t("run.payslip")}
+                  </a>
                 </td>
               </tr>
             ))}
