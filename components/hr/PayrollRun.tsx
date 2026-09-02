@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useState } from "react";
 import { useT, type TKey } from "@/lib/i18n";
+import { currentIsoWeek } from "@/lib/hr/payroll";
 
 /** O servidor manda chave + parametros; a traducao acontece aqui. */
 type Aviso = { codigo: string; params?: Record<string, string | number> };
@@ -57,7 +58,19 @@ export default function PayrollRun({
 }) {
   const { t } = useT();
   const maxPeriodo = freqType === "weekly" ? 53 : freqType === "fortnightly" ? 27 : 12;
-  const [periodo, setPeriodo] = useState(1);
+  /*
+   * Abre no periodo de AGORA, e nao no 1.
+   *
+   * Quem abre esta tela em Setembro quer a folha de Setembro. A abrir na semana
+   * 1 via toda a gente a zero — sem horas lancadas, sem imposto — e a primeira
+   * leitura era "isto nao funciona", quando o que faltava era mudar o seletor.
+   */
+  const [periodo, setPeriodo] = useState(() => {
+    const semana = currentIsoWeek();
+    if (freqType === "weekly") return Math.min(semana, maxPeriodo);
+    if (freqType === "fortnightly") return Math.min(Math.ceil(semana / 2), maxPeriodo);
+    return new Date().getMonth() + 1;
+  });
   const [d, setD] = useState<Folha | null>(null);
   const [erro, setErro] = useState<string | null>(null);
   const [recado, setRecado] = useState<string | null>(null);

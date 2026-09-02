@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
-import type { HrCompany } from "@/lib/hr/store";
+import type { ClienteForaDaFolha, HrCompany } from "@/lib/hr/store";
 
 /**
  * As empresas na folha, com o ano inteiro de semanas.
@@ -12,6 +12,9 @@ import type { HrCompany } from "@/lib/hr/store";
  */
 export function useHrCompanies(year: number) {
   const [companies, setCompanies] = useState<HrCompany[]>([]);
+  // Quem ainda não entrou na folha. Vem na mesma resposta porque é a mesma
+  // pergunta vista do outro lado, e duas chamadas divergiriam no ecrã.
+  const [foraDaFolha, setForaDaFolha] = useState<ClienteForaDaFolha[]>([]);
   const [loading, setLoading] = useState(true);
   const [erro, setErro] = useState<string | null>(null);
 
@@ -22,6 +25,7 @@ export function useHrCompanies(year: number) {
       if (!r.ok) throw new Error((await r.json()).error || "Falhou ao carregar.");
       const d = await r.json();
       setCompanies(d.companies || []);
+      setForaDaFolha(d.foraDaFolha || []);
       setErro(null);
     } catch (e: any) {
       setErro(e.message);
@@ -34,5 +38,5 @@ export function useHrCompanies(year: number) {
     load();
   }, [load]);
 
-  return { companies, loading, erro, reload: load };
+  return { companies, foraDaFolha, loading, erro, reload: load };
 }

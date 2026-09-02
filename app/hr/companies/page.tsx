@@ -18,8 +18,34 @@ import { diaDaSemana, origemDasHoras } from "@/components/hr/labels";
 export default function HrCompanies() {
   const { t, lang } = useT();
   const [year, setYear] = useHrYear();
-  const { companies, loading, erro } = useHrCompanies(year);
+  const { companies, foraDaFolha, loading, erro, reload } = useHrCompanies(year);
   const [busca, setBusca] = useState("");
+  /*
+   * Quais blocos ligar em cada empresa que vai entrar.
+   *
+   * Nasce com os blocos que os funcionarios JA existentes usam: quem tem seis
+   * semanais e um mensal quer os dois ligados, e obrigar a redescobrir isso a
+   * mao e trabalho que o sistema ja sabe fazer.
+   */
+  const [aEntrar, setAEntrar] = useState<Record<string, string[]>>({});
+  const [ocupado, setOcupado] = useState<string | null>(null);
+  const [falha, setFalha] = useState<string | null>(null);
+
+  const blocosDe = (c: (typeof foraDaFolha)[number]) =>
+    aEntrar[c.id] ?? (c.blocos.length ? c.blocos : ["weekly"]);
+
+  async function entrar(c: (typeof foraDaFolha)[number]) {
+    setOcupado(c.id); setFalha(null);
+    try {
+      const r = await fetch("/api/hr/companies", {
+        method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ clientId: c.id, blocos: blocosDe(c) }),
+      });
+      const j = await r.json();
+      if (!r.ok) { setFalha(j.error || "Falhou."); return; }
+      await reload();
+    } finally { setOcupado(null); }
+  }
 
   const filtradas = companies.filter((c) =>
     !busca.trim() ||
@@ -61,6 +87,65 @@ export default function HrCompanies() {
       </div>
 
       {erro && <p className="text-sm text-danger">{erro}</p>}
+
+      {/*
+        * QUEM AINDA NAO ENTROU NA FOLHA.
+        *
+        * Uma empresa so aparece no modulo quando tem linha em `hr_client`, e
+        * nada no produto criava essa linha — quem semeava era SQL. O sintoma
+        * era o pior possivel: a lista abria VAZIA, sem erro nenhum, e de fora
+        * parecia que as telas nao existiam.
+        *
+        * Quando a empresa JA TEM gente, isto deixa de ser uma sugestao e passa
+        * a ser um aviso: sao funcionarios cadastrados que nao estao a servir
+        * para nada, e ninguem ia a procura da causa.
+        */}
+      {!!foraDaFolha.length && (
+        <div className="card overflow-hidden">
+          <div className="border-b border-line bg-surface-2/60 px-4 py-2.5">
+            <h2 className="font-display text-sm font-semibold">
+              {t("hr.offPayroll", { n: foraDaFolha.length })}
+            </h2>
+            <p className="mt-0.5 text-[12.5px] text-muted">{t("hr.offPayrollHelp")}</p>
+          </div>
+          {falha && <p className="px-4 py-2 text-sm text-danger">{falha}</p>}
+          <div className="divide-y divide-line/70">
+            {foraDaFolha.map((c) => (
+              <div key={c.id} className="flex flex-wrap items-center gap-3 px-4 py-3">
+                <div className="min-w-48 flex-1">
+                  <span className="font-medium">{c.name}</span>
+                  <span className="ml-2 font-mono text-xs text-muted">{c.client_code}</span>
+                  {c.employee_count > 0 && (
+                    <p className="mt-0.5 text-[12px] text-warning">
+                      {t("hr.offPayrollHasStaff", { n: c.employee_count })}
+                    </p>
+                  )}
+                </div>
+                <div className="flex flex-wrap items-center gap-3 text-[12.5px]">
+                  {(["weekly", "fortnightly", "monthly"] as const).map((b) => (
+                    <label key={b} className="flex cursor-pointer items-center gap-1.5">
+                      <input type="checkbox" checked={blocosDe(c).includes(b)}
+                        onChange={(e) => setAEntrar((m) => ({
+                          ...m,
+                          [c.id]: e.target.checked
+                            ? [...blocosDe(c), b]
+                            : blocosDe(c).filter((x) => x !== b),
+                        }))} />
+                      {t(b === "weekly" ? "hr.freqWeekly"
+                        : b === "fortnightly" ? "hr.freqFortnightly" : "hr.freqMonthly")}
+                    </label>
+                  ))}
+                  <button className="btn-primary h-8 px-3 text-xs"
+                    disabled={ocupado === c.id || !blocosDe(c).length}
+                    onClick={() => entrar(c)}>
+                    {ocupado === c.id ? "…" : t("hr.putOnPayroll")}
+                  </button>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
 
       <div className="card overflow-hidden">
         <div className="flex flex-wrap items-center gap-3 border-b border-line bg-surface-2/60 px-4 py-2.5">

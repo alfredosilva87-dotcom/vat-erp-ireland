@@ -166,3 +166,73 @@ export async function setWeekState(
   );
   return !error;
 }
+
+export type ClienteForaDaFolha = {
+  id: string;
+  client_code: string | null;
+  name: string;
+  status: string | null;
+  /** Quantos funcionários já existem — nenhum é o caso normal. */
+  employee_count: number;
+  /** Os blocos que os funcionários existentes já usam. */
+  blocos: FreqType[];
+};
+
+/**
+ * Os clientes que AINDA NÃO ENTRARAM na folha.
+ *
+ * ---------------------------------------------------------------------------
+ * O BURACO QUE ISTO FECHA
+ *
+ * Uma empresa só aparece no módulo de RH quando tem linha em `hr_client` — e
+ * **nada no produto criava essa linha**. Quem semeava era SQL directo, exacta-
+ * mente como acontecia com os funcionários antes da migração 049.
+ *
+ * O estado que isso produz é o pior possível de diagnosticar: a base de dados
+ * da demo tinha 28 funcionários e 280 semanas de horas, e a lista de empresas
+ * aparecia VAZIA. Nada dava erro. De fora parecia que as telas não existiam,
+ * quando o que faltava era uma linha de configuração que ninguém tinha maneira
+ * de criar.
+ *
+ * Por isso esta consulta existe: mostrar quem está de fora, e — quando essa
+ * empresa já tem gente — dizê-lo com todas as letras, porque funcionários sem
+ * folha é trabalho já feito que não está a servir para nada.
+ */
+export async function listClientsOffPayroll(
+  allowed: string[] | null
+): Promise<ClienteForaDaFolha[]> {
+  const { data: cfgRows } = await sb().from("hr_client").select("client_id");
+  const jaEntraram = new Set(((cfgRows ?? []) as any[]).map((c) => c.client_id as string));
+
+  let q = sb().from("clients").select("id,client_code,name,status").order("name");
+  if (allowed) {
+    if (!allowed.length) return [];
+    q = q.in("id", allowed);
+  }
+  const { data: clientes } = await q;
+
+  const foraIds = ((clientes ?? []) as any[])
+    .filter((c) => !jaEntraram.has(c.id))
+    .map((c) => c.id as string);
+  if (!foraIds.length) return [];
+
+  const { data: pessoal } = await sb()
+    .from("hr_employees").select("client_id,freq_type").in("client_id", foraIds);
+
+  const contagem = new Map<string, number>();
+  const blocos = new Map<string, Set<FreqType>>();
+  for (const e of ((pessoal ?? []) as any[])) {
+    contagem.set(e.client_id, (contagem.get(e.client_id) ?? 0) + 1);
+    const s = blocos.get(e.client_id) ?? new Set<FreqType>();
+    s.add(e.freq_type as FreqType);
+    blocos.set(e.client_id, s);
+  }
+
+  return ((clientes ?? []) as any[])
+    .filter((c) => !jaEntraram.has(c.id))
+    .map((c) => ({
+      id: c.id, client_code: c.client_code, name: c.name, status: c.status,
+      employee_count: contagem.get(c.id) ?? 0,
+      blocos: [...(blocos.get(c.id) ?? [])],
+    }));
+}
