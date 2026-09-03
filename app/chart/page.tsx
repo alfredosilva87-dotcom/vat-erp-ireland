@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
+import { useT } from "@/lib/i18n";
 
 /**
  * O plano de contas DO ESCRITÓRIO — o mesmo para todos os clientes.
@@ -22,11 +23,17 @@ type Conta = {
   report_group: string | null; postable: boolean; active: boolean;
 };
 
+/*
+ * As naturezas vão pela chave de tradução, não pelo rótulo cravado.
+ * O VALOR (`asset`, `liability`…) fica em inglês e é o que se grava — é
+ * identificador, e um identificador que muda com a língua de quem cadastrou é
+ * um bug à espera de acontecer.
+ */
 const TIPOS = [
-  { v: "asset", r: "Ativo" }, { v: "liability", r: "Passivo" },
-  { v: "equity", r: "Património" }, { v: "revenue", r: "Receita" },
-  { v: "expense", r: "Despesa" },
-];
+  { v: "asset", k: "chart.typeAsset" }, { v: "liability", k: "chart.typeLiability" },
+  { v: "equity", k: "chart.typeEquity" }, { v: "revenue", k: "chart.typeRevenue" },
+  { v: "expense", k: "chart.typeExpense" },
+] as const;
 
 const GRUPOS = [
   "fixed_assets_tangible", "fixed_assets_intangible", "stocks", "debtors", "cash",
@@ -36,9 +43,11 @@ const GRUPOS = [
   "interest_and_similar", "tax_on_profit",
 ];
 
-const NOME_TIPO: Record<string, string> = Object.fromEntries(TIPOS.map((t) => [t.v, t.r]));
+/** Do valor gravado para a chave de tradução. */
+const CHAVE_TIPO: Record<string, string> = Object.fromEntries(TIPOS.map((x) => [x.v, x.k]));
 
 export default function ChartOfAccounts() {
+  const { t } = useT();
   const [contas, setContas] = useState<Conta[]>([]);
   const [carregando, setCarregando] = useState(true);
   const [erro, setErro] = useState<string | null>(null);
@@ -70,7 +79,7 @@ export default function ChartOfAccounts() {
       body: JSON.stringify(nova),
     });
     const d = await r.json();
-    if (!r.ok) { setErro(d.error || "Não gravou."); return; }
+    if (!r.ok) { setErro(d.error || t("common.saveFailed")); return; }
     setNova({ ...nova, code: "", description: "" });
     carregar();
   }
@@ -86,9 +95,9 @@ export default function ChartOfAccounts() {
   return (
     <div className="space-y-6">
       <div className="rise">
-        <h1 className="font-display text-2xl font-semibold tracking-tight">Plano de contas</h1>
+        <h1 className="font-display text-2xl font-semibold tracking-tight">{t("chart.title")}</h1>
         <p className="mt-1 text-muted">
-          É o plano do escritório — o mesmo para todos os clientes. O que se muda aqui vale para todos.
+          {t("chart.subtitle")}
         </p>
       </div>
 
@@ -98,40 +107,38 @@ export default function ChartOfAccounts() {
         trinta e cinco.
       */}
       <div className="card border-l-4 border-l-brand p-4 text-sm">
-        Contas <b>próprias de um cliente</b> não se criam aqui. Elas vivem na faixa{" "}
-        <span className="font-mono">9000–9899</span> e criam-se dentro do cliente, em{" "}
-        <b>Contabilidade → Plano de contas</b>. Aqui fica a espinha que todos partilham.
+        {t("chart.clientOwnHint")}
       </div>
 
       <section className="card p-5">
-        <h2 className="font-display text-lg font-semibold">Nova conta do escritório</h2>
+        <h2 className="font-display text-lg font-semibold">{t("chart.newAccount")}</h2>
         <div className="mt-3 grid gap-3 sm:grid-cols-[110px_minmax(0,1fr)_150px_minmax(0,1fr)_auto] sm:items-end">
           <label className="flex flex-col leading-tight">
-            <span className="label">Código</span>
+            <span className="label">{t("chart.code")}</span>
             <input className="input w-full font-mono text-[13px]" value={nova.code}
               onChange={(e) => setNova({ ...nova, code: e.target.value })} placeholder="6750" />
           </label>
           <label className="flex flex-col leading-tight">
-            <span className="label">Descrição</span>
+            <span className="label">{t("chart.description")}</span>
             <input className="input w-full" value={nova.description}
               onChange={(e) => setNova({ ...nova, description: e.target.value })} />
           </label>
           <label className="flex flex-col leading-tight">
-            <span className="label">Natureza</span>
+            <span className="label">{t("chart.type")}</span>
             <select className="input w-full text-[13px]" value={nova.type}
               onChange={(e) => setNova({ ...nova, type: e.target.value })}>
-              {TIPOS.map((t) => <option key={t.v} value={t.v}>{t.r}</option>)}
+              {TIPOS.map((x) => <option key={x.v} value={x.v}>{t(x.k)}</option>)}
             </select>
           </label>
           <label className="flex flex-col leading-tight">
-            <span className="label">Rubrica do relatório</span>
+            <span className="label">{t("chart.reportGroup")}</span>
             <select className="input w-full text-[13px]" value={nova.report_group}
               onChange={(e) => setNova({ ...nova, report_group: e.target.value })}>
               {GRUPOS.map((g) => <option key={g} value={g}>{g}</option>)}
             </select>
           </label>
           <button className="btn-primary h-10 px-5 text-sm" disabled={!nova.code.trim()} onClick={criar}>
-            Criar
+            {t("common.create")}
           </button>
         </div>
         {/*
@@ -140,7 +147,7 @@ export default function ChartOfAccounts() {
           evita a pergunta "por que a minha conta nova não aparece no DRE".
         */}
         <p className="mt-2 text-xs text-muted">
-          A <b>rubrica</b> é o que decide onde a conta aparece no balanço e no DRE — o código não.
+          {t("chart.reportGroupHint")}
         </p>
         {erro && <p className="mt-2 text-sm text-danger">{erro}</p>}
       </section>
@@ -148,20 +155,20 @@ export default function ChartOfAccounts() {
       <section className="card overflow-hidden">
         <div className="flex flex-wrap items-center justify-between gap-3 border-b border-line px-5 py-3">
           <h2 className="font-display text-lg font-semibold">
-            {contas.length} conta(s)
+            {t("chart.count", { n: String(contas.length) })}
           </h2>
-          <input className="input h-9 w-full text-[13px] sm:w-64" placeholder="procurar código ou nome…"
+          <input className="input h-9 w-full text-[13px] sm:w-64" placeholder={t("chart.searchPlaceholder")}
             value={busca} onChange={(e) => setBusca(e.target.value)} />
         </div>
         <div className="overflow-x-auto">
           <table className="row-hover w-full text-[13px]">
             <thead>
               <tr className="border-b border-line text-[10.5px] uppercase tracking-wide text-muted">
-                <th className="px-4 py-2 text-left font-medium">Código</th>
-                <th className="px-4 py-2 text-left font-medium">Descrição</th>
-                <th className="px-4 py-2 text-left font-medium">Natureza</th>
-                <th className="px-4 py-2 text-left font-medium">Rubrica</th>
-                <th className="px-4 py-2 text-right font-medium">Ativa</th>
+                <th className="px-4 py-2 text-left font-medium">{t("chart.code")}</th>
+                <th className="px-4 py-2 text-left font-medium">{t("chart.description")}</th>
+                <th className="px-4 py-2 text-left font-medium">{t("chart.type")}</th>
+                <th className="px-4 py-2 text-left font-medium">{t("chart.group")}</th>
+                <th className="px-4 py-2 text-right font-medium">{t("chart.active")}</th>
               </tr>
             </thead>
             <tbody>
@@ -169,17 +176,17 @@ export default function ChartOfAccounts() {
                 <tr key={c.id} className={`border-b border-line/50 ${c.active ? "" : "opacity-45"}`}>
                   <td className="px-4 py-2 font-mono">{c.code}</td>
                   <td className="px-4 py-2">{c.description}</td>
-                  <td className="px-4 py-2 text-muted">{NOME_TIPO[c.type ?? ""] ?? c.type ?? "—"}</td>
+                  <td className="px-4 py-2 text-muted">{CHAVE_TIPO[c.type ?? ""] ? t(CHAVE_TIPO[c.type ?? ""] as any) : (c.type ?? "—")}</td>
                   <td className="px-4 py-2 font-mono text-[11.5px] text-muted">{c.report_group ?? "—"}</td>
                   <td className="px-4 py-2 text-right">
                     <button className="btn-ghost h-7 px-2 text-[11px]" onClick={() => alternarAtiva(c)}>
-                      {c.active ? "desativar" : "ativar"}
+                      {c.active ? t("chart.deactivate") : t("chart.activate")}
                     </button>
                   </td>
                 </tr>
               ))}
               {!carregando && filtradas.length === 0 && (
-                <tr><td colSpan={5} className="px-4 py-10 text-center text-muted">Nada encontrado.</td></tr>
+                <tr><td colSpan={5} className="px-4 py-10 text-center text-muted">{t("common.nothingFound")}</td></tr>
               )}
               {carregando && (
                 <tr><td colSpan={5} className="px-4 py-10 text-center text-muted">…</td></tr>

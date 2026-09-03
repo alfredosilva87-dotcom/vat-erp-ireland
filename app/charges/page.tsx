@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { useCallback, useEffect, useState } from "react";
+import { useT } from "@/lib/i18n";
 
 /**
  * Os TIPOS DE ENCARGO — juros, taxa, multa, desconto — e a conta de cada um.
@@ -35,6 +36,7 @@ type Tipo = {
 type Conta = { code: string; description: string };
 
 export default function TiposDeEncargo() {
+  const { t: tr } = useT();
   const [tipos, setTipos] = useState<Tipo[]>([]);
   const [contas, setContas] = useState<Conta[]>([]);
   const [carregando, setCarregando] = useState(true);
@@ -64,8 +66,8 @@ export default function TiposDeEncargo() {
       body: JSON.stringify({ key, ...patch }),
     });
     const d = await r.json();
-    if (!r.ok) { setErro(d.error || "Não gravou."); return; }
-    setMsg("Gravado — vale a partir do próximo encargo lançado.");
+    if (!r.ok) { setErro(d.error || tr("common.saveFailed")); return; }
+    setMsg(tr("charges.saved"));
     carregar();
   }
 
@@ -75,7 +77,7 @@ export default function TiposDeEncargo() {
       method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(novo),
     });
     const d = await r.json();
-    if (!r.ok) { setErro(d.error || "Não gravou."); return; }
+    if (!r.ok) { setErro(d.error || tr("common.saveFailed")); return; }
     setNovo({ key: "", label: "", account_payable: "", account_receivable: "", effect: "increase" });
     carregar();
   }
@@ -93,16 +95,14 @@ export default function TiposDeEncargo() {
   return (
     <div className="space-y-6">
       <div className="rise">
-        <h1 className="font-display text-2xl font-semibold tracking-tight">Encargos e baixas</h1>
+        <h1 className="font-display text-2xl font-semibold tracking-tight">{tr("charges.title")}</h1>
         <p className="mt-1 text-muted">
-          Juros, taxas, multas e descontos que se lançam num título — e a conta de cada um em cada lado.
+          {tr("charges.subtitle")}
         </p>
       </div>
 
       <div className="card border-l-4 border-l-brand p-4 text-sm">
-        O mesmo encargo cai em contas <b>opostas</b> conforme o lado: juro que você <b>paga</b> é despesa;
-        juro que você <b>recebe</b> é ganho. A contrapartida — fornecedores ou clientes — não se
-        configura: ela vem da natureza do título.
+        {tr("charges.sidesHint")}
       </div>
 
       {erro && <p className="text-sm text-danger">{erro}</p>}
@@ -113,11 +113,11 @@ export default function TiposDeEncargo() {
           <table className="w-full text-[13px]">
             <thead>
               <tr className="border-b border-line text-[10.5px] uppercase tracking-wide text-muted">
-                <th className="px-4 py-2 text-left font-medium">Tipo</th>
-                <th className="px-4 py-2 text-left font-medium">Efeito</th>
-                <th className="px-4 py-2 text-left font-medium">Num título A PAGAR</th>
-                <th className="px-4 py-2 text-left font-medium">Num título A RECEBER</th>
-                <th className="px-4 py-2 text-right font-medium">Ativo</th>
+                <th className="px-4 py-2 text-left font-medium">{tr("charges.colType")}</th>
+                <th className="px-4 py-2 text-left font-medium">{tr("charges.colEffect")}</th>
+                <th className="px-4 py-2 text-left font-medium">{tr("charges.colPayable")}</th>
+                <th className="px-4 py-2 text-left font-medium">{tr("charges.colReceivable")}</th>
+                <th className="px-4 py-2 text-right font-medium">{tr("charges.colActive")}</th>
               </tr>
             </thead>
             <tbody>
@@ -128,7 +128,7 @@ export default function TiposDeEncargo() {
                     <div className="font-mono text-[11px] text-muted">{t.key}</div>
                   </td>
                   <td className="px-4 py-2 text-muted">
-                    {t.effect === "increase" ? "aumenta" : "abate"}
+                    {t.effect === "increase" ? tr("charges.increase") : tr("charges.decrease")}
                   </td>
                   <td className="px-4 py-2">
                     {seletor(t.account_payable, (v) => gravar(t.key, { account_payable: v }))}
@@ -139,7 +139,7 @@ export default function TiposDeEncargo() {
                   <td className="px-4 py-2 text-right">
                     <button className="btn-ghost h-7 px-2 text-[11px]"
                       onClick={() => gravar(t.key, { active: !t.active })}>
-                      {t.active ? "desativar" : "ativar"}
+                      {t.active ? tr("chart.deactivate") : tr("chart.activate")}
                     </button>
                   </td>
                 </tr>
@@ -153,34 +153,33 @@ export default function TiposDeEncargo() {
       </section>
 
       <section className="card p-5">
-        <h2 className="font-display text-lg font-semibold">Novo tipo</h2>
+        <h2 className="font-display text-lg font-semibold">{tr("charges.newType")}</h2>
         <div className="mt-3 grid gap-3 sm:grid-cols-[120px_minmax(0,1fr)_minmax(0,1fr)_minmax(0,1fr)_auto] sm:items-end">
           <label className="flex flex-col leading-tight">
-            <span className="label">Chave</span>
+            <span className="label">{tr("charges.key")}</span>
             <input className="input w-full font-mono text-[13px]" placeholder="cambio"
               value={novo.key} onChange={(e) => setNovo({ ...novo, key: e.target.value })} />
           </label>
           <label className="flex flex-col leading-tight">
-            <span className="label">Nome</span>
+            <span className="label">{tr("charges.name")}</span>
             <input className="input w-full" value={novo.label}
               onChange={(e) => setNovo({ ...novo, label: e.target.value })} />
           </label>
           <label className="flex flex-col leading-tight">
-            <span className="label">Conta — a pagar</span>
+            <span className="label">{tr("charges.accountPayable")}</span>
             {seletor(novo.account_payable, (v) => setNovo({ ...novo, account_payable: v }))}
           </label>
           <label className="flex flex-col leading-tight">
-            <span className="label">Conta — a receber</span>
+            <span className="label">{tr("charges.accountReceivable")}</span>
             {seletor(novo.account_receivable, (v) => setNovo({ ...novo, account_receivable: v }))}
           </label>
           <button className="btn-primary h-10 px-5 text-sm"
             disabled={!novo.key.trim() || !novo.account_payable || !novo.account_receivable}
-            onClick={criar}>Criar</button>
+            onClick={criar}>{tr("common.create")}</button>
         </div>
         <p className="mt-2 text-xs text-muted">
-          As contas saem do{" "}
-          <Link href="/chart" className="text-brand-700 underline">plano do escritório</Link> —
-          só as de resultado, porque um encargo não nasce contra o banco.
+          {tr("charges.accountsFrom")}{" "}
+          <Link href="/chart" className="text-brand-700 underline">{tr("charges.practiceChart")}</Link>.
         </p>
       </section>
     </div>
