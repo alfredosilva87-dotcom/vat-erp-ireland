@@ -1,5 +1,8 @@
 "use client";
 
+import { useT } from "@/lib/i18n";
+"use client";
+
 /**
  * A rosca (donut) dos indicadores da agenda.
  *
@@ -40,6 +43,7 @@ export default function Rosca({
   nota?: string;
   tom?: TomDaRosca;
 }) {
+  const { t } = useT();
   const R = 26;
   const CIRC = 2 * Math.PI * R;
 
@@ -84,7 +88,7 @@ export default function Rosca({
             * duzentos lêem-se igual e não são a mesma coisa.
             */}
           <span className="font-display text-lg font-semibold">{valor}</span>
-          <span className="text-muted"> de {total}</span>
+          <span className="text-muted"> {t("agenda.of")} {total}</span>
           {total > 0 && <span className="ml-2 text-xs text-muted">({percentagem}%)</span>}
         </div>
         {nota && <div className="mt-0.5 truncate text-[11px] text-muted">{nota}</div>}

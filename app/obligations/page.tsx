@@ -31,7 +31,7 @@ type Linha = {
 };
 type Agenda = {
   hoje: string;
-  resumo: { clientes: number; comAtraso: number; vencemEm7: number; emDia: number; obrigacoesAtrasadas: number };
+  resumo: { clientes: number; comAtraso: number; vencemEm7: number; emDia: number; porVencer: number; obrigacoesAtrasadas: number };
   linhas: Linha[];
 };
 
@@ -98,12 +98,15 @@ export default function AgendaFiscal() {
         * uns contra os outros sem esforco. Ver components/fiscal/Rosca.tsx.
         */}
       {d && (
-        <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+        <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
           <Rosca tom="danger" rotulo={t("agenda.cardLate")}
             valor={d.resumo.comAtraso} total={d.resumo.clientes}
             nota={t("agenda.cardLateSub", { n: d.resumo.obrigacoesAtrasadas })} />
           <Rosca tom="warning" rotulo={t("agenda.cardWeek")}
             valor={d.resumo.vencemEm7} total={d.resumo.clientes} />
+          {/* O quarto fecha a conta — ver `resumo` em lib/fiscal/agenda.ts. */}
+          <Rosca tom="brand" rotulo={t("agenda.cardLater")}
+            valor={d.resumo.porVencer} total={d.resumo.clientes} />
           <Rosca tom="success" rotulo={t("agenda.cardOk")}
             valor={d.resumo.emDia} total={d.resumo.clientes} />
         </div>
@@ -164,7 +167,22 @@ export default function AgendaFiscal() {
                             <span className={`${CHIP[o.semaforo]} text-[10.5px]`}>{o.tipo}</span>
                             {o.periodo && <span className="text-[11px] text-muted">{o.periodo}</span>}
                             <span className="font-mono text-[11px] text-muted">{o.vencimento || "—"}</span>
-                            <span className={`text-[11px] ${o.semaforo === "vermelho" ? "text-danger" : "text-muted"}`}>
+                            {/*
+                              SEM PRAZO PASSA A GRITAR, EM VEZ DE PASSAR DESPERCEBIDO.
+                              Uma obrigação sem data nunca entra em "atrasada"
+                              nem em "vence em 7 dias" — ficava num contador
+                              cinzento e desaparecia da vista. CT1 e B1 têm
+                              multa; o que falta é a data no cadastro, e o aviso
+                              tem de dizer isso a quem o pode preencher.
+                            */}
+                            <span
+                              className={`text-[11px] ${
+                                o.diasAteVencer === null
+                                  ? "text-warning font-medium"
+                                  : o.semaforo === "vermelho" ? "text-danger" : "text-muted"
+                              }`}
+                              title={o.diasAteVencer === null ? t("agenda.noDeadline") : undefined}
+                            >
                               {o.diasAteVencer === null
                                 ? t("agenda.noDueDate")
                                 : o.diasAteVencer < 0

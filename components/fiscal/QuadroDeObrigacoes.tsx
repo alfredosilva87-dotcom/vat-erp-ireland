@@ -2,6 +2,7 @@
 
 import { useMemo } from "react";
 import Link from "next/link";
+import { useT } from "@/lib/i18n";
 
 /**
  * O quadro cliente × obrigação: uma coluna por declaração, um sinal em cada.
@@ -61,6 +62,7 @@ const SINAL: Record<Estado, { d: string; classe: string; titulo: string }> = {
 };
 
 export default function QuadroDeObrigacoes({ linhas }: { linhas: Linha[] }) {
+  const { t } = useT();
   const { colunas, grelha } = useMemo(() => {
     const tipos = new Set<string>();
     for (const l of linhas) for (const o of l.pendentes) tipos.add(o.tipo);
@@ -111,9 +113,9 @@ export default function QuadroDeObrigacoes({ linhas }: { linhas: Linha[] }) {
   return (
     <section className="card overflow-hidden">
       <div className="flex flex-wrap items-baseline justify-between gap-2 border-b border-line px-4 py-3">
-        <h2 className="font-display text-sm font-semibold">Quadro de declarações</h2>
+        <h2 className="font-display text-sm font-semibold">{t("agenda.gridTitle")}</h2>
         <p className="text-xs text-muted">
-          Lê-se por coluna: uma declaração de cada vez, em todos os clientes.
+          {t("agenda.gridHint")}
         </p>
       </div>
 
@@ -121,11 +123,11 @@ export default function QuadroDeObrigacoes({ linhas }: { linhas: Linha[] }) {
         <table className="row-hover w-full text-[13px]">
           <thead>
             <tr className="border-b border-line text-[10.5px] uppercase tracking-wide text-muted">
-              <th className="px-3 py-2 text-left font-medium">Cliente</th>
+              <th className="px-3 py-2 text-left font-medium">{t("agenda.colClient")}</th>
               {colunas.map((c) => (
                 <th key={c} className="px-2 py-2 text-center font-medium">{c}</th>
               ))}
-              <th className="px-3 py-2 text-left font-medium">Situação</th>
+              <th className="px-3 py-2 text-left font-medium">{t("agenda.colStatus")}</th>
             </tr>
           </thead>
           <tbody>
@@ -160,10 +162,10 @@ export default function QuadroDeObrigacoes({ linhas }: { linhas: Linha[] }) {
                 })}
                 <td className="px-3 py-2">
                   {l.atrasadas > 0
-                    ? <span className="chip-danger text-[11px]">Ausência</span>
+                    ? <span className="chip-danger text-[11px]">{t("agenda.stMissing")}</span>
                     : l.pendentes.length > 0
-                      ? <span className="chip-warn text-[11px]">A entregar</span>
-                      : <span className="chip-ok text-[11px]">Em dia</span>}
+                      ? <span className="chip-warn text-[11px]">{t("agenda.stDue")}</span>
+                      : <span className="chip-ok text-[11px]">{t("agenda.stOk")}</span>}
                 </td>
               </tr>
             ))}

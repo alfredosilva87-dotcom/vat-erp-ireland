@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { useState } from "react";
+import { useT } from "@/lib/i18n";
 
 /**
  * Quanto de cada cliente já está entregue — uma barra por cliente.
@@ -32,6 +33,7 @@ type Linha = {
 const MOSTRA_DE_INICIO = 8;
 
 export default function ProgressoPorCliente({ linhas }: { linhas: Linha[] }) {
+  const { t } = useT();
   const [tudo, setTudo] = useState(false);
 
   const comObrigacoes = linhas
@@ -50,9 +52,9 @@ export default function ProgressoPorCliente({ linhas }: { linhas: Linha[] }) {
   return (
     <section className="card p-4">
       <div className="flex flex-wrap items-baseline justify-between gap-2">
-        <h2 className="font-display text-sm font-semibold">Entregues por cliente</h2>
+        <h2 className="font-display text-sm font-semibold">{t("agenda.progressTitle")}</h2>
         <p className="text-xs text-muted">
-          O verde é o que já foi entregue; o vermelho, o que está atrasado.
+          {t("agenda.progressHint")}
         </p>
       </div>
 
@@ -100,9 +102,9 @@ export default function ProgressoPorCliente({ linhas }: { linhas: Linha[] }) {
                 */}
               <span className="w-28 shrink-0 whitespace-nowrap text-right text-[11px]">
                 {l.atrasadas > 0
-                  ? <span className="chip-danger text-[10px]">{l.atrasadas} atrasada{l.atrasadas > 1 ? "s" : ""}</span>
+                  ? <span className="chip-danger text-[10px]">{t("agenda.nLate", { n: String(l.atrasadas) })}</span>
                   : pendentes > 0
-                    ? <span className="text-muted">{pendentes} por entregar</span>
+                    ? <span className="text-muted">{t("agenda.nPending", { n: String(pendentes) })}</span>
                     : <span className="chip-ok text-[10px]">em dia</span>}
               </span>
             </div>

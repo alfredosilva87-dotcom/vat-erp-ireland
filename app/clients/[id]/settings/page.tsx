@@ -76,6 +76,7 @@ export default function ClientSettings({ params }: { params: { id: string } }) {
           director: client.director, cro: client.cro,
           financial_year_end: client.financial_year_end || null,
           annual_return_date: client.annual_return_date || null,
+          obligations_from: client.obligations_from || null,
           vat_number: client.vat_number, tax_reg_no: client.tax_reg_no,
           email: client.email, phone: client.phone, address: client.address, notes: client.notes,
           related_categories: client.related_categories,
@@ -202,6 +203,18 @@ export default function ClientSettings({ params }: { params: { id: string } }) {
             <input type="date" className="input"
               value={client.annual_return_date ?? ""}
               onChange={(e) => set("annual_return_date", e.target.value || null)} />
+          </F>
+          {/*
+            Sem isto, um cliente cadastrado hoje nasce com as declarações do ano
+            inteiro — e as que já passaram entram na agenda como ATRASADAS, de
+            períodos em que ele não era cliente de ninguém. Ver
+            055_obrigacoes_desde.sql.
+          */}
+          <F label="Obrigações a partir de" span={3}
+             dica="Data de entrada na carteira ou de registo em VAT. Em branco gera o ano inteiro, como sempre fez.">
+            <input type="date" className="input"
+              value={client.obligations_from ?? ""}
+              onChange={(e) => set("obligations_from", e.target.value || null)} />
           </F>
           <F label="Número de VAT" span={3}>
             <input className="input font-mono" placeholder="IE1234567X"

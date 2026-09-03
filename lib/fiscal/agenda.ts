@@ -148,13 +148,34 @@ export function montarPainel(
   });
 }
 
-/** O resumo do topo: quantos clientes em cada estado. */
+/**
+ * O resumo do topo: quantos clientes em cada estado.
+ *
+ * ---------------------------------------------------------------------------
+ * PORQUE EXISTE UM QUARTO NÚMERO
+ *
+ * Eram três cartões — atrasado, vence em 7 dias, em dia — e os três somavam
+ * DOIS de cinco clientes. Os outros três não estavam em cartão nenhum: um com
+ * VAT3 a 20 dias (nem atrasado, nem dentro de 7, nem em dia) e outro com três
+ * obrigações sem prazo.
+ *
+ * Três fracções do mesmo todo que não somam o todo lêem-se como se somassem, e
+ * quem olha conclui que 60% da carteira não tem nada a fazer. `porVencer`
+ * fecha a conta: agora os quatro cobrem todos os clientes, e o que sobra são
+ * mesmo zeros.
+ */
 export function resumo(linhas: LinhaDoPainel[]) {
+  const comAtraso = linhas.filter((l) => l.atrasadas > 0);
+  const vencemEm7 = linhas.filter((l) => l.atrasadas === 0 && l.semaforo === "laranja");
+  const emDia = linhas.filter((l) => l.atrasadas === 0 && l.semaforo === "verde");
+  const contados = new Set([...comAtraso, ...vencemEm7, ...emDia]);
   return {
     clientes: linhas.length,
-    comAtraso: linhas.filter((l) => l.atrasadas > 0).length,
-    vencemEm7: linhas.filter((l) => l.semaforo === "laranja").length,
-    emDia: linhas.filter((l) => l.semaforo === "verde").length,
+    comAtraso: comAtraso.length,
+    vencemEm7: vencemEm7.length,
+    emDia: emDia.length,
+    /** Tudo o que os outros três não apanham — inclui o que não tem prazo. */
+    porVencer: linhas.filter((l) => !contados.has(l)).length,
     obrigacoesAtrasadas: linhas.reduce((s, l) => s + l.atrasadas, 0),
   };
 }

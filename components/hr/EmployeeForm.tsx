@@ -1,5 +1,7 @@
 "use client";
 
+import { avisoPps } from "@/lib/fiscal/identificadores";
+
 import { useEffect, useState } from "react";
 import { payTypesDe, type FreqType } from "@/lib/hr/funcionarioPuro";
 import { useT, type TKey } from "@/lib/i18n";
@@ -36,6 +38,16 @@ const SITUACOES: [string, TKey][] = [
   ["casadoDoisSalarios", "marital.marriedTwo"],
   ["familiaMonoparental", "marital.loneParent"],
 ];
+/**
+ * As classes de PRSI, que são um conjunto fechado.
+ *
+ * O campo era texto livre e aceitou `ZZZ9`. Cada classe tem taxas próprias — é
+ * ela que decide quanto se desconta ao trabalhador e quanto paga a empresa.
+ * A ordem põe as comuns à frente: A1 cobre a esmagadora maioria do emprego
+ * privado, S é o sócio-gerente, J o trabalho de rendimento baixo.
+ */
+const CLASSES_PRSI = ["A0", "AX", "AL", "A1", "A4", "A8", "A9", "B", "C", "D", "H", "J", "K", "M", "S"];
+
 const BASES: [string, TKey][] = [
   ["cumulativa", "basis.cumulative"],
   ["semana1", "basis.week1"],
@@ -78,6 +90,29 @@ export default function EmployeeForm({
   const [ocupado, setOcupado] = useState(false);
 
   const set = (k: string, v: any) => setF((x) => ({ ...x, [k]: v }));
+
+  /** Saída antes da entrada — nada o impedia, e é um erro de dedo comum. */
+  const avisoSaida =
+    f.start_date && f.end_date && f.end_date < f.start_date
+      ? { ok: false, aviso: t("emp.endBeforeStart") }
+      : { ok: true };
+
+  /*
+   * BASE CUMULATIVA SEM RPN É O OPOSTO DO SEGURO.
+   *
+   * Dava para gravar um funcionário sem PPS, sem RPN e em base cumulativa —
+   * exactamente a combinação que a regra irlandesa não permite. Sem RPN
+   * opera-se em **Emergency**; em cumulativa sem RPN o sistema desconta a
+   * menos, e a diferença reaparece como dívida do trabalhador mais tarde,
+   * quando já ninguém liga uma coisa à outra.
+   *
+   * Avisa em vez de forçar: há o caso legítimo de o RPN estar a chegar e o
+   * contabilista saber o que está a fazer. Mas deixa de ser silencioso.
+   */
+  const avisoBase =
+    !String(f.rpn_number ?? "").trim() && f.tax_basis === "cumulativa"
+      ? { ok: false, aviso: t("emp.cumulativeNeedsRpn") }
+      : { ok: true };
   const horario = f.pay_type === "Hourly";
 
   // Trocar o bloco re-sincroniza o tipo de pagamento: não existe alguém
@@ -108,17 +143,37 @@ export default function EmployeeForm({
     } finally { setOcupado(false); }
   }
 
-  const campo = (k: string, rotulo: string, tipo = "text", largura = "w-full") => (
+  /*
+   * O FORMULÁRIO TINHA 34 CAMPOS E ZERO MARCADOS COMO OBRIGATÓRIOS.
+   *
+   * O asterisco em `FIRST NAME *` era decoração: `required` estava a `false`
+   * em todos os 34 (`[...querySelectorAll('input,select')].filter(i=>i.required)`
+   * devolvia zero). Agora o asterisco corresponde ao atributo, e os campos de
+   * dinheiro deixam de ser texto livre — eram os mesmos `type="text"` sem
+   * `min` nem `step` que, do lado das vendas, já se provou aceitarem `abc` e
+   * negativos.
+   */
+  const campo = (
+    k: string, rotulo: string, tipo = "text", largura = "w-full",
+    extra?: { obrigatorio?: boolean; placeholder?: string; maxLength?: number; aviso?: { ok: boolean; aviso?: string } }
+  ) => (
     <label className={`flex flex-col leading-tight ${largura}`}>
-      <span className="text-[10px] font-medium uppercase tracking-wide text-muted">{rotulo}</span>
+      <span className="text-[10px] font-medium uppercase tracking-wide text-muted">
+        {rotulo}{extra?.obrigatorio ? " *" : ""}
+      </span>
       <input type={tipo} className="input mt-1 h-9 py-0 text-sm"
+        required={extra?.obrigatorio} placeholder={extra?.placeholder} maxLength={extra?.maxLength}
         value={f[k] ?? ""} onChange={(e) => set(k, e.target.value)} />
+      {extra?.aviso && !extra.aviso.ok && extra.aviso.aviso && (
+        <span className="mt-1 text-[11px] text-warning">{extra.aviso.aviso}</span>
+      )}
     </label>
   );
   const dinheiro = (k: string, rotulo: string) => (
     <label className="flex flex-col leading-tight">
       <span className="text-[10px] font-medium uppercase tracking-wide text-muted">{rotulo} €</span>
-      <input className="input mt-1 h-9 py-0 text-right text-sm tabular-nums"
+      <input type="number" min="0" step="0.01" inputMode="decimal"
+        className="input mt-1 h-9 py-0 text-right text-sm tabular-nums"
         value={eur(f[k])} onChange={(e) => set(k, paraCents(e.target.value))} />
     </label>
   );
@@ -133,11 +188,12 @@ export default function EmployeeForm({
       </div>
 
       <div className="mt-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-        {campo("first_name", t("emp.firstName"))}
-        {campo("surname", t("emp.surname"))}
+        {campo("first_name", t("emp.firstName"), "text", "w-full", { obrigatorio: true, maxLength: 80 })}
+        {campo("surname", t("emp.surname"), "text", "w-full", { obrigatorio: true, maxLength: 80 })}
         {campo("job_title", t("emp.jobTitle"))}
-        {campo("start_date", t("emp.start"), "date")}
-        {campo("end_date", t("emp.end"), "date")}
+        {campo("start_date", t("emp.start"), "date", "w-full", { obrigatorio: true })}
+        {/* A saída não pode ser anterior à entrada — nada o impedia. */}
+        {campo("end_date", t("emp.end"), "date", "w-full", { aviso: avisoSaida })}
 
         <label className="flex flex-col leading-tight">
           <span className="text-[10px] font-medium uppercase tracking-wide text-muted">{t("emp.block")}</span>
@@ -216,12 +272,28 @@ export default function EmployeeForm({
       {fiscalAberto && (
         <div className="mt-3 rounded-xl2 border border-line bg-surface-2/40 p-4">
           <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-            {campo("pps_number", t("emp.pps"))}
+            {/*
+              O PPS é a chave com que a Revenue identifica a pessoa na submissão
+              PSR. Aceitava `XXXX-not-a-pps` sem uma palavra, e o erro só
+              aparecia do lado deles, semanas depois. Ver identificadores.ts —
+              o dígito de controlo é a mesma conta do VAT.
+            */}
+            {campo("pps_number", t("emp.pps"), "text", "w-full", {
+              obrigatorio: true, placeholder: "1234567AA", maxLength: 9,
+              aviso: avisoPps(f.pps_number),
+            })}
             {campo("employment_id", t("emp.employmentId"))}
             <label className="flex flex-col leading-tight">
               <span className="text-[10px] font-medium uppercase tracking-wide text-muted">{t("emp.prsiClass")}</span>
-              <input className="input mt-1 h-9 py-0 text-sm" value={f.prsi_class ?? ""}
-                onChange={(e) => set("prsi_class", e.target.value.toUpperCase())} />
+              {/*
+                Lista fechada, não texto livre: aceitava `ZZZ9`, e a classe de
+                PRSI é literalmente o que decide quanto se desconta. É o caso
+                mais claro em que um `<select>` elimina a categoria de erro.
+              */}
+              <select className="input mt-1 h-9 py-0 text-sm" value={f.prsi_class ?? "A1"}
+                onChange={(e) => set("prsi_class", e.target.value)}>
+                {CLASSES_PRSI.map((c) => <option key={c} value={c}>{c}</option>)}
+              </select>
             </label>
 
             <label className="flex flex-col leading-tight">
@@ -230,6 +302,7 @@ export default function EmployeeForm({
                 onChange={(e) => set("tax_basis", e.target.value)}>
                 {BASES.map(([v, k]) => <option key={v} value={v}>{t(k)}</option>)}
               </select>
+              {!avisoBase.ok && <span className="mt-1 text-[11px] text-warning">{avisoBase.aviso}</span>}
             </label>
             <label className="flex flex-col leading-tight">
               <span className="text-[10px] font-medium uppercase tracking-wide text-muted">{t("emp.marital")}</span>

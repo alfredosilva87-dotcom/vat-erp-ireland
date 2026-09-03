@@ -79,5 +79,51 @@ console.log("\n== o painel ordena pela urgencia ==");
   ok(r.clientes === 3, "cliente sem obrigacao nenhuma continua na conta", r);
 }
 
+
+/* ------------------------------------------------------------------------
+ * OS QUATRO CARTOES TEM DE COBRIR TODA A GENTE.
+ *
+ * Eram tres — atrasado, vence em 7 dias, em dia — e no ecra real somavam DOIS
+ * de cinco clientes. Os outros tres nao estavam em cartao nenhum: um com VAT3
+ * a 20 dias, outro com tres obrigacoes sem prazo. Tres fraccoes do mesmo todo
+ * que nao somam o todo lêem-se como se somassem.
+ * --------------------------------------------------------------------- */
+console.log("\n== os cartoes do topo somam o total de clientes ==");
+{
+  const linha = (semaforo, atrasadas) => ({
+    clientId: String(Math.random()), clientName: "X", clientCode: "X",
+    semaforo, atrasadas, vencemEm7: 0, vencemEm30: 0, entregues: 0, total: 1, pendentes: [],
+  });
+  // A composicao do ecra real: 1 com atraso, 1 em dia, 3 no meio.
+  const linhas = [
+    linha("vermelho", 3),
+    linha("verde", 0),
+    linha("cinzento", 0),
+    linha("cinzento", 0),
+    linha("cinzento", 0),
+  ];
+  const r = A.resumo(linhas);
+  ok(r.clientes === 5, "cinco clientes", r.clientes);
+  ok(r.comAtraso === 1, "um com atraso", r.comAtraso);
+  ok(r.emDia === 1, "um em dia", r.emDia);
+  ok(r.porVencer === 3, "e os TRES que nao estavam em cartao nenhum aparecem", r.porVencer);
+  ok(r.comAtraso + r.vencemEm7 + r.emDia + r.porVencer === r.clientes,
+    "OS QUATRO SOMAM O TOTAL — era isto que nao acontecia",
+    { soma: r.comAtraso + r.vencemEm7 + r.emDia + r.porVencer, total: r.clientes });
+}
+
+console.log("\n== um cliente conta UMA vez so ==");
+{
+  const linha = (semaforo, atrasadas) => ({
+    clientId: "1", clientName: "X", clientCode: "X",
+    semaforo, atrasadas, vencemEm7: 0, vencemEm30: 0, entregues: 0, total: 1, pendentes: [],
+  });
+  // Com atraso E semaforo laranja: antes entrava nos dois cartoes.
+  const r = A.resumo([linha("laranja", 2)]);
+  ok(r.comAtraso === 1 && r.vencemEm7 === 0,
+    "quem tem atraso conta no atraso, nao tambem nos 7 dias", { r });
+  ok(r.comAtraso + r.vencemEm7 + r.emDia + r.porVencer === 1, "e a soma continua a fechar");
+}
+
 console.log(`\n=========== ${pass} passaram, ${fail} falharam ===========\n`);
 process.exit(fail === 0 ? 0 : 1);

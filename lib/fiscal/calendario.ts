@@ -54,6 +54,19 @@ export type DadosDoCliente = {
   fimDoExercicio?: string | null;
   /** A Annual Return Date do CRO, em ISO. Vazia significa por preencher. */
   dataDaAnual?: string | null;
+  /**
+   * A DATA A PARTIR DA QUAL ESTE CLIENTE TEM OBRIGAÇÕES.
+   *
+   * Sem ela, um cliente registado hoje nascia com três VAT3 em atraso de
+   * períodos em que não era cliente de ninguém — e a agenda fiscal, que está
+   * ordenada "pelo mais urgente", punha-o a vermelho no topo, à frente dos
+   * atrasos verdadeiros. Com uma carteira a crescer é assim que um alarme
+   * deixa de ser lido.
+   *
+   * Vazia mantém o comportamento antigo (o ano inteiro), porque é o que os
+   * clientes já cadastrados esperam.
+   */
+  obrigacoesDesde?: string | null;
 };
 
 const MESES = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
@@ -148,6 +161,24 @@ export function obrigacoesDeVat(ano: number): ObrigacaoGerada[] {
  * antes de existir.
  */
 export function obrigacoesDoAno(ano: number, c: DadosDoCliente): ObrigacaoGerada[] {
+  return desde(gerarDoAno(ano, c), c.obrigacoesDesde);
+}
+
+/**
+ * Corta o que acabou ANTES de o cliente existir na carteira.
+ *
+ * O corte é pelo FIM do período, não pelo prazo: um VAT3 de Jan–Fev vence em
+ * Março, e cortar pelo prazo deixaria entrar um período inteiro em que o
+ * cliente não era cliente. Um período que ainda estava a correr quando ele
+ * entrou fica — essa parte é mesmo dele.
+ */
+function desde(linhas: ObrigacaoGerada[], data: string | null | undefined): ObrigacaoGerada[] {
+  const d = String(data ?? "").trim();
+  if (!d) return linhas;
+  return linhas.filter((l) => l.periodEnd >= d);
+}
+
+function gerarDoAno(ano: number, c: DadosDoCliente): ObrigacaoGerada[] {
   const doVat = c.registadoParaVat ? obrigacoesDeVat(ano) : [];
   if (!c.forma) return doVat;
 

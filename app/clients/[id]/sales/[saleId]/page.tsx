@@ -39,6 +39,7 @@ export default function SaleReview({ params }: { params: { id: string; saleId: s
   const [saving, setSaving] = useState(false);
   const [dirty, setDirty] = useState(false);
   const [msg, setMsg] = useState<string | null>(null);
+  const [postando, setPostando] = useState(false);
 
   // Andar pelo lote sem voltar à lista a cada venda — mesma ideia da entrada.
   const batchIds = useMemo(() => {
@@ -99,6 +100,34 @@ export default function SaleReview({ params }: { params: { id: string; saleId: s
     setSale(d.sale);
   }
 
+  /**
+   * CONTABILIZAR AQUI MESMO — o passo que obrigava a mudar de tela.
+   *
+   * Depois de `Conferi — aprovar`, este ecrã continuava a dizer "Integração:
+   * sem lançamento", e para chegar ao razão era preciso descobrir sozinho uma
+   * TERCEIRA tela (`/checkup`) e carregar em `Post documents`. Medido, o
+   * caminho de uma venda até estar no razão dava 9 passos em 3 páginas, com
+   * duas navegações que ninguém indica.
+   *
+   * A separação gravar → conferir → contabilizar está CERTA e fica como está;
+   * o que estava mau era a viagem. Chama a mesma rota de sempre (`backfill`),
+   * que é idempotente e nunca lança duas vezes — por isso isto não é um
+   * caminho paralelo de contabilização, é o mesmo botão, mais perto da mão.
+   */
+  async function contabilizar() {
+    setMsg(null);
+    setPostando(true);
+    try {
+      const r = await fetch(`/api/clients/${params.id}/accounting/backfill`, {
+        method: "POST", headers: { "Content-Type": "application/json" }, body: "{}",
+      });
+      const j = await r.json();
+      if (!r.ok) { setMsg(j.error || "Não foi possível contabilizar."); return; }
+      await load();
+      setMsg("Contabilizado — o lançamento já está no razão.");
+    } finally { setPostando(false); }
+  }
+
   /** Desfazer a conferência apaga o nome de quem assinou — só administrador. */
   async function reopen() {
     setMsg(null);
@@ -154,7 +183,12 @@ export default function SaleReview({ params }: { params: { id: string; saleId: s
           <span className="text-xs">
             por {sale.reviewed_by_email || "—"} em {sale.reviewed_at.slice(0, 16).replace("T", " ")}
           </span>
-          <button className="btn-ghost ml-auto h-8 px-3 text-xs" onClick={reopen}>Desfazer</button>
+          <div className="ml-auto flex flex-wrap items-center gap-2">
+            <button className="btn-primary h-8 px-3 text-xs" onClick={contabilizar} disabled={postando}>
+              {postando ? "A contabilizar…" : "Contabilizar agora"}
+            </button>
+            <button className="btn-ghost h-8 px-3 text-xs" onClick={reopen}>Desfazer</button>
+          </div>
         </div>
       ) : (
         <div className="flex flex-wrap items-center gap-3 rounded-xl2 border border-warning bg-warning-50 p-4 text-sm text-warning">

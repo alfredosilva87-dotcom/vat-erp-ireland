@@ -103,5 +103,52 @@ console.log("\n== bissexto e fim de mes ==");
      C.fimDoExercicioEm(2026, "02-30"));
 }
 
+/* ------------------------------------------------------------------------
+ * O CLIENTE NOVO NÃO NASCE COM ATRASOS DE ANTES DE EXISTIR.
+ *
+ * Um cliente criado a 03/09/2026 abria o painel com três VAT3 marcados
+ * `Overdue` — Jan–Fev, Mar–Abr e Mai–Jun — de períodos em que não era cliente
+ * de ninguém. A agenda fiscal está ordenada "pelo mais urgente", portanto cada
+ * cliente novo entrava a vermelho no topo, à frente dos atrasos verdadeiros.
+ * É o mecanismo clássico de dessensibilização do alarme.
+ * --------------------------------------------------------------------- */
+{
+  const base = { forma: "ltd", registadoParaVat: true, fimDoExercicio: "12-31" };
+
+  console.log("\n== obrigacoes so a partir da entrada na carteira ==");
+
+  const semData = C.obrigacoesDoAno(2026, base);
+  const vat3Todos = semData.filter((o) => o.kind === "VAT3");
+  ok(vat3Todos.length === 6, "sem data, o ano inteiro: seis VAT3", vat3Todos.length);
+
+  // Entrou a 03/09/2026 — o caso real do relatorio.
+  const deSetembro = C.obrigacoesDoAno(2026, { ...base, obrigacoesDesde: "2026-09-03" });
+  const vat3Set = deSetembro.filter((o) => o.kind === "VAT3");
+  ok(vat3Set.length === 2, "entrando em Setembro sobram dois VAT3 (Jul-Ago e Set-Out... e Nov-Dez)", vat3Set.map((o) => o.periodLabel));
+  ok(!vat3Set.some((o) => o.periodLabel.startsWith("Jan")), "Jan-Fev desaparece");
+  ok(!vat3Set.some((o) => o.periodLabel.startsWith("Mar")), "Mar-Abr desaparece");
+  ok(!vat3Set.some((o) => o.periodLabel.startsWith("May")), "Mai-Jun desaparece");
+
+  console.log("\n== o corte e pelo FIM do periodo, nao pelo prazo ==");
+  // Jul-Ago acaba em 31/08 e vence em 23/09. Quem entrou a 03/09 nao teve
+  // Jul-Ago: cortar pelo prazo deixaria entrar um periodo inteiro alheio.
+  ok(!vat3Set.some((o) => o.periodLabel.startsWith("Jul")),
+    "Jul-Ago (acabou a 31/08) fica de fora de quem entrou a 03/09", vat3Set.map((o) => o.periodLabel));
+
+  console.log("\n== o periodo que ainda corria quando ele entrou FICA ==");
+  const deAgosto = C.obrigacoesDoAno(2026, { ...base, obrigacoesDesde: "2026-08-15" });
+  ok(deAgosto.some((o) => o.kind === "VAT3" && o.periodLabel.startsWith("Jul")),
+    "quem entrou a 15/08 fica com Jul-Ago, que ainda corria — essa parte e mesmo dele");
+
+  console.log("\n== vazio e nulo mantem o comportamento antigo ==");
+  ok(C.obrigacoesDoAno(2026, { ...base, obrigacoesDesde: "" }).length === semData.length, "string vazia nao corta");
+  ok(C.obrigacoesDoAno(2026, { ...base, obrigacoesDesde: null }).length === semData.length, "nulo nao corta");
+  ok(C.obrigacoesDoAno(2026, { ...base, obrigacoesDesde: undefined }).length === semData.length, "undefined nao corta");
+
+  console.log("\n== entrada depois do fim do ano: nada deste ano ==");
+  ok(C.obrigacoesDoAno(2026, { ...base, obrigacoesDesde: "2027-03-01" }).length === 0,
+    "quem entrou em 2027 nao tem obrigacoes de 2026");
+}
+
 console.log(`\n=========== ${pass} passaram, ${fail} falharam ===========\n`);
 process.exit(fail ? 1 : 0);

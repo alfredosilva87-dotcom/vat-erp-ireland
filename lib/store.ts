@@ -78,7 +78,9 @@ export async function updateClient(id: string, patch: Partial<Client>): Promise<
   // pedido feito à mão escrevia qualquer coluna da tabela — `company_id` incluído.
   for (const k of ["name","trading_name","legal_form","director","vat_number","tax_reg_no","cro","activity_code","activity_label","default_credit_unmatched","related_categories","email","phone","address","notes","invoice_footer","invoice_bank_account_id",
        // Os dois que definem os prazos do CT1 e da B1 — ver lib/fiscal/calendario.ts.
-       "financial_year_end","annual_return_date"])
+       "financial_year_end","annual_return_date",
+       // Desde quando este cliente tem obrigações — ver 055_obrigacoes_desde.sql.
+       "obligations_from"])
     if (k in patch) row[k] = (patch as any)[k];
   const { data } = await sb().from("clients").update(row).eq("id", id).select().maybeSingle();
   return (data as Client) ?? null;
@@ -731,10 +733,26 @@ export async function getObligations(clientId: string, year: number): Promise<Cl
   const existentes = await ler();
   const jaTem = new Set(existentes.map((o: any) => `${o.kind}|${o.period_start}|${o.period_end}`));
 
-  const { data: cliente } = await sb().from("clients")
-    .select("legal_form,vat_number,financial_year_end,annual_return_date")
-    .eq("id", clientId).maybeSingle();
-  const c = (cliente ?? {}) as any;
+  /*
+   * A coluna `obligations_from` é da migração 055. Uma instalação self-hosted
+   * que ainda não a correu devolveria ERRO ao pedi-la — e o PostgREST falha o
+   * SELECT inteiro, não só a coluna. A agenda fiscal do escritório ficaria em
+   * branco por causa de uma coluna nova, que é a pior troca possível.
+   *
+   * Então pede-se, e se falhar pede-se sem ela: o corte por data desliga-se
+   * sozinho até a migração correr, e tudo o resto continua a funcionar.
+   */
+  let c: any = {};
+  {
+    const base = "legal_form,vat_number,financial_year_end,annual_return_date";
+    const comNova = await sb().from("clients").select(`${base},obligations_from`).eq("id", clientId).maybeSingle();
+    if (comNova.error) {
+      const semNova = await sb().from("clients").select(base).eq("id", clientId).maybeSingle();
+      c = (semNova.data ?? {}) as any;
+    } else {
+      c = (comNova.data ?? {}) as any;
+    }
+  }
 
   const esperadas = obrigacoesDoAno(year, {
     forma: c.legal_form ?? null,
@@ -743,6 +761,8 @@ export async function getObligations(clientId: string, year: number): Promise<Cl
     registadoParaVat: Boolean(String(c.vat_number ?? "").trim()),
     fimDoExercicio: c.financial_year_end ?? null,
     dataDaAnual: c.annual_return_date ?? null,
+    // Ver 055_obrigacoes_desde.sql: nula gera o ano inteiro, como sempre fez.
+    obrigacoesDesde: c.obligations_from ?? null,
   });
 
   const faltam = esperadas.filter(
