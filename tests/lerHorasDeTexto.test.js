@@ -37,6 +37,10 @@ A Ana não trabalhou esta semana`);
     "38 no total e 4 ao domingo, com a etiqueta DEPOIS do numero", acha(r, "Pedro"));
   ok(acha(r, "Ana").trabalhou === false && acha(r, "Ana").horas === 0,
     "e quem nao trabalhou fica marcado, com zero explicito", acha(r, "Ana"));
+  // Apanhado a olhar para a producao: o nome saia "A Ana ou esta semana",
+  // porque so as palavras que casavam eram apagadas e os restos ficavam.
+  ok(acha(r, "Ana").nome === "Ana",
+    "e o NOME e so o nome — sem o artigo nem os restos da frase", acha(r, "Ana").nome);
   ok(!/boa noite/i.test(r.linhas.map((l) => l.nome).join(" ")), "a saudacao nao virou pessoa");
 }
 

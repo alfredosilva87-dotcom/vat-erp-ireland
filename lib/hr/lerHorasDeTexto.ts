@@ -212,11 +212,23 @@ export function lerHorasDeTexto(texto: string): Leitura {
     const nome = nomeDe(linha);
     const nums = numerosDe(linha);
 
-    // "A Ana não trabalhou esta semana" — sem número, mas com informação.
-    if (NAO_TRABALHOU.test(linha)) {
-      if (nome) {
+    /*
+     * "A Ana não trabalhou esta semana" — sem número, mas com informação.
+     *
+     * O NOME É O QUE VEM ANTES da expressão, e não o que sobra dela. A primeira
+     * versão apagava só as palavras que casavam e ficava com os restos: dava
+     * "A Ana ou esta semana", que é o tipo de lixo que passa despercebido numa
+     * lista e depois não casa com funcionário nenhum. Cortar a linha no ponto
+     * onde a expressão começa resolve-o de uma vez.
+     */
+    const m = linha.match(NAO_TRABALHOU);
+    if (m && m.index !== undefined) {
+      const antes = nomeDe(linha.slice(0, m.index));
+      // Um artigo à frente do nome ("A Ana", "O Pedro") não é parte do nome.
+      const semArtigo = antes.replace(/^(a|o|as|os|the)\s+/i, "").trim();
+      if (semArtigo) {
         linhas.push({
-          nome: nomeDe(linha.replace(NAO_TRABALHOU, " ")) || nome,
+          nome: semArtigo,
           horas: 0, horasDomingo: null, horasFeriado: null, trabalhou: false, origem: linha,
         });
         continue;
