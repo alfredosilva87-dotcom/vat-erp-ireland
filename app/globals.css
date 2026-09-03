@@ -219,6 +219,26 @@ body {
     transform: translateY(1px);
     box-shadow: var(--shadow-pressed);
   }
+  /*
+   * UM BOTAO DESLIGADO TEM DE PARECER DESLIGADO.
+   *
+   * `.btn-primary` ja tinha esta regra; `.btn-ghost` nao tinha nenhuma — e um
+   * `disabled` ficava pixel a pixel igual a um clicavel, com a mesma opacidade
+   * e o mesmo relevo. Apanhei-o no ecra de IVA, onde o `Export` fica travado
+   * enquanto houver documentos por conferir: o botao recusava o clique e nao
+   * dava sinal nenhum de o estar a fazer, que se le como avaria.
+   *
+   * A regra e do botao, nao daquele ecra: vale para todos os `btn-ghost`
+   * desligados do produto.
+   */
+  .btn-ghost:disabled {
+    @apply opacity-50;
+    box-shadow: none;
+    cursor: not-allowed;
+  }
+  .btn-ghost:disabled:hover {
+    @apply border-line;
+  }
 
   .chip {
     @apply inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-xs font-medium;

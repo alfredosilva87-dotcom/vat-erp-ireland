@@ -22,6 +22,7 @@
  */
 
 import { useMemo, useState } from "react";
+import { useT } from "@/lib/i18n";
 
 
 /** Alíquotas oficiais irlandesas. Lista fechada em vez de campo livre. */
@@ -41,6 +42,7 @@ export default function PurchaseEntryDialog({
   onClose: () => void;
   onSaved: (id: string) => void;
 }) {
+  const { t } = useT();
   const today = new Date().toISOString().slice(0, 10);
   const [supplier, setSupplier] = useState("");
   const [supplierVat, setSupplierVat] = useState("");
@@ -80,20 +82,20 @@ export default function PurchaseEntryDialog({
    */
   function problems(): string[] {
     const out: string[] = [];
-    if (!supplier.trim()) out.push("Falta o nome do fornecedor.");
-    if (!invoiceDate) out.push("Falta a data da fatura.");
-    if (!filled.length) out.push("Preencha ao menos uma linha com valor.");
+    if (!supplier.trim()) out.push(t("pe.needSupplier"));
+    if (!invoiceDate) out.push(t("pe.needDate"));
+    if (!filled.length) out.push(t("pe.needLine"));
     filled.forEach((l, i) => {
       const n = numOrNull(l.net);
-      if (n === null) out.push(`Linha ${i + 1}: falta o valor líquido.`);
+      if (n === null) out.push(t("pe.lineNeedNet", { n: String(i + 1) }));
       // O negativo é recusado de propósito: numa COMPRA ele aumenta o crédito
       // de IVA a deduzir, que é o sentido que interessa a quem erra. Uma nota
       // de crédito de fornecedor é um documento próprio, não um sinal de menos
       // escondido no meio das linhas.
-      else if (n < 0) out.push(`Linha ${i + 1}: valor negativo. Uma devolução é uma nota de crédito, não um valor com sinal de menos.`);
-      if (!VAT_RATES.includes(Number(l.rate))) out.push(`Linha ${i + 1}: alíquota ${l.rate}% não é uma taxa irlandesa válida.`);
+      else if (n < 0) out.push(t("pe.lineNegative", { n: String(i + 1) }));
+      if (!VAT_RATES.includes(Number(l.rate))) out.push(t("pe.lineBadRate", { n: String(i + 1), r: l.rate }));
     });
-    if (invoiceDate && invoiceDate > today) out.push("A data da fatura é no futuro. Confirme antes de gravar.");
+    if (invoiceDate && invoiceDate > today) out.push(t("pe.futureDate"));
     return out;
   }
 
@@ -107,7 +109,7 @@ export default function PurchaseEntryDialog({
         const net = numOrNull(l.net) ?? 0;
         const rate = numOrNull(l.rate) ?? 0;
         return {
-          description: l.description.trim() || "Compra lançada à mão",
+          description: l.description.trim() || t("pe.defaultLineDesc"),
           quantity: null, unit_price: null,
           net_amount: net,
           vat_rate_on_invoice: rate,
@@ -165,16 +167,16 @@ export default function PurchaseEntryDialog({
 
       if (res.status === 409 && data?.error === "duplicate") {
         setDuplicateOf(data.existing ?? null);
-        setMsg({ text: "Já existe um lançamento parecido neste cliente.", error: true });
+        setMsg({ text: t("pe.duplicate"), error: true });
         return;
       }
       if (!res.ok) {
-        setMsg({ text: data?.error || `Não foi possível gravar (erro ${res.status}).`, error: true });
+        setMsg({ text: data?.error || t("pe.saveFailedCode", { code: String(res.status) }), error: true });
         return;
       }
       onSaved(data.invoice.id);
     } catch (e: any) {
-      setMsg({ text: e?.message || "Não foi possível gravar.", error: true });
+      setMsg({ text: e?.message || t("common.saveFailed"), error: true });
     } finally {
       setSaving(false);
     }
@@ -183,45 +185,44 @@ export default function PurchaseEntryDialog({
   return (
     <div
       className="fixed inset-0 z-50 flex items-center justify-center bg-ink/40 p-4 backdrop-blur-sm"
-      role="dialog" aria-modal="true" aria-label="Lançar compra à mão"
+      role="dialog" aria-modal="true" aria-label={t("pe.title")}
       onClick={(e) => { if (e.target === e.currentTarget) onClose(); }}
     >
       <div className="flex max-h-[88vh] w-full max-w-4xl flex-col overflow-hidden rounded-2xl border border-line bg-surface shadow-2xl">
         <div className="flex flex-wrap items-center gap-3 border-b border-line px-5 py-3">
-          <h2 className="font-display text-lg font-semibold">Lançar compra à mão</h2>
-          <span className="text-xs text-muted">crédito de IVA (T2)</span>
-          <button className="btn-ghost ml-auto h-8 px-3 text-sm" onClick={onClose} aria-label="Fechar">Fechar</button>
+          <h2 className="font-display text-lg font-semibold">{t("pe.title")}</h2>
+          <span className="text-xs text-muted">{t("pe.subtitle")}</span>
+          <button className="btn-ghost ml-auto h-8 px-3 text-sm" onClick={onClose} aria-label={t("common.close")}>{t("common.close")}</button>
         </div>
 
         <div className="min-h-0 flex-1 overflow-auto px-5 py-4">
           <p className="mb-4 text-xs text-muted">
-            Para a fatura que a leitura automática não conseguiu ler, ou que chegou em papel.
-            Grava pelo mesmo caminho de uma nota lida — conta para o VAT3 e para o razão da mesma maneira.
+            {t("pe.help")}
           </p>
 
           <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
             <div>
-              <label className="label" htmlFor="pe-supplier">Fornecedor *</label>
+              <label className="label" htmlFor="pe-supplier">{t("pe.supplier")} *</label>
               <input id="pe-supplier" className="input" value={supplier} maxLength={160}
-                onChange={(e) => setSupplier(e.target.value)} placeholder="Nome que está na fatura" />
+                onChange={(e) => setSupplier(e.target.value)} placeholder={t("pe.supplierPlaceholder")} />
             </div>
             <div>
-              <label className="label" htmlFor="pe-vat">VAT do fornecedor</label>
+              <label className="label" htmlFor="pe-vat">{t("pe.supplierVat")}</label>
               <input id="pe-vat" className="input" value={supplierVat} maxLength={20}
                 onChange={(e) => setSupplierVat(e.target.value.toUpperCase())} placeholder="IE1234567X" />
             </div>
             <div>
-              <label className="label" htmlFor="pe-doc">Nº do documento</label>
+              <label className="label" htmlFor="pe-doc">{t("pe.docNumber")}</label>
               <input id="pe-doc" className="input" value={docNumber} maxLength={60}
                 onChange={(e) => setDocNumber(e.target.value)} placeholder="FT 2026/1234" />
             </div>
             <div>
-              <label className="label" htmlFor="pe-date">Data da fatura *</label>
+              <label className="label" htmlFor="pe-date">{t("pe.invoiceDate")} *</label>
               <input id="pe-date" type="date" className="input" value={invoiceDate} max={today}
                 onChange={(e) => setInvoiceDate(e.target.value)} />
             </div>
             <div>
-              <label className="label" htmlFor="pe-posting">Data de lançamento</label>
+              <label className="label" htmlFor="pe-posting">{t("pe.postingDate")}</label>
               <input id="pe-posting" type="date" className="input" value={postingDate}
                 onChange={(e) => setPostingDate(e.target.value)} />
             </div>
@@ -231,11 +232,11 @@ export default function PurchaseEntryDialog({
             <table className="w-full min-w-[640px] text-sm">
               <thead className="text-left text-xs uppercase tracking-wide text-muted">
                 <tr className="border-b border-line">
-                  <th className="py-2 pr-3 font-medium">Descrição</th>
-                  <th className="py-2 pr-3 font-medium text-right">Líquido €</th>
-                  <th className="py-2 pr-3 font-medium">Alíquota</th>
-                  <th className="py-2 pr-3 font-medium text-right">IVA €</th>
-                  <th className="py-2 pr-3 font-medium text-center">Creditar</th>
+                  <th className="py-2 pr-3 font-medium">{t("pe.colDescription")}</th>
+                  <th className="py-2 pr-3 font-medium text-right">{t("pe.colNet")}</th>
+                  <th className="py-2 pr-3 font-medium">{t("pe.colRate")}</th>
+                  <th className="py-2 pr-3 font-medium text-right">{t("pe.colVat")}</th>
+                  <th className="py-2 pr-3 font-medium text-center">{t("pe.colCredit")}</th>
                 </tr>
               </thead>
               <tbody>
@@ -247,7 +248,7 @@ export default function PurchaseEntryDialog({
                       <td className="py-2 pr-3">
                         <input className="input" value={l.description} maxLength={200}
                           onChange={(e) => setLine(i, { description: e.target.value })}
-                          placeholder="O que foi comprado" aria-label={`Descrição da linha ${i + 1}`} />
+                          placeholder={t("pe.linePlaceholder")} aria-label={t("pe.colDescription")} />
                       </td>
                       <td className="py-2 pr-3">
                         {/*
@@ -260,11 +261,11 @@ export default function PurchaseEntryDialog({
                         <input type="number" min="0" step="0.01" inputMode="decimal"
                           className="input text-right tnum" value={l.net}
                           onChange={(e) => setLine(i, { net: e.target.value })}
-                          aria-label={`Valor líquido da linha ${i + 1}`} />
+                          aria-label={t("pe.colNet")} />
                       </td>
                       <td className="py-2 pr-3">
                         <select className="input" value={l.rate} onChange={(e) => setLine(i, { rate: e.target.value })}
-                          aria-label={`Alíquota da linha ${i + 1}`}>
+                          aria-label={t("pe.colRate")}>
                           {VAT_RATES.map((r) => <option key={r} value={String(r)}>{r}%</option>)}
                         </select>
                       </td>
@@ -272,7 +273,7 @@ export default function PurchaseEntryDialog({
                       <td className="py-2 pr-3 text-center">
                         <input type="checkbox" checked={l.take_credit}
                           onChange={(e) => setLine(i, { take_credit: e.target.checked })}
-                          aria-label={`Tomar crédito na linha ${i + 1}`} />
+                          aria-label={t("pe.colCredit")} />
                       </td>
                     </tr>
                   );
@@ -282,14 +283,14 @@ export default function PurchaseEntryDialog({
           </div>
 
           <button className="btn-ghost mt-3 h-8 px-3 text-sm" onClick={() => setLines((p) => [...p, blankLine()])}>
-            + Mais uma linha
+            {t("pe.addLine")}
           </button>
 
           <div className="mt-4 flex flex-wrap gap-4 rounded-xl border border-line bg-surface-2/60 px-4 py-3 text-sm">
-            <span>Líquido <strong className="tnum">€ {money(totals.net)}</strong></span>
-            <span>IVA <strong className="tnum">€ {money(totals.vat)}</strong></span>
-            <span>Total <strong className="tnum">€ {money(totals.gross)}</strong></span>
-            <span className="text-brand-700">Crédito <strong className="tnum">€ {money(totals.credit)}</strong></span>
+            <span>{t("pe.totalNet")} <strong className="tnum">€ {money(totals.net)}</strong></span>
+            <span>{t("pe.totalVat")} <strong className="tnum">€ {money(totals.vat)}</strong></span>
+            <span>{t("pe.totalGross")} <strong className="tnum">€ {money(totals.gross)}</strong></span>
+            <span className="text-brand-700">{t("pe.totalCredit")} <strong className="tnum">€ {money(totals.credit)}</strong></span>
           </div>
 
           {msg && (
@@ -297,23 +298,24 @@ export default function PurchaseEntryDialog({
           )}
           {duplicateOf && (
             <p className="mt-1 text-xs text-muted">
-              Parecido com {duplicateOf.invoice_number || "documento sem número"}
-              {duplicateOf.posting_date ? ` de ${duplicateOf.posting_date}` : ""}.
-              Se for mesmo outro documento, grave à mesma.
+              {t("pe.duplicateOf", {
+                doc: duplicateOf.invoice_number || t("pe.noDocNumber"),
+                date: duplicateOf.posting_date || "—",
+              })}
             </p>
           )}
         </div>
 
         <div className="flex flex-wrap items-center gap-2 border-t border-line px-5 py-3">
           <button className="btn-primary h-9 px-4 text-sm" onClick={() => save(false)} disabled={saving}>
-            {saving ? "A gravar…" : "Gravar compra"}
+            {saving ? t("common.saving") : t("pe.save")}
           </button>
           {duplicateOf && (
             <button className="btn-ghost h-9 px-4 text-sm" onClick={() => save(true)} disabled={saving}>
-              Gravar à mesma
+              {t("pe.saveAnyway")}
             </button>
           )}
-          <button className="btn-ghost h-9 px-4 text-sm" onClick={onClose} disabled={saving}>Cancelar</button>
+          <button className="btn-ghost h-9 px-4 text-sm" onClick={onClose} disabled={saving}>{t("common.cancel")}</button>
         </div>
       </div>
     </div>
