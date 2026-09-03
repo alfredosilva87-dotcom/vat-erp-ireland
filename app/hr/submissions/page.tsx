@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useState } from "react";
 import { useT } from "@/lib/i18n";
 import { currentIsoWeek } from "@/lib/hr/payroll";
+import ColarHoras from "@/components/hr/ColarHoras";
 
 type Submission = {
   id: string; client_id: string; client_name: string | null; client_code: string | null;
@@ -26,6 +27,8 @@ export default function HrSubmissions() {
   const [linhas, setLinhas] = useState<Submission[]>([]);
   const [loading, setLoading] = useState(true);
   const [erro, setErro] = useState<string | null>(null);
+  /** Os clientes, para o painel de colar escolher a quem pertence a mensagem. */
+  const [clientes, setClientes] = useState<{ id: string; name: string; client_code: string | null }[]>([]);
 
   const load = useCallback(async () => {
     try {
@@ -41,6 +44,10 @@ export default function HrSubmissions() {
   }, []);
 
   useEffect(() => { load(); }, [load]);
+  useEffect(() => {
+    fetch("/api/clients", { cache: "no-store" }).then((r) => r.json())
+      .then((d) => setClientes(d.clients ?? [])).catch(() => {});
+  }, []);
 
   const semanaAgora = currentIsoWeek();
   const anoAgora = new Date().getFullYear();
@@ -56,6 +63,13 @@ export default function HrSubmissions() {
       </div>
 
       {erro && <p className="text-sm text-danger">{erro}</p>}
+
+      {/*
+        Colar a mensagem vem ANTES da fila, e não depois: a pergunta de quem
+        abre esta tela na segunda-feira é "o que chegou?", e o que chegou entra
+        por aqui. A fila é a consequência.
+      */}
+      <ColarHoras clientes={clientes} ano={anoAgora} onGravado={load} />
 
       <div className="grid gap-3 sm:grid-cols-3">
         <div className="card p-4">
