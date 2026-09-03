@@ -2,6 +2,7 @@ import "server-only";
 import { getServerSupabase } from "@/lib/supabase";
 import { tabelaDoBanco } from "@/lib/hr/fiscal/tabelasDb";
 import { calcular, type Aviso, type Base, type Situacao } from "@/lib/hr/fiscal/motor";
+import { escolherRpn } from "@/lib/hr/fiscal/origemDoRpn";
 import { grossFor, isoWeekStart, type Employee, type WeekHours } from "@/lib/hr/payroll";
 
 /**
@@ -114,7 +115,8 @@ export async function correrFolha(args: {
 
   const { tabela, deFabrica } = await tabelaDoBanco(Number(payDate.slice(0, 4)));
 
-  const [{ data: emps }, { data: horas }, { data: fechados }, { data: seguros }] = await Promise.all([
+  const [{ data: emps }, { data: horas }, { data: fechados }, { data: seguros },
+         { data: rpnsDaRevenue }, { count: temLigacao }] = await Promise.all([
     sb.from("hr_employees").select("*")
       .eq("client_id", args.clientId).eq("freq_type", freqType).eq("active", true)
       .order("first_name"),
@@ -125,6 +127,16 @@ export async function correrFolha(args: {
     sb.from("hr_refund_hold").select("employee_id,reason")
       .eq("client_id", args.clientId).eq("year", year)
       .eq("period_no", periodNo).eq("freq_type", freqType),
+    /*
+     * O QUE A REVENUE MANDOU, por emprego. Ver lib/hr/fiscal/origemDoRpn.ts.
+     *
+     * Enquanto não houver certificado instalado esta lista vem vazia, e tudo
+     * funciona como sempre funcionou — com o aviso `aviso.semRpn`, que já
+     * existia. A partir do momento em que há ligação, o RPN passa a mandar.
+     */
+    sb.from("revenue_rpn").select("*").eq("client_id", args.clientId).eq("tax_year", year),
+    // Há ligação instalada? É isto que decide se a regra do RPN APERTA.
+    sb.from("revenue_credentials").select("id", { count: "exact", head: true }),
   ]);
 
   const funcionarios = ((emps ?? []) as any[]);
@@ -135,6 +147,19 @@ export async function correrFolha(args: {
   }
   const payslips = ((fechados ?? []) as any[]);
   const segurados = new Set(((seguros ?? []) as any[]).map((r) => r.employee_id));
+
+  /*
+   * Os RPN indexados por PPS + `employmentID`.
+   *
+   * A chave TEM de levar o emprego: uma pessoa com dois empregos tem dois RPN,
+   * com créditos repartidos entre eles. Indexar só por PPS faria um sobrescrever
+   * o outro, e o desconto sairia errado nos dois.
+   */
+  const rpnPorEmprego = new Map<string, any>();
+  for (const r of ((rpnsDaRevenue ?? []) as any[])) {
+    rpnPorEmprego.set(`${r.employee_ppsn}|${r.employment_id}`, r);
+  }
+  const exigirRpn = (temLigacao ?? 0) > 0;
 
   const avisos: Aviso[] = [];
   if (deFabrica) {
@@ -168,21 +193,48 @@ export async function correrFolha(args: {
         + anteriores.filter((p) => p.employee_id === e.id).reduce((s, p) => s + Number(p.prsi_ee_cents), 0),
     };
 
+    /*
+     * ---- 2b. QUEM MANDA NOS NÚMEROS FISCAIS
+     *
+     * Revenue > cadastro > palpite. E a BASE vem daí também — deixá-la sair de
+     * um `<select>` do cadastro punha uma decisão da Revenue nas mãos de quem
+     * preenche o formulário.
+     */
+    const escolha = escolherRpn(
+      rpnPorEmprego.get(`${e.pps_number ?? ""}|${e.employment_id ?? "1"}`) ?? null,
+      e,
+      exigirRpn
+    );
+
+    /*
+     * O acumulado da Revenue SOMA-SE ao nosso, não o substitui.
+     *
+     * O deles é o que a pessoa levou de OUTRO emprego (ou de antes de nós); o
+     * nosso é o que já lhe pagámos este ano. Trocar um pelo outro perderia
+     * metade do ano em qualquer dos sentidos.
+     */
+    const daRevenue = escolha.acumuladoDaRevenue;
+    const acumuladoFinal = daRevenue
+      ? {
+          bruto: acumuladoAnterior.bruto + daRevenue.bruto,
+          paye: acumuladoAnterior.paye + daRevenue.paye,
+          usc: acumuladoAnterior.usc + daRevenue.usc,
+          prsiEmpregado: acumuladoAnterior.prsiEmpregado,
+        }
+      : acumuladoAnterior;
+
     // ---- 3. o IMPOSTO
     const r = calcular({
       brutoPeriodo: brutoCents,
       dataPagamento: payDate,
       periodosNoAno: PERIODOS[freqType],
       periodoNo: periodNo,
-      base: (e.tax_basis || "cumulativa") as Base,
+      base: escolha.base as Base,
       situacao: (e.marital_status || "solteiro") as Situacao,
-      rpn: e.rpn_cutoff_cents !== null || e.rpn_credits_cents !== null
-        ? {
-          cutOffAnual: e.rpn_cutoff_cents === null ? undefined : Number(e.rpn_cutoff_cents),
-          creditosAnuais: e.rpn_credits_cents === null ? undefined : Number(e.rpn_credits_cents),
-        }
+      rpn: escolha.cutOffAnual !== undefined || escolha.creditosAnuais !== undefined
+        ? { cutOffAnual: escolha.cutOffAnual, creditosAnuais: escolha.creditosAnuais }
         : null,
-      acumuladoAnterior,
+      acumuladoAnterior: acumuladoFinal,
       uscReduzido: !!e.usc_reduced,
       isentoUSC: !!e.usc_exempt,
       classePRSI: e.prsi_class,
@@ -198,6 +250,11 @@ export async function correrFolha(args: {
     const jaGravado = payslips.find((p) => p.employee_id === e.id && p.period_no === periodNo);
 
     const proprios = [...r.avisos];
+    // De onde vieram os números fiscais é informação do RECIBO, não um detalhe
+    // interno: é o que responde a "porque é que o desconto mudou?".
+    for (const c of escolha.avisos) {
+      if (!proprios.some((a) => a.codigo === c)) proprios.push({ codigo: c } as Aviso);
+    }
     if (!e.pps_number) proprios.push({ codigo: "aviso.semPps" });
 
     /*

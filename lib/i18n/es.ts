@@ -530,6 +530,8 @@ const es: Partial<Record<TKey, string>> = {
   "rev.testar": "Probar conexión",
   "hr.navRevenue": "Conexión con Revenue",
   "rev.pageSubtitle": "El certificado de ROS con el que el despacho habla con Revenue, y la prueba de conexión antes de la primera nómina real.",
+  "aviso.rpnDoCadastro": "Los créditos y el cut-off se escribieron a mano, no vinieron de Revenue.",
+  "aviso.baseForcadaEmergencia": "Sin RPN, esta nómina corre en base de emergencia — es la norma de Revenue.",
   "common.clear": "Limpiar",
   "common.dismiss": "Descartar",
   "purchases.manualEntry": "Registrar a mano",

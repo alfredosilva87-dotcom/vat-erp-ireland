@@ -217,6 +217,8 @@ const en = {
   "rev.errOutro": "Revenue answered in a way we did not expect. The details are in the last test message above.",
   "hr.navRevenue": "Revenue connection",
   "rev.pageSubtitle": "The ROS certificate the practice uses to talk to Revenue, and the connection test to run before the first real payroll.",
+  "aviso.rpnDoCadastro": "The tax credits and cut-off were typed in by hand, not fetched from Revenue. Fetch the RPN to be sure they are current.",
+  "aviso.baseForcadaEmergencia": "No RPN, so this payslip runs on Emergency basis — that is the Revenue rule, and it errs on the safe side. Fetch the RPN to run on the correct basis.",
   "common.clear": "Clear",
   "common.dismiss": "Dismiss",
   "common.search": "Search",

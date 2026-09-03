@@ -220,6 +220,8 @@ const pt: Dict = {
   "rev.errOutro": "A Revenue respondeu de forma inesperada. O detalhe está na mensagem do último teste, acima.",
   "hr.navRevenue": "Ligação à Revenue",
   "rev.pageSubtitle": "O certificado do ROS com que o escritório fala à Revenue, e o teste de ligação a fazer antes da primeira folha a sério.",
+  "aviso.rpnDoCadastro": "Os créditos e o cut-off foram escritos à mão, não vieram da Revenue. Vá buscar o RPN para ter a certeza de que estão actuais.",
+  "aviso.baseForcadaEmergencia": "Sem RPN, este recibo corre em base de emergência — é a regra da Revenue, e erra para o lado seguro. Vá buscar o RPN para correr na base certa.",
   "common.clear": "Limpar",
   "common.dismiss": "Dispensar",
   "common.search": "Buscar",
