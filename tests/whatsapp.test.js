@@ -31,6 +31,42 @@ console.log("\n== o zero que nao entra ==");
      "parenteses, mais e espacos saem todos");
 }
 
+console.log("\n== formato NACIONAL, sem indicativo nenhum ==");
+{
+  /*
+   * O defeito que ele apanhou no ar: no cadastro deste escritorio os telefones
+   * estao como toda a gente os escreve — `0838380361`, sem indicativo. Sem ele
+   * o link saia `wa.me/0838380361` e o WhatsApp respondia "This link couldn't
+   * be opened". O `0` da frente e prefixo de marcacao interna e sai; o
+   * indicativo do pais entra no lugar dele.
+   */
+  ok(waNumber("0838380361") === "353838380361",
+     "movel irlandes nacional ganha o 353 e perde o 0", waNumber("0838380361"));
+  ok(waNumber("0838421731") === "353838421731", "e o segundo do cadastro tambem");
+  ok(waNumber("016761234") === "35316761234", "fixo de Dublin idem");
+  ok(waNumber("083 838 0361") === "353838380361", "com espacos da o mesmo");
+
+  // `00` continua a ser o + a moda antiga, e nao um numero nacional.
+  ok(waNumber("00353838380361") === "353838380361",
+     "e o 00 nao se confunde com o prefixo nacional");
+
+  // Quem ja tem indicativo nao ganha outro por cima.
+  ok(waNumber("353838380361") === "353838380361", "com indicativo, fica como esta");
+  ok(!waNumber("353838380361").startsWith("353353"), "e nunca leva 353 a dobrar");
+}
+
+console.log("\n== lixo no cadastro nao vira link ==");
+{
+  /*
+   * Um botao que abre uma pagina de erro ensina a desconfiar de todos os
+   * outros. Numero curto de mais nao e telefone: e um campo mal preenchido.
+   */
+  ok(waNumber("0") === "", "um zero sozinho nao e telefone");
+  ok(waNumber("1234") === "", "quatro digitos tambem nao");
+  ok(waLink("123") === null, "e por isso nao sai link nenhum");
+  ok(waNumber("0838380361").length >= 7, "e um numero a serio passa");
+}
+
 console.log("\n== outros paises da lista ==");
 {
   ok(waNumber("351 091 234 5678") === "35191234 5678".replace(/\D/g, ""),

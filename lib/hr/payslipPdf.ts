@@ -62,6 +62,24 @@ const dataIE = (iso: string | null): string => {
 // Três colunas, como no recibo dele: pagamentos, descontos, e a coluna estreita
 // do resumo. As larguras são fixas porque a leitura depende de os números
 // caírem sempre na mesma posição vertical, recibo após recibo.
+/**
+ * MEIA FOLHA — o formato normal de um recibo.
+ *
+ * A4 tem 841,89 pt de altura; isto é exactamente metade, com a MESMA largura.
+ * A largura igual é o que permite manter as três colunas onde já estavam: o
+ * corte é só na altura.
+ *
+ * Pedido dele depois de ver o primeiro no ar: "está muito grande, daria pra
+ * fazer com a metade da folha ou o modelo padrão de payslip". Tem razão — uma
+ * folha inteira por pessoa é papel a mais para quem imprime trinta por semana,
+ * e duas metades cortam-se ao meio e entregam-se.
+ */
+const PAG = { w: A4.w, h: A4.h / 2 };
+
+/** Respiro vertical no topo e no fundo — menor que a margem lateral, porque
+ *  numa meia folha 44 pt em cima e em baixo comem um terço do espaço útil. */
+const MARGEM_V = 22;
+
 const GUTTER = 7;
 const L_PAG = 196;
 const L_DED = 196;
@@ -73,37 +91,44 @@ const X_RES = X_DED + L_DED + GUTTER;
 export async function pdfDosPayslips(recibos: Payslip[], t: Traduzir): Promise<Uint8Array> {
   const s = await Folha.criar();
   for (const p of recibos) {
-    s.novaPagina();
+    s.novaPagina(PAG);
     desenhar(s, p, t);
   }
-  if (!recibos.length) s.novaPagina();
+  if (!recibos.length) s.novaPagina(PAG);
   return s.bytes();
 }
 
 function desenhar(s: Folha, p: Payslip, t: Traduzir): void {
   // ------------------------------------------------------------- o timbre
-  s.faixa(0, A4.h - 8, A4.w, 8, "primary");
-  s.faixa(0, A4.h - 11, A4.w, 3, "accent");
+  s.faixa(0, PAG.h - 6, PAG.w, 6, "primary");
+  s.faixa(0, PAG.h - 8.5, PAG.w, 2.5, "accent");
 
-  let y = A4.h - 32;
-  s.texto(p.empregador.nome, MARGEM, y, { size: 13, bold: true, c: "primary", max: 44 });
-  s.textoDireita(t("payslip.title"), A4.w - MARGEM, y, { size: 16, bold: true, c: "primary" });
-
-  y -= 11;
-  if (p.empregador.registoComercial) {
-    s.texto(`${t("payslip.companyReg")}: ${p.empregador.registoComercial}`, MARGEM, y,
-      { size: 7.5, c: "muted", max: 50 });
-  }
-  const rot = rotuloDoPeriodo(p.periodo.freq, p.periodo.numero);
-  s.textoDireita(`${t(rot.codigo, rot.params)} · ${p.periodo.ano}`, A4.w - MARGEM, y,
-    { size: 9, bold: true, c: "text" });
+  let y = PAG.h - 24;
+  s.texto(p.empregador.nome, MARGEM, y, { size: 11.5, bold: true, c: "primary", max: 44 });
+  s.textoDireita(t("payslip.title"), PAG.w - MARGEM, y, { size: 14, bold: true, c: "primary" });
 
   y -= 10;
-  for (const l of p.empregador.linhas.slice(0, 3)) {
-    s.texto(l, MARGEM, y, { size: 7, c: "muted", max: 60 });
-    y -= 8.5;
+  if (p.empregador.registoComercial) {
+    s.texto(`${t("payslip.companyReg")}: ${p.empregador.registoComercial}`, MARGEM, y,
+      { size: 6.5, c: "muted", max: 50 });
   }
-  s.y = y - 6;
+  const rot = rotuloDoPeriodo(p.periodo.freq, p.periodo.numero);
+  s.textoDireita(`${t(rot.codigo, rot.params)} · ${p.periodo.ano}`, PAG.w - MARGEM, y,
+    { size: 8, bold: true, c: "text" });
+
+  /*
+   * A morada do empregador encolhe para DUAS linhas na meia folha.
+   *
+   * Numa A4 cabiam três sem incomodar ninguém; aqui cada linha custa espaço ao
+   * que interessa mesmo, que são os números. Quem recebe o recibo já sabe onde
+   * trabalha.
+   */
+  y -= 8.5;
+  for (const l of p.empregador.linhas.slice(0, 2)) {
+    s.texto(l, MARGEM, y, { size: 6.5, c: "muted", max: 60 });
+    y -= 7.5;
+  }
+  s.y = y - 3;
 
   // ------------------------------------------- a grelha de identificação
   //
@@ -120,7 +145,7 @@ function desenhar(s: Folha, p: Payslip, t: Traduzir): void {
     [t("payslip.payPeriod"), String(p.periodo.numero), 1],
     [t("payslip.payDate"), dataIE(p.periodo.dataPagamento), 1],
   ]);
-  s.avanca(8);
+  s.avanca(5);
 
   // ------------------------------------------------------- a faixa de baixo
   //
@@ -167,8 +192,8 @@ function desenhar(s: Folha, p: Payslip, t: Traduzir): void {
    * (to date)" não cabia na coluna estreita do resumo e o rótulo entrava pelo
    * número adentro — lia-se "Employer PRSI (to d2,490.24".
    */
-  const alturaFaixa = 24 + Math.max(cum.length, fiscal.length, patrao.length) * 11;
-  const yFaixa = MARGEM + 26;
+  const alturaFaixa = 21 + Math.max(cum.length, fiscal.length, patrao.length) * 9.5;
+  const yFaixa = MARGEM_V + 14;
 
   // ------------------------------------------ pagamentos, descontos, resumo
   //
@@ -177,7 +202,7 @@ function desenhar(s: Folha, p: Payslip, t: Traduzir): void {
   // deixava meia folha em branco no meio e o papel parecia truncado. Com ela, o
   // espaço vazio lê-se como a área do impresso, que é o que é.
   const topo = s.y;
-  const fundoDoCorpo = yFaixa + alturaFaixa + 16;
+  const fundoDoCorpo = yFaixa + alturaFaixa + 8;
   const fimPag = blocoDePagamentos(s, p, t, topo);
   blocoDeDescontos(s, p, t, topo);
   blocoDeResumo(s, p, t, topo);
@@ -210,10 +235,9 @@ function desenhar(s: Folha, p: Payslip, t: Traduzir): void {
     t("payslip.employerCost"), patrao);
 
   // ------------------------------------------------------------- o rodapé
-  s.regua(MARGEM - 8, "border", 0.6);
   s.texto(p.rascunho ? t("payslip.footerDraft") : t("payslip.footer"),
-    MARGEM, MARGEM - 19, { size: 6.5, c: "muted", max: 150 });
-  s.faixa(0, 0, A4.w, 5, "primary");
+    MARGEM, MARGEM_V - 12, { size: 5.8, c: "muted", max: 160 });
+  s.faixa(0, 0, PAG.w, 4, "primary");
 
   // Por último, para nenhuma faixa lhe passar por cima.
   if (p.rascunho) tarjaDeRascunho(s, t);
@@ -412,13 +436,13 @@ function tarjaDeRascunho(s: Folha, t: Traduzir): void {
   const palavra = t("payslip.draft");
   // A palavra muda de tamanho em cada idioma — DRAFT, RASCUNHO, BORRADOR —,
   // por isso mede-se e centra-se a partir do meio do papel.
-  const tamanho = palavra.length > 6 ? 62 : 84;
+  const tamanho = palavra.length > 6 ? 42 : 58;
   const largura = s.larguraDe(palavra, tamanho, true, 20);
-  const rad = (38 * Math.PI) / 180;
+  const rad = (26 * Math.PI) / 180;
   s.pagina.drawText(palavra, {
-    x: A4.w / 2 - (Math.cos(rad) * largura) / 2,
-    y: A4.h / 2 - (Math.sin(rad) * largura) / 2 - 40,
+    x: PAG.w / 2 - (Math.cos(rad) * largura) / 2,
+    y: PAG.h / 2 - (Math.sin(rad) * largura) / 2 - 14,
     size: tamanho, font: s.f.negrito,
-    color: rgb(c.r, c.g, c.b), rotate: degrees(38), opacity: 0.22,
+    color: rgb(c.r, c.g, c.b), rotate: degrees(26), opacity: 0.22,
   });
 }

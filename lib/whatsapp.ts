@@ -24,18 +24,51 @@
 /** Indicativos onde o prefixo nacional `0` se remove. */
 const CC_COM_TRUNCO = ["353", "351", "44", "55", "34"];
 
+/**
+ * O PAÍS POR OMISSÃO, para números escritos à maneira de cá.
+ *
+ * ---------------------------------------------------------------------------
+ * O SEGUNDO DEFEITO, QUE SÓ APARECEU COM OS DADOS A SÉRIO
+ *
+ * A primeira versão sabia tirar o `0` DEPOIS de um indicativo
+ * (`353 087 …` → `35387 …`) e parava aí. Mas no cadastro deste escritório os
+ * telefones estão em formato NACIONAL — `0838380361`, sem indicativo nenhum —,
+ * que é como toda a gente os escreve e como vieram do Excel.
+ *
+ * Sem indicativo o link saía `wa.me/0838380361`, e o WhatsApp respondia
+ * "This link couldn't be opened". Foi exactamente o que ele viu.
+ *
+ * Um número que começa por UM `0` (e não `00`) é, por definição, nacional: o
+ * `0` é o prefixo de marcação interna. Troca-se pelo indicativo do país do
+ * escritório, que aqui é a Irlanda.
+ *
+ * É uma suposição, e por isso o número corrigido aparece à vista no ecrã
+ * (`waMostrar` mostra-o já com o `+`): um `+353` errado vê-se antes de alguém
+ * carregar no botão.
+ */
+const PAIS_POR_OMISSAO = "353";
+
+/** Menos do que isto não é telefone nenhum — é lixo no cadastro. */
+const MINIMO_DE_DIGITOS = 7;
+
 export function waNumber(phone: string | null | undefined): string {
   let d = String(phone ?? "").replace(/\D/g, "");
   if (!d) return "";
   // `00` à frente é a forma antiga de escrever o `+`.
   if (d.startsWith("00")) d = d.slice(2);
+
   for (const cc of CC_COM_TRUNCO) {
-    if (d.startsWith(cc) && d[cc.length] === "0") {
-      d = cc + d.slice(cc.length + 1);
-      break;
-    }
+    if (!d.startsWith(cc)) continue;
+    // Já traz indicativo: só se tira o prefixo nacional, se lá estiver.
+    return d.length < MINIMO_DE_DIGITOS ? ""
+      : (d[cc.length] === "0" ? cc + d.slice(cc.length + 1) : d);
   }
-  return d;
+
+  // Formato nacional: o `0` da frente é prefixo de marcação, e sai com o
+  // indicativo do país a entrar no lugar dele.
+  if (d.startsWith("0")) d = PAIS_POR_OMISSAO + d.slice(1);
+
+  return d.length < MINIMO_DE_DIGITOS ? "" : d;
 }
 
 /**

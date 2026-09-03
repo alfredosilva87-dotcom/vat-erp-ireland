@@ -96,10 +96,18 @@ export class Folha {
 
   aoAbrirPagina(fn: (folha: Folha) => void) { this.topo = fn; }
 
-  novaPagina(): this {
-    this.pagina = this.pdf.addPage([A4.w, A4.h]);
+  /**
+   * Abre página nova. Sem argumento é A4; com `tamanho`, o que se pedir.
+   *
+   * O tamanho existe por causa do recibo de vencimento, que sai em meia folha
+   * — é o formato normal de um payslip, e uma folha A4 inteira por pessoa é
+   * papel a mais para quem imprime trinta por semana.
+   */
+  novaPagina(tamanho?: { w: number; h: number }): this {
+    const t = tamanho ?? A4;
+    this.pagina = this.pdf.addPage([t.w, t.h]);
     this.paginas++;
-    this.y = A4.h - MARGEM;
+    this.y = t.h - MARGEM;
     if (this.topo) this.topo(this);
     return this;
   }
