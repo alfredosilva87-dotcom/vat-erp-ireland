@@ -158,13 +158,24 @@ function desenhar(s: Folha, p: Payslip, t: Traduzir): void {
     { size: 18, bold: true, c: "surface" });
   s.y = caixaY - 18;
 
-  // ---------------------------------------------------- acumulado do ano
-  tira(s, t("payslip.ytd"), [
-    [t("payslip.colGross"), eur(p.acumulado.brutoCents)],
-    [t("payslip.paye"), eur(p.acumulado.payeCents)],
-    [t("payslip.usc"), eur(p.acumulado.uscCents)],
-    [t("payslip.prsi"), eur(p.acumulado.prsiCents)],
-    [t("payslip.ae"), eur(p.acumulado.aeCents)],
+  /*
+   * ESTE PERÍODO ao lado do ACUMULADO — a forma do payslip irlandês.
+   *
+   * É assim que o Sage o imprime, e não por hábito: o número da semana sozinho
+   * não se confere contra nada, e o acumulado sozinho não diz nada a quem
+   * recebe. Lado a lado, vê-se num relance se a semana foge do padrão do ano.
+   *
+   * A linha TAXABLE PAY está aqui de propósito, igual ao bruto: é ela que
+   * responde à pergunta "e a pensão, não abate no imposto?" — no auto-enrolment
+   * não abate, e o papel mostra-o em vez de o deixar por explicar.
+   */
+  duasColunas(s, t("payslip.thisPeriod"), t("payslip.ytd"), [
+    [t("payslip.grossPay"), p.brutoCents, p.acumulado.brutoCents],
+    [t("payslip.taxablePay"), p.tributavelCents, p.acumulado.brutoCents],
+    [t("payslip.paye"), p.descontos.payeCents, p.acumulado.payeCents],
+    [t("payslip.usc"), p.descontos.uscCents, p.acumulado.uscCents],
+    [t("payslip.prsi"), p.descontos.prsiCents, p.acumulado.prsiCents],
+    [t("payslip.ae"), p.descontos.aeCents, p.acumulado.aeCents],
   ]);
 
   /*
@@ -173,20 +184,28 @@ function desenhar(s: Folha, p: Payslip, t: Traduzir): void {
    * Sem cut-off e créditos à vista, "porque é que esta semana reteve tanto?"
    * não tem resposta possível sem abrir o sistema. Com eles, responde-se
    * olhando — e foi assim que se conferiu o motor contra o Sage.
+   *
+   * O valor DO PERÍODO vem primeiro porque é o que a pessoa reconhece: no
+   * recibo dele o crédito semanal de 76,93 está impresso, e é por ele que
+   * alguém confere. O acumulado de 2.692,55 na semana 35 não se compara com
+   * coisa nenhuma.
    */
   tira(s, t("payslip.taxDetails"), [
     [t("payslip.basis"), t(rotuloDaBase(p.fiscal.base))],
+    [t("payslip.cutOffTp"), eur(p.fiscal.cutOffPeriodoCents)],
+    [t("payslip.creditsTp"), eur(p.fiscal.creditosPeriodoCents)],
     [t("payslip.cutOff"), eur(p.fiscal.cutOffCents)],
     [t("payslip.credits"), eur(p.fiscal.creditosCents)],
-    [t("payslip.prsiClass"), p.fiscal.classePRSI || "—"],
-    [t("payslip.taxYear"), String(p.fiscal.anoDaTabela ?? p.periodo.ano)],
   ]);
 
-  // ------------------------------------------------ o custo do empregador
-  tira(s, t("payslip.employerCost"), [
+  tira(s, t("payslip.insurance"), [
+    [t("payslip.prsiClass"), p.fiscal.classePRSI || "—"],
+    // As semanas seguraveis nao mexem em imposto: mexem no que a pessoa tem
+    // direito a receber do Estado. Por isso vao no papel dela.
+    [t("payslip.insWeeks"), String(p.fiscal.semanasSeguraveis)],
+    [t("payslip.taxYear"), String(p.fiscal.anoDaTabela ?? p.periodo.ano)],
     [t("payslip.prsiEr"), eur(p.patrao.prsiCents)],
     [t("payslip.aeEr"), eur(p.patrao.aeCents)],
-    [t("payslip.totalCost"), eur(p.patrao.custoCents)],
   ]);
 
   /*
@@ -290,6 +309,36 @@ function coluna(
   s.texto(rotuloTotal, x + 8, y - 4, { size: 8.5, bold: true, max: 26 });
   s.textoDireita(eur(total), direita - 8, y - 4, { size: 9.5, bold: true });
   return y - 12;
+}
+
+/**
+ * O bloco de duas colunas de valor: ESTE PERÍODO | ACUMULADO.
+ *
+ * Duas colunas e não duas tiras separadas, porque a comparação é a razão de
+ * existirem: o olho tem de saltar da esquerda para a direita na mesma linha, e
+ * é aí que se vê se a semana foge do padrão do ano.
+ */
+function duasColunas(
+  s: Folha, tituloA: string, tituloB: string, linhas: [string, number, number][]
+): void {
+  const ALTURA_LINHA = 13;
+  const colA = A4.w - MARGEM - 200;
+  const colB = A4.w - MARGEM - 8;
+
+  s.avanca(12);
+  s.faixa(ESQ, s.y - 15, LARGURA, 15, "primary");
+  s.textoDireita(tituloA.toUpperCase(), colA, s.y - 11, { size: 7.5, bold: true, c: "surface", max: 24 });
+  s.textoDireita(tituloB.toUpperCase(), colB, s.y - 11, { size: 7.5, bold: true, c: "surface", max: 24 });
+  s.avanca(15);
+
+  linhas.forEach(([rotulo, a, b], i) => {
+    const y = s.y - ALTURA_LINHA;
+    if (i % 2 === 1) s.faixa(ESQ, y, LARGURA, ALTURA_LINHA, "rowAlt");
+    s.texto(rotulo, ESQ + 9, y + 4, { size: 8.5, max: 30 });
+    s.textoDireita(eur(a), colA, y + 4, { size: 8.5 });
+    s.textoDireita(eur(b), colB, y + 4, { size: 8.5, c: "muted" });
+    s.avanca(ALTURA_LINHA);
+  });
 }
 
 /**

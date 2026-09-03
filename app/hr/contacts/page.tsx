@@ -5,6 +5,8 @@ import { useState } from "react";
 import { useT } from "@/lib/i18n";
 import { useHrYear } from "@/components/hr/useHrYear";
 import { useHrCompanies } from "@/components/hr/useHrCompanies";
+import WhatsAppLink from "@/components/WhatsAppLink";
+import { waMostrar, waNumber } from "@/lib/whatsapp";
 
 /**
  * Quem contactar, e por onde.
@@ -22,9 +24,22 @@ export default function HrContacts() {
   const [year, setYear] = useHrYear();
   const { companies, loading, erro } = useHrCompanies(year);
   const [soIncompletos, setSoIncompletos] = useState(false);
+  const [recado, setRecado] = useState("");
+  /*
+   * Quem ja foi aberto nesta sessao.
+   *
+   * O WhatsApp nao aceita envio em massa — e ainda bem. Sao 35 conversas
+   * abertas uma a uma, e sem esta marca a pessoa perde a conta de onde ia e
+   * manda a mesma mensagem duas vezes ao mesmo cliente.
+   *
+   * Nao se grava: e memoria da tarefa de agora, nao um facto do cliente.
+   */
+  const [abertos, setAbertos] = useState<Set<string>>(new Set());
 
   const temEmail = (c: { email: string | null }) => !!c.email?.trim();
-  const temFone = (c: { phone: string | null }) => !!c.phone?.trim();
+  // O que conta como "tem telefone" e o que o WhatsApp CONSEGUE marcar — um
+  // campo preenchido com "—" ou com uma extensao nao serve de nada.
+  const temFone = (c: { phone: string | null }) => !!waNumber(c.phone);
 
   const comEmail = companies.filter(temEmail).length;
   const comFone = companies.filter(temFone).length;
@@ -68,6 +83,30 @@ export default function HrContacts() {
         <p className="text-sm text-muted">{t("hr.contactsUnreachableNote", { n: semNada })}</p>
       )}
 
+      {/*
+        * A MENSAGEM escreve-se UMA vez, e vai em todas as conversas.
+        *
+        * Sem isto, pedir as horas a 35 clientes obriga a reescrever a mesma
+        * frase 35 vezes — e a partir da quinta ela vem diferente, o que faz o
+        * escritorio parecer desorganizado a quem recebe as duas.
+        */}
+      <div className="card p-4">
+        <div className="flex flex-wrap items-end gap-3">
+          <label className="min-w-64 flex-1">
+            <span className="text-[10px] font-medium uppercase tracking-wide text-muted">
+              {t("hr.waMessage")}
+            </span>
+            <input className="input mt-1 w-full text-sm" value={recado}
+              onChange={(e) => setRecado(e.target.value)}
+              placeholder={t("hr.waMessagePlaceholder")} />
+          </label>
+          <p className="pb-1 text-[12px] text-muted">
+            {t("hr.waOpened", { n: abertos.size, total: comFone })}
+          </p>
+        </div>
+        <p className="mt-2 max-w-3xl text-[12px] text-muted">{t("hr.waHelp")}</p>
+      </div>
+
       <div className="card overflow-hidden">
         <div className="flex flex-wrap items-center gap-3 border-b border-line bg-surface-2/60 px-4 py-2.5">
           <h2 className="font-display text-sm font-semibold">{t("hr.contactsTable")}</h2>
@@ -90,6 +129,7 @@ export default function HrContacts() {
                 <th className="px-4 py-2.5 font-medium">{t("hr.colContact")}</th>
                 <th className="px-4 py-2.5 font-medium">{t("hr.colEmail")}</th>
                 <th className="px-4 py-2.5 font-medium">{t("hr.colPhone")}</th>
+                <th className="px-4 py-2.5 text-center font-medium">WA</th>
                 <th className="px-4 py-2.5 font-medium">{t("hr.colStatus")}</th>
               </tr>
             </thead>
@@ -103,7 +143,15 @@ export default function HrContacts() {
                     <td className="px-4 py-2 font-medium">{c.name}</td>
                     <td className="px-4 py-2 text-muted">{c.contact_person || "—"}</td>
                     <td className="px-4 py-2 font-mono text-xs">{c.email || "—"}</td>
-                    <td className="px-4 py-2 font-mono text-xs">{c.phone || "—"}</td>
+                    <td className="px-4 py-2 font-mono text-xs">{waMostrar(c.phone)}</td>
+                    <td className="px-4 py-2 text-center">
+                      <WhatsAppLink phone={c.phone} nome={c.name} texto={recado}
+                        semTelefone={t("hr.waNoPhone")}
+                        abrir={() => setAbertos((s) => new Set(s).add(c.id))} />
+                      {abertos.has(c.id) && (
+                        <span className="ml-1 text-[11px] text-ok">✓</span>
+                      )}
+                    </td>
                     <td className="px-4 py-2">
                       {e && f ? (
                         <span className="chip-ok">{t("hr.contactComplete")}</span>
@@ -117,10 +165,10 @@ export default function HrContacts() {
                 );
               })}
               {!lista.length && !loading && (
-                <tr><td colSpan={6} className="px-4 py-10 text-center text-muted">{t("hr.noCompanies")}</td></tr>
+                <tr><td colSpan={7} className="px-4 py-10 text-center text-muted">{t("hr.noCompanies")}</td></tr>
               )}
               {loading && (
-                <tr><td colSpan={6} className="px-4 py-10 text-center text-muted">{t("common.loading")}</td></tr>
+                <tr><td colSpan={7} className="px-4 py-10 text-center text-muted">{t("common.loading")}</td></tr>
               )}
             </tbody>
           </table>

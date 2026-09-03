@@ -5,6 +5,7 @@ import { grossFor, type Employee, type WeekHours } from "@/lib/hr/payroll";
 import {
   cents, linhasDePagamento, type FreqType, type Payslip,
 } from "@/lib/hr/payslipPuro";
+import { semanasSeguraveis } from "@/lib/hr/psrPuro";
 
 /**
  * MONTAR os recibos de um período, para imprimir.
@@ -176,6 +177,14 @@ export async function payslipsDoPeriodo(args: {
       },
       pagamentos: linhasDePagamento(e as Employee & { pay_type: string }, doPeriodo, brutoCents, mostrarHoras),
       brutoCents,
+      /*
+       * TRIBUTÁVEL = BRUTO enquanto não houver pensão com desgravação.
+       *
+       * A AE não abate — sai do líquido. Ver a migração 053: é o ponto que
+       * mais se erra, e o payslip dele prova a regra com os dois números
+       * iguais.
+       */
+      tributavelCents: brutoCents,
       descontos,
       liquidoCents: gravado ? n(gravado.net_cents) : (linhaViva?.liquidoCents ?? 0),
       acumulado: {
@@ -189,14 +198,38 @@ export async function payslipsDoPeriodo(args: {
         prsiCents: prsiEr, aeCents: aeEr,
         custoCents: gravado ? brutoCents + prsiEr + aeEr : (linhaViva?.custoEmpregadorCents ?? 0),
       },
-      fiscal: {
-        base: gravado ? String(gravado.basis) : (linhaViva?.aplicado.base ?? "cumulativa"),
-        cutOffCents: gravado ? n(gravado.cutoff_used_cents) : (linhaViva?.aplicado.cutOff ?? 0),
-        creditosCents: gravado ? n(gravado.credits_used_cents) : (linhaViva?.aplicado.creditos ?? 0),
-        classePRSI: e.prsi_class ?? null,
-        anoDaTabela: gravado ? (gravado.tax_year_used ?? null) : year,
-        tabelaConferida: gravado ? !!gravado.table_confirmed : false,
-      },
+      fiscal: (() => {
+        const cutOff = gravado ? n(gravado.cutoff_used_cents) : (linhaViva?.aplicado.cutOff ?? 0);
+        const creditos = gravado ? n(gravado.credits_used_cents) : (linhaViva?.aplicado.creditos ?? 0);
+        /*
+         * O valor DO PERÍODO deduz-se do acumulado, e é exacto.
+         *
+         * O motor calcula o acumulado como `valorDoPeriodo × númeroDoPeriodo`
+         * (arredondado para cima uma vez, por período — ver `ateAqui`). Dividir
+         * de volta devolve o mesmo cêntimo, sem ter de guardar um segundo
+         * número que podia divergir do primeiro.
+         */
+        const porPeriodo = (total: number) => (periodNo > 0 ? Math.round(total / periodNo) : total);
+        return {
+          base: gravado ? String(gravado.basis) : (linhaViva?.aplicado.base ?? "cumulativa"),
+          cutOffCents: cutOff,
+          creditosCents: creditos,
+          cutOffPeriodoCents: porPeriodo(cutOff),
+          creditosPeriodoCents: porPeriodo(creditos),
+          classePRSI: e.prsi_class ?? null,
+          semanasSeguraveis: semanasSeguraveis({
+            freq: freqType,
+            semanasDoPeriodo: semanas,
+            semanasComTrabalho: doPeriodo
+              .filter((h) => Number(h.hours) > 0 || Number(h.sunday_hours) > 0
+                || Number(h.holiday_hours) > 0 || h.week_worked)
+              .map((h) => Number((h as any).week_no)),
+            brutoCents,
+          }),
+          anoDaTabela: gravado ? (gravado.tax_year_used ?? null) : year,
+          tabelaConferida: gravado ? !!gravado.table_confirmed : false,
+        };
+      })(),
       mostrarHoras,
       rascunho,
       /*

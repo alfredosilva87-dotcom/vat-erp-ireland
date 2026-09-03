@@ -12,6 +12,7 @@ import {
 import EmployeeForm from "@/components/hr/EmployeeForm";
 import PayrollRun from "@/components/hr/PayrollRun";
 import ImportEmployees from "@/components/hr/ImportEmployees";
+import RevenueSubmission from "@/components/hr/RevenueSubmission";
 
 type Row = Employee & {
   id: string; first_name: string; surname: string | null;
@@ -22,7 +23,7 @@ type Row = Employee & {
 };
 type HourRow = WeekHours & { employee_id: string; week_no: number };
 
-const ABAS = ["employees", "hours", "gross", "holidays", "bank", "run", "import"] as const;
+const ABAS = ["employees", "hours", "gross", "holidays", "bank", "run", "revenue", "import"] as const;
 type Aba = (typeof ABAS)[number];
 
 /**
@@ -267,6 +268,15 @@ export default function CompanyPayroll({ params }: { params: { id: string } }) {
                 />
               )}
             </div>
+          )}
+
+          {/*
+            * A SUBMISSAO A REVENUE — logo a seguir a folha, que e a ordem em
+            * que as coisas acontecem: fecha-se e comunica-se no mesmo dia.
+            */}
+          {aba === "revenue" && (
+            <RevenueSubmission
+              clientId={params.id} year={year} freqType={blocosDaEmpresa[0] ?? "weekly"} />
           )}
 
           {aba === "import" && <ImportEmployees clientId={params.id} year={year} />}

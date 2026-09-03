@@ -61,6 +61,15 @@ export type Payslip = {
   };
   pagamentos: LinhaDePagamento[];
   brutoCents: number;
+  /**
+   * A BASE TRIBUTÁVEL, impressa ao lado do bruto.
+   *
+   * No payslip real dele, GROSS PAY e TAXABLE PAY aparecem os dois e são
+   * iguais ao cêntimo — e é isso que prova que o auto-enrolment não desgrava.
+   * Imprimir só o bruto tirava do papel exactamente a linha que responde à
+   * pergunta "então e a pensão, não abate no imposto?".
+   */
+  tributavelCents: number;
   descontos: { payeCents: number; uscCents: number; prsiCents: number; aeCents: number };
   liquidoCents: number;
   acumulado: {
@@ -70,9 +79,21 @@ export type Payslip = {
   patrao: { prsiCents: number; aeCents: number; custoCents: number };
   fiscal: {
     base: string;
+    /** Acumulados até este período — é sobre eles que o cumulativo calcula. */
     cutOffCents: number;
     creditosCents: number;
+    /**
+     * E os DO PERÍODO, que são os que a pessoa reconhece.
+     *
+     * O payslip do Sage imprime o crédito semanal (76,93 no dele) e é por esse
+     * número que alguém confere. O acumulado sozinho não diz nada a quem
+     * recebe: 2.692,55 na semana 35 não se compara com coisa nenhuma.
+     */
+    cutOffPeriodoCents: number;
+    creditosPeriodoCents: number;
     classePRSI: string | null;
+    /** Semanas seguráveis — decidem direitos sociais, não imposto. */
+    semanasSeguraveis: number;
     anoDaTabela: number | null;
     tabelaConferida: boolean;
   };

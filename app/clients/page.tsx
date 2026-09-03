@@ -6,6 +6,7 @@ import type { ClientWithStats } from "@/lib/types";
 import { ACTIVITIES } from "@/lib/activities";
 import { getCurrentClient, setCurrentClient } from "@/lib/currentClient";
 import { useT } from "@/lib/i18n";
+import WhatsAppLink from "@/components/WhatsAppLink";
 
 const money = (n: number) => n.toLocaleString("en-IE", { minimumFractionDigits: 2 });
 const empty = {
@@ -221,6 +222,9 @@ export default function Clients() {
                 <th className="px-4 py-3 font-medium">VAT / TRN</th>
                 <th className="px-4 py-3 font-medium text-right">Invoices</th>
                 <th className="px-4 py-3 font-medium text-right">Credit €</th>
+                {/* Aberto a partir do cadastro, que e onde alguem esta quando
+                    se lembra de falar com o cliente. */}
+                <th className="px-4 py-3 text-center font-medium">WA</th>
                 <th className="px-4 py-3 font-medium text-center">Actions</th>
               </tr>
             </thead>
@@ -239,6 +243,9 @@ export default function Clients() {
                   </td>
                   <td className="px-4 py-3 text-right tnum">{c.invoice_count}</td>
                   <td className="px-4 py-3 text-right tnum font-semibold text-brand-700">{money(c.total_credit)}</td>
+                  <td className="px-4 py-3 text-center">
+                    <WhatsAppLink phone={c.phone} nome={c.name} semTelefone={t("hr.waNoPhone")} />
+                  </td>
                   <td className="px-4 py-3">
                     <div className="flex flex-wrap items-center justify-center gap-1">
                       <Link className="btn-ghost h-8 px-3 text-xs" href={`/clients/${c.id}`}>Open</Link>
@@ -255,7 +262,7 @@ export default function Clients() {
               ))}
               {!clients.length && (
                 <tr>
-                  <td colSpan={7} className="px-4 py-10 text-center text-muted">
+                  <td colSpan={8} className="px-4 py-10 text-center text-muted">
                     No clients yet. Click “New client” to register the first company.
                   </td>
                 </tr>
