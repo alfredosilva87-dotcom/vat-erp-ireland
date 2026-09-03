@@ -5,6 +5,7 @@ import {
 } from "@/lib/bankStore";
 import { requireRole } from "@/lib/auth";
 import { denied, requireClient } from "@/lib/access";
+import { vinculosDe, corpoDoImpedimento } from "@/lib/cadastros/vinculos";
 
 export const runtime = "nodejs";
 // Nunca servir saldo ou linha de extrato de cache: o Next guarda resposta de
@@ -73,6 +74,12 @@ export async function DELETE(_req: NextRequest, { params }: Ctx) {
 
   if (!(await ownedAccount(params))) {
     return NextResponse.json({ error: "Conta não encontrada." }, { status: 404 });
+  }
+  // Apagar a conta levava os movimentos conciliados atrás dela (cascata). Com
+  // movimento, deixa de ser possível — desactiva-se.
+  const veredito = await vinculosDe("contaBancaria", params.accountId);
+  if (!veredito.pode) {
+    return NextResponse.json(corpoDoImpedimento(veredito), { status: 409 });
   }
   return NextResponse.json({ ok: await deleteBankAccount(params.accountId) });
 }

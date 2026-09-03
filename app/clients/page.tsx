@@ -7,6 +7,7 @@ import { ACTIVITIES } from "@/lib/activities";
 import { getCurrentClient, setCurrentClient } from "@/lib/currentClient";
 import { useT } from "@/lib/i18n";
 import WhatsAppLink from "@/components/WhatsAppLink";
+import TravaDeExclusao, { ehImpedimento, type Impedimento } from "@/components/TravaDeExclusao";
 import { avisoVatIrlandes, avisoEmail, avisoTelefone } from "@/lib/fiscal/identificadores";
 
 const money = (n: number) => n.toLocaleString("en-IE", { minimumFractionDigits: 2 });
@@ -37,6 +38,9 @@ export default function Clients() {
   const { t } = useT();
   const [clients, setClients] = useState<ClientWithStats[]>([]);
   const [loading, setLoading] = useState(true);
+  /** A recusa do servidor, com a contagem. Ver components/TravaDeExclusao.tsx. */
+  const [travado, setTravado] = useState<{ id: string; nome: string; imp: Impedimento } | null>(null);
+  const [aDesactivar, setADesactivar] = useState(false);
   const [form, setForm] = useState({ ...empty });
   const [editId, setEditId] = useState<string | null>(null);
   const [showForm, setShowForm] = useState(false);
@@ -121,7 +125,16 @@ export default function Clients() {
       ? `Apagar ${c?.name || "este cliente"}?\n\n${n} fatura(s) ficam na base de dados SEM DONO — deixam de aparecer nas listas por cliente. Use o filtro "sem cliente" na Base de dados para as encontrar depois.`
       : `Apagar ${c?.name || "este cliente"}? Não tem faturas associadas.`;
     if (!confirm(aviso)) return;
-    await fetch(`/api/clients/${id}`, { method: "DELETE" });
+    setTravado(null);
+    const res = await fetch(`/api/clients/${id}`, { method: "DELETE" });
+    if (res.status === 409) {
+      /*
+       * A trava mordeu. Guarda-se a contagem e mostra-se — em vez de um
+       * "não foi possível", que obrigaria o utilizador a adivinhar porquê.
+       */
+      const corpo = await res.json().catch(() => null);
+      if (ehImpedimento(corpo)) { setTravado({ id, nome: c?.name || "", imp: corpo }); return; }
+    }
     if (currentId === id) {
       setCurrentClient(null);
       setCurrentId(null);
@@ -129,7 +142,27 @@ export default function Clients() {
     load();
   }
 
+  /** A saída que a trava oferece: desactivar em vez de apagar. */
+  async function desactivar(id: string) {
+    setADesactivar(true);
+    try {
+      await fetch(`/api/clients/${id}`, {
+        method: "PATCH", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ status: "Inactive" }),
+      });
+      setTravado(null);
+      if (currentId === id) { setCurrentClient(null); setCurrentId(null); }
+      load();
+    } finally { setADesactivar(false); }
+  }
+
   function select(c: ClientWithStats) {
+    /*
+     * Escolher um cliente DESACTIVADO para trabalho novo é quase sempre engano
+     * — e é exactamente o engano que a desactivação existe para evitar. Avisa,
+     * não impede: consultar o histórico dele é legítimo.
+     */
+    if (c.status === "Inactive" && !confirm(`${t("trava.inactiveChosen")}\n\n${c.name}`)) return;
     setCurrentClient({ id: c.id, name: c.name, activity_code: c.activity_code });
     setCurrentId(c.id);
   }
@@ -260,6 +293,14 @@ export default function Clients() {
         </div>
       )}
 
+      {travado && (
+        <TravaDeExclusao
+          impedimento={travado.imp}
+          aDesactivar={aDesactivar}
+          onDesactivar={() => desactivar(travado.id)}
+        />
+      )}
+
       <div className="card overflow-hidden">
         <div className="overflow-x-auto">
           <table className="w-full text-sm">
@@ -279,7 +320,7 @@ export default function Clients() {
             </thead>
             <tbody>
               {clients.map((c) => (
-                <tr key={c.id} className={`border-b border-line/70 ${currentId === c.id ? "bg-ok-50/60" : ""}`}>
+                <tr key={c.id} className={`border-b border-line/70 ${currentId === c.id ? "bg-ok-50/60" : ""} ${c.status === "Inactive" ? "opacity-60" : ""}`}>
                   <td className="px-4 py-3 font-mono text-xs">{c.client_code}</td>
                   {/*
                     Tecto de largura + reticências na célula do nome.
@@ -290,7 +331,19 @@ export default function Clients() {
                     botão de apagar.
                   */}
                   <td className="px-4 py-3 max-w-[280px]">
-                    <div className="truncate font-medium" title={c.name}>{c.name}</div>
+                    <div className="flex items-center gap-2">
+                      <div className="truncate font-medium" title={c.name}>{c.name}</div>
+                      {/*
+                        Um cliente desactivado continua na lista — é onde está o
+                        histórico dele. O que muda é que se vê, à primeira, que
+                        não é para trabalho novo.
+                      */}
+                      {c.status === "Inactive" && (
+                        <span className="chip bg-surface-2 border border-line text-muted shrink-0">
+                          {t("common.inactive")}
+                        </span>
+                      )}
+                    </div>
                     {c.email && <div className="truncate text-xs text-muted" title={c.email}>{c.email}</div>}
                   </td>
                   <td className="px-4 py-3">{c.activity_label}</td>

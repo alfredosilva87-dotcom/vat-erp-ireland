@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { updateBranch, deleteBranch } from "@/lib/store";
 import { requireRole } from "@/lib/auth";
 import { denied, requireClient } from "@/lib/access";
+import { vinculosDe, corpoDoImpedimento } from "@/lib/cadastros/vinculos";
 
 export const runtime = "nodejs";
 
@@ -22,6 +23,14 @@ export async function DELETE(_req: NextRequest, { params }: { params: { id: stri
   // check has to live here to actually be a permission.
   const guard = await requireRole("admin");
   if ("error" in guard) return guard.error;
+
+  // A filial ficava com `set null` nas notas e vendas: apagá-la não destruía
+  // nada, mas fazia dezenas de documentos deixarem de saber de que loja eram —
+  // e isso não se recupera.
+  const veredito = await vinculosDe("filial", params.branchId);
+  if (!veredito.pode) {
+    return NextResponse.json(corpoDoImpedimento(veredito), { status: 409 });
+  }
 
   const ok = await deleteBranch(params.branchId);
   return NextResponse.json({ ok });

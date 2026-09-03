@@ -80,7 +80,10 @@ export async function updateClient(id: string, patch: Partial<Client>): Promise<
        // Os dois que definem os prazos do CT1 e da B1 — ver lib/fiscal/calendario.ts.
        "financial_year_end","annual_return_date",
        // Desde quando este cliente tem obrigações — ver 055_obrigacoes_desde.sql.
-       "obligations_from"])
+       "obligations_from",
+       // Activo/inactivo. É a SAÍDA da trava de exclusão: um cliente com
+       // movimento não se apaga, desactiva-se. Ver lib/cadastros/travaDeExclusao.ts.
+       "status"])
     if (k in patch) row[k] = (patch as any)[k];
   const { data } = await sb().from("clients").update(row).eq("id", id).select().maybeSingle();
   return (data as Client) ?? null;

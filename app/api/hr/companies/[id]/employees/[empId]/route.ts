@@ -3,6 +3,7 @@ import { requireClient, denied } from "@/lib/access";
 import { requireRole } from "@/lib/auth";
 import { getServerSupabase } from "@/lib/supabase";
 import { criticarFuncionario } from "@/lib/hr/funcionarioPuro";
+import { vinculosDe, corpoDoImpedimento } from "@/lib/cadastros/vinculos";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -67,15 +68,18 @@ export async function DELETE(
     return NextResponse.json({ error: "Not found." }, { status: 404 });
   }
 
-  const sb = getServerSupabase();
-  const { count } = await sb.from("hr_employee_hours")
-    .select("id", { count: "exact", head: true }).eq("employee_id", params.empId);
-  if ((count ?? 0) > 0) {
-    return NextResponse.json({
-      error: `Este funcionario tem ${count} semana(s) de horas lancadas. `
-        + "Desactive-o em vez de o apagar: sai das folhas seguintes e o que ja foi pago fica de pe.",
-    }, { status: 409 });
+  /*
+   * A guarda que existia aqui contava SÓ as horas, e em português dentro de um
+   * módulo em inglês. Agora é a regra partilhada — que também vê os recibos de
+   * vencimento já emitidos e as linhas de PSR já submetidas à Revenue, e essas
+   * duas são bem piores de perder do que uma semana de horas.
+   */
+  const veredito = await vinculosDe("funcionario", params.empId);
+  if (!veredito.pode) {
+    return NextResponse.json(corpoDoImpedimento(veredito), { status: 409 });
   }
+
+  const sb = getServerSupabase();
 
   const { error } = await sb.from("hr_employees")
     .delete().eq("id", params.empId).eq("client_id", params.id);

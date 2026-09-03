@@ -329,6 +329,12 @@ export interface Client {
   annual_return_date?: string | null;
   /** Desde quando este cliente tem obrigações. Ver 055_obrigacoes_desde.sql. */
   obligations_from?: string | null;
+  /**
+   * `Active` | `Inactive`. É a SAÍDA da trava de exclusão: um cliente com
+   * movimento não se apaga — desactiva-se, sai do trabalho novo, e continua a
+   * explicar o histórico. Ver lib/cadastros/travaDeExclusao.ts.
+   */
+  status?: string | null;
   /** O que sai impresso nas faturas emitidas — ver components/ClientInvoiceBranding.tsx. */
   logo_path?: string | null;
   invoice_footer?: string | null;
