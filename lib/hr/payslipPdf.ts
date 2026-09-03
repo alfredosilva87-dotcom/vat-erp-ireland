@@ -9,24 +9,40 @@ import type { Traduzir } from "@/lib/i18nServer";
  * O RECIBO EM PDF — o papel que vai para a mão de quem trabalha.
  *
  * ---------------------------------------------------------------------------
- * DESENHADO A PARTIR DO PAYSLIP REAL DELE
+ * DESENHADO CONTRA O RECIBO REAL DELE, LADO A LADO
  *
- * O modelo é o recibo do Sage que o Alfredo mandou (semana 35 de 2026): duas
- * colunas — PAYMENTS à esquerda, DEDUCTIONS à direita —, o líquido em caixa
- * própria, e por baixo as duas tiras que ninguém lê todas as semanas mas que
- * são as que respondem às perguntas: o ACUMULADO DO ANO e os DADOS FISCAIS
- * (base, cut-off, créditos, classe de PRSI).
+ * O modelo é o payslip do Sage que o Alfredo recebe (Brulor Limited, semana 35
+ * de 2026, pago a 02/09/2026), e a estrutura foi copiada de propósito:
  *
- * Foi por essas tiras que o motor se conseguiu conferir ao cêntimo. Um recibo
- * que mostra só bruto e líquido é um recibo impossível de contestar — e é
- * exactamente por isso que este mostra o resto.
+ *   · PAYMENT DETAILS e DEDUCTION DETAILS lado a lado;
+ *   · os descontos com **duas colunas de valor** — THIS PERIOD e BALANCE —, e
+ *     não só a do período;
+ *   · a contribuição do EMPREGADOR dentro do mesmo bloco, separada por uma
+ *     linha que diz o que é;
+ *   · a coluna estreita da direita com GROSS PAY, TOTAL DEDS e NETT PAY;
+ *   · e a faixa de baixo em três: acumulado, dados fiscais, e o que o
+ *     empregador paga por cima.
+ *
+ * Não é imitação por imitação. Quem confere um recibo destes já o fez mil vezes
+ * noutro sistema, e procura cada número no sítio onde ele sempre esteve. Mudar
+ * o sítio obriga a reaprender a ler o próprio salário — e a primeira reacção a
+ * um recibo que não se reconhece é achar que está errado.
+ *
+ * ---------------------------------------------------------------------------
+ * O QUE VARIA É UMA COISA SÓ: AS HORAS
+ *
+ * Foi o que ele pediu, e é o que o próprio Sage faz — a coluna HOURS existe
+ * sempre e vem vazia para quem é salariado. Aqui a empresa decide se ela
+ * aparece (`hr_client.payslip_show_hours`), porque uma casa toda de salariados
+ * não quer uma coluna vazia em todos os recibos e uma de horistas quer as horas
+ * à vista. Tudo o resto é igual para toda a gente.
  *
  * ---------------------------------------------------------------------------
  * UMA PESSOA POR PÁGINA, SEMPRE
  *
- * Mesmo quando se imprime a empresa inteira num ficheiro só. Recibos de duas
- * pessoas na mesma folha acabam entregues à pessoa errada — e o que lá está é
- * o salário de alguém.
+ * Mesmo ao imprimir a empresa inteira num ficheiro só. Recibos de duas pessoas
+ * na mesma folha acabam entregues à pessoa errada — e o que lá está é o salário
+ * de alguém.
  */
 
 const eur = (c: number): string =>
@@ -41,25 +57,26 @@ const dataIE = (iso: string | null): string => {
   return d && m && a ? `${d}/${m}/${a}` : String(iso);
 };
 
-/** Nome de uma chave de tradução, com recurso ao próprio valor. */
-const rotuloDaBase = (base: string): string =>
-  base === "emergencia" ? "payslip.basis_emergency"
-    : base === "semana1" ? "payslip.basis_week1" : "payslip.basis_cumulative";
-
-const GUTTER = 16;
-const COL = (LARGURA - GUTTER) / 2;
-const ESQ = MARGEM;
-const DIR = MARGEM + COL + GUTTER;
+// ------------------------------------------------------------- a grelha
+//
+// Três colunas, como no recibo dele: pagamentos, descontos, e a coluna estreita
+// do resumo. As larguras são fixas porque a leitura depende de os números
+// caírem sempre na mesma posição vertical, recibo após recibo.
+const GUTTER = 7;
+const L_PAG = 196;
+const L_DED = 196;
+const L_RES = LARGURA - L_PAG - L_DED - GUTTER * 2;
+const X_PAG = MARGEM;
+const X_DED = MARGEM + L_PAG + GUTTER;
+const X_RES = X_DED + L_DED + GUTTER;
 
 export async function pdfDosPayslips(recibos: Payslip[], t: Traduzir): Promise<Uint8Array> {
   const s = await Folha.criar();
-
   for (const p of recibos) {
     s.novaPagina();
     desenhar(s, p, t);
   }
   if (!recibos.length) s.novaPagina();
-
   return s.bytes();
 }
 
@@ -69,172 +86,313 @@ function desenhar(s: Folha, p: Payslip, t: Traduzir): void {
   s.faixa(0, A4.h - 11, A4.w, 3, "accent");
 
   let y = A4.h - 32;
-  s.texto(p.empregador.nome, ESQ, y, { size: 13, bold: true, c: "primary", max: 46 });
-  s.textoDireita(t("payslip.title"), A4.w - MARGEM, y, { size: 17, bold: true, c: "primary" });
+  s.texto(p.empregador.nome, MARGEM, y, { size: 13, bold: true, c: "primary", max: 44 });
+  s.textoDireita(t("payslip.title"), A4.w - MARGEM, y, { size: 16, bold: true, c: "primary" });
 
-  y -= 12;
+  y -= 11;
+  if (p.empregador.registoComercial) {
+    s.texto(`${t("payslip.companyReg")}: ${p.empregador.registoComercial}`, MARGEM, y,
+      { size: 7.5, c: "muted", max: 50 });
+  }
   const rot = rotuloDoPeriodo(p.periodo.freq, p.periodo.numero);
   s.textoDireita(`${t(rot.codigo, rot.params)} · ${p.periodo.ano}`, A4.w - MARGEM, y,
-    { size: 9.5, bold: true, c: "text" });
+    { size: 9, bold: true, c: "text" });
 
-  const linhasEmpregador = [...p.empregador.linhas];
-  if (p.empregador.numeroDeEmpregador) {
-    linhasEmpregador.push(`${t("payslip.employerNo")}: ${p.empregador.numeroDeEmpregador}`);
+  y -= 10;
+  for (const l of p.empregador.linhas.slice(0, 3)) {
+    s.texto(l, MARGEM, y, { size: 7, c: "muted", max: 60 });
+    y -= 8.5;
   }
-  let yE = y;
-  for (const l of linhasEmpregador.slice(0, 4)) {
-    s.texto(l, ESQ, yE, { size: 7.5, c: "muted", max: 60 });
-    yE -= 9.5;
-  }
+  s.y = y - 6;
 
-  y -= 12;
-  s.textoDireita(`${t("payslip.payDate")}: ${dataIE(p.periodo.dataPagamento)}`,
-    A4.w - MARGEM, y, { size: 8, c: "muted" });
-
-  s.y = Math.min(yE, y) - 10;
-
-  // ---------------------------------------------------------- a pessoa
-  s.regua(s.y, "border");
-  s.avanca(16);
-  s.texto(p.pessoa.nome, ESQ, s.y, { size: 12, bold: true, max: 50 });
-  s.avanca(14);
-
-  const identidade: [string, string][] = [
-    [t("payslip.pps"), p.pessoa.pps || "—"],
-    [t("payslip.staffNo"), p.pessoa.codigo || "—"],
-    [t("payslip.role"), p.pessoa.cargo || "—"],
-    [t("payslip.started"), dataIE(p.pessoa.dataDeAdmissao)],
-  ];
-  identidade.forEach(([k, v], i) => {
-    const x = ESQ + (i % 4) * (LARGURA / 4);
-    s.texto(k.toUpperCase(), x, s.y, { size: 6.5, c: "muted", max: 22 });
-    s.texto(v, x, s.y - 10, { size: 9, max: 26 });
-  });
-  s.avanca(24);
-  s.regua(s.y, "border");
-  s.avanca(12);
-
-  // -------------------------------------------------- pagamentos e descontos
-  const topo = s.y;
-
-  const totalDescontos = p.descontos.payeCents + p.descontos.uscCents
-    + p.descontos.prsiCents + p.descontos.aeCents;
-
-  const fimEsq = coluna(s, ESQ, topo, t("payslip.payments"), p.mostrarHoras, [
-    ...p.pagamentos.map((l) => ({
-      rotulo: t(l.chave),
-      horas: l.horas === null ? null : horasTexto(l.horas),
-      taxa: l.taxaCents === null ? null : eur(l.taxaCents),
-      valor: l.valorCents,
-      // A linha de férias gozadas é informação, não pagamento: sai sem valor.
-      semValor: l.chave === "payslip.pay_holidayTaken",
-    })),
-  ], t("payslip.grossPay"), p.brutoCents);
-
-  const fimDir = coluna(s, DIR, topo, t("payslip.deductions"), false, [
-    { rotulo: t("payslip.paye"), horas: null, taxa: null, valor: p.descontos.payeCents },
-    { rotulo: t("payslip.usc"), horas: null, taxa: null, valor: p.descontos.uscCents },
-    { rotulo: t("payslip.prsi"), horas: null, taxa: null, valor: p.descontos.prsiCents },
-    ...(p.descontos.aeCents
-      ? [{ rotulo: t("payslip.ae"), horas: null, taxa: null, valor: p.descontos.aeCents }]
-      : []),
-  ], t("payslip.totalDeductions"), totalDescontos);
-
-  /*
-   * As colunas partilham o fundo mais baixo, e nunca sobem acima de uma altura
-   * minima. Sem o minimo, um recibo de uma linha so deixava o bloco do liquido
-   * colado ao cabecalho e meia pagina em branco por baixo — parecia um
-   * documento cortado a meio.
-   */
-  s.y = Math.min(fimEsq, fimDir, topo - 128) - 20;
-
-  // ------------------------------------------------------------- o líquido
-  const ALTURA = 40;
-  const caixaY = s.y - ALTURA;
-  s.faixa(ESQ, caixaY, LARGURA, ALTURA, "primary");
-  s.texto(t("payslip.netPay").toUpperCase(), ESQ + 14, caixaY + 15,
-    { size: 11, bold: true, c: "surface" });
-  s.textoDireita(`EUR ${eur(p.liquidoCents)}`, A4.w - MARGEM - 14, caixaY + 12,
-    { size: 18, bold: true, c: "surface" });
-  s.y = caixaY - 18;
-
-  /*
-   * ESTE PERÍODO ao lado do ACUMULADO — a forma do payslip irlandês.
-   *
-   * É assim que o Sage o imprime, e não por hábito: o número da semana sozinho
-   * não se confere contra nada, e o acumulado sozinho não diz nada a quem
-   * recebe. Lado a lado, vê-se num relance se a semana foge do padrão do ano.
-   *
-   * A linha TAXABLE PAY está aqui de propósito, igual ao bruto: é ela que
-   * responde à pergunta "e a pensão, não abate no imposto?" — no auto-enrolment
-   * não abate, e o papel mostra-o em vez de o deixar por explicar.
-   */
-  duasColunas(s, t("payslip.thisPeriod"), t("payslip.ytd"), [
-    [t("payslip.grossPay"), p.brutoCents, p.acumulado.brutoCents],
-    [t("payslip.taxablePay"), p.tributavelCents, p.acumulado.brutoCents],
-    [t("payslip.paye"), p.descontos.payeCents, p.acumulado.payeCents],
-    [t("payslip.usc"), p.descontos.uscCents, p.acumulado.uscCents],
-    [t("payslip.prsi"), p.descontos.prsiCents, p.acumulado.prsiCents],
-    [t("payslip.ae"), p.descontos.aeCents, p.acumulado.aeCents],
+  // ------------------------------------------- a grelha de identificação
+  //
+  // Duas faixas de etiqueta+valor, como as "setas" azuis do Sage. É aqui que
+  // quem recebe confirma que o recibo é dele antes de olhar para os números.
+  grelha(s, [
+    [t("payslip.empName"), p.pessoa.nome, 2],
+    [t("payslip.frequency"), p.periodo.letra, 1],
+    [t("payslip.pps"), p.pessoa.pps || "—", 1],
   ]);
+  grelha(s, [
+    [t("payslip.staffNo"), p.pessoa.codigo || "—", 1],
+    [t("payslip.role"), p.pessoa.cargo || "—", 1],
+    [t("payslip.payPeriod"), String(p.periodo.numero), 1],
+    [t("payslip.payDate"), dataIE(p.periodo.dataPagamento), 1],
+  ]);
+  s.avanca(8);
 
+  // ------------------------------------------------------- a faixa de baixo
+  //
+  // Medida PRIMEIRO, porque é ela que define onde o corpo acaba.
+  const cum: [string, string][] = [
+    [t("payslip.grossPay"), eur(p.acumulado.brutoCents)],
+    [t("payslip.taxablePay"), eur(p.acumulado.brutoCents)],
+    [t("payslip.credits"), eur(p.fiscal.creditosCents)],
+    [t("payslip.cutOff"), eur(p.fiscal.cutOffCents)],
+    [t("payslip.taxPaid"), eur(p.acumulado.payeCents)],
+  ];
   /*
-   * OS DADOS FISCAIS.
+   * O bloco fiscal DO PERÍODO, que é o que a pessoa reconhece.
    *
-   * Sem cut-off e créditos à vista, "porque é que esta semana reteve tanto?"
-   * não tem resposta possível sem abrir o sistema. Com eles, responde-se
-   * olhando — e foi assim que se conferiu o motor contra o Sage.
-   *
-   * O valor DO PERÍODO vem primeiro porque é o que a pessoa reconhece: no
-   * recibo dele o crédito semanal de 76,93 está impresso, e é por ele que
-   * alguém confere. O acumulado de 2.692,55 na semana 35 não se compara com
+   * O crédito semanal de 76,93 está impresso no recibo dele e é por esse número
+   * que alguém confere. O acumulado de 2.692,55 na semana 35 não se compara com
    * coisa nenhuma.
    */
-  tira(s, t("payslip.taxDetails"), [
-    [t("payslip.basis"), t(rotuloDaBase(p.fiscal.base))],
-    [t("payslip.cutOffTp"), eur(p.fiscal.cutOffPeriodoCents)],
+  const fiscal: [string, string][] = [
+    [t("payslip.taxStatus"), p.fiscal.estadoFiscal],
     [t("payslip.creditsTp"), eur(p.fiscal.creditosPeriodoCents)],
-    [t("payslip.cutOff"), eur(p.fiscal.cutOffCents)],
-    [t("payslip.credits"), eur(p.fiscal.creditosCents)],
-  ]);
-
-  tira(s, t("payslip.insurance"), [
+    [t("payslip.cutOffTp"), eur(p.fiscal.cutOffPeriodoCents)],
     [t("payslip.prsiClass"), p.fiscal.classePRSI || "—"],
-    // As semanas seguraveis nao mexem em imposto: mexem no que a pessoa tem
-    // direito a receber do Estado. Por isso vao no papel dela.
     [t("payslip.insWeeks"), String(p.fiscal.semanasSeguraveis)],
-    [t("payslip.taxYear"), String(p.fiscal.anoDaTabela ?? p.periodo.ano)],
-    [t("payslip.prsiEr"), eur(p.patrao.prsiCents)],
+  ];
+  // O que a pessoa CUSTA e não recebe. Fica à parte de propósito: misturá-lo
+  // com os descontos dela faria parecer que lhe saiu do salário.
+  const patrao: [string, string][] = [
+    [t("payslip.prsiErPeriod"), eur(p.patrao.prsiCents)],
+    [t("payslip.prsiErYtd"), eur(p.acumulado.prsiEmpregadorCents)],
     [t("payslip.aeEr"), eur(p.patrao.aeCents)],
-  ]);
+  ];
 
   /*
-   * OS AVISOS SÓ SAEM NO RASCUNHO.
+   * A FAIXA DE BAIXO fica ancorada ao FUNDO da página, e não logo a seguir ao
+   * corpo.
+   *
+   * Um recibo é um impresso, e um impresso tem um fim. Encostada ao corpo, ela
+   * deixava um terço da folha em branco por baixo e o papel parecia cortado a
+   * meio — foi assim que saiu na primeira impressão. No recibo do Sage esta
+   * faixa está no fundo, e é lá que quem já leu mil deles a procura.
+   *
+   * As três colunas são de larguras IGUAIS, e não as do corpo: "Employer PRSI
+   * (to date)" não cabia na coluna estreita do resumo e o rótulo entrava pelo
+   * número adentro — lia-se "Employer PRSI (to d2,490.24".
+   */
+  const alturaFaixa = 24 + Math.max(cum.length, fiscal.length, patrao.length) * 11;
+  const yFaixa = MARGEM + 26;
+
+  // ------------------------------------------ pagamentos, descontos, resumo
+  //
+  // O corpo estica-se ATÉ à faixa de baixo, com moldura. É o que o recibo do
+  // Sage faz e é o que faltava ao meu: sem a moldura, um recibo de duas linhas
+  // deixava meia folha em branco no meio e o papel parecia truncado. Com ela, o
+  // espaço vazio lê-se como a área do impresso, que é o que é.
+  const topo = s.y;
+  const fundoDoCorpo = yFaixa + alturaFaixa + 16;
+  const fimPag = blocoDePagamentos(s, p, t, topo);
+  blocoDeDescontos(s, p, t, topo);
+  blocoDeResumo(s, p, t, topo);
+  s.contorno(X_PAG, fundoDoCorpo, L_PAG, topo - fundoDoCorpo, "border", 0.6);
+  s.contorno(X_DED, fundoDoCorpo, L_DED, topo - fundoDoCorpo, "border", 0.6);
+
+  /*
+   * OS AVISOS SÓ SAEM NO RASCUNHO, e ficam DENTRO da coluna dos pagamentos.
    *
    * São para quem confere antes de fechar — "sem PPS", "tabela por confirmar",
-   * "buraco no acumulado". Num recibo já fechado e entregue seriam ruído para
-   * quem o recebe, sobre coisas que já não estão em aberto.
+   * "buraco no acumulado". Num recibo já entregue seriam ruído para quem o
+   * recebe, sobre coisas que já não estão em aberto. Dentro da moldura, e não
+   * soltos por baixo dela, porque soltos caíam por cima da faixa do fundo.
    */
   if (p.rascunho && p.avisos.length) {
-    s.avanca(6);
-    s.texto(t("payslip.warnings"), ESQ, s.y, { size: 7, bold: true, c: "warning", max: 40 });
-    s.avanca(10);
+    let ya = fimPag - 10;
+    s.texto(t("payslip.warnings"), X_PAG + 6, ya, { size: 6.5, bold: true, c: "warning", max: 34 });
+    ya -= 10;
     for (const a of p.avisos.slice(0, 4)) {
-      s.y = s.paragrafo("· " + t(a.codigo, a.params), ESQ, s.y, LARGURA,
-        { size: 7, c: "warning" });
+      ya = s.paragrafo("· " + t(a.codigo, a.params), X_PAG + 6, ya, L_PAG - 12,
+        { size: 6.5, c: "warning" });
     }
   }
 
+  const lTerco = (LARGURA - GUTTER * 2) / 3;
+  colunaDeDetalhe(s, MARGEM, yFaixa, lTerco, alturaFaixa, t("payslip.cumulative"), cum);
+  colunaDeDetalhe(s, MARGEM + lTerco + GUTTER, yFaixa, lTerco, alturaFaixa,
+    t("payslip.taxDetails"), fiscal);
+  colunaDeDetalhe(s, MARGEM + (lTerco + GUTTER) * 2, yFaixa, lTerco, alturaFaixa,
+    t("payslip.employerCost"), patrao);
+
   // ------------------------------------------------------------- o rodapé
   s.regua(MARGEM - 8, "border", 0.6);
-  s.texto(
-    p.rascunho ? t("payslip.footerDraft") : t("payslip.footer"),
-    ESQ, MARGEM - 19, { size: 6.5, c: "muted", max: 150 }
-  );
+  s.texto(p.rascunho ? t("payslip.footerDraft") : t("payslip.footer"),
+    MARGEM, MARGEM - 19, { size: 6.5, c: "muted", max: 150 });
   s.faixa(0, 0, A4.w, 5, "primary");
 
   // Por último, para nenhuma faixa lhe passar por cima.
   if (p.rascunho) tarjaDeRascunho(s, t);
+}
+
+// ------------------------------------------------------------------ peças
+
+/**
+ * Uma faixa de etiqueta+valor, repartida por pesos.
+ *
+ * São as "setas" azuis do recibo do Sage: etiqueta pequena em maiúsculas, valor
+ * por baixo em corpo de leitura. O peso existe porque o nome de uma pessoa
+ * precisa do dobro do espaço de uma frequência de uma letra.
+ */
+function grelha(s: Folha, campos: [string, string, number][]): void {
+  const ALTURA = 22;
+  const y = s.y - ALTURA;
+  s.faixa(MARGEM, y, LARGURA, ALTURA, "rowAlt");
+
+  const total = campos.reduce((acc, c) => acc + c[2], 0);
+  let x = MARGEM;
+  for (const [rotulo, valor, peso] of campos) {
+    const largura = (LARGURA * peso) / total;
+    s.texto(rotulo.toUpperCase(), x + 7, y + 13, { size: 5.8, c: "muted", max: 26 });
+    // O `max` acompanha a largura da célula: medir com o valor por omissão
+    // deixava o nome de alguém a entrar pela coluna seguinte.
+    s.texto(valor, x + 7, y + 4, { size: 8.5, bold: true, max: Math.floor(largura / 4.2) });
+    x += largura;
+  }
+  s.y = y - 3;
+}
+
+/** Cabeçalho escuro de um bloco, com as suas colunas de valor. */
+function cabecalho(
+  s: Folha, x: number, y: number, largura: number, titulo: string, colunas: [string, number][]
+): void {
+  s.faixa(x, y - 14, largura, 14, "primary");
+  s.texto(titulo.toUpperCase(), x + 6, y - 10, { size: 6.8, bold: true, c: "surface", max: 24 });
+  for (const [rotulo, dx] of colunas) {
+    s.textoDireita(rotulo.toUpperCase(), x + dx, y - 10, { size: 5.8, bold: true, c: "surface" });
+  }
+}
+
+function blocoDePagamentos(s: Folha, p: Payslip, t: Traduzir, topo: number): number {
+  const colHoras = L_PAG - 118;
+  const colTaxa = L_PAG - 62;
+  const colValor = L_PAG - 6;
+  cabecalho(s, X_PAG, topo, L_PAG, t("payslip.payments"),
+    p.mostrarHoras
+      ? [[t("payslip.colHours"), colHoras], [t("payslip.colRate"), colTaxa], ["EUR", colValor]]
+      : [["EUR", colValor]]);
+
+  let y = topo - 27;
+  for (const l of p.pagamentos) {
+    s.texto(t(l.chave), X_PAG + 6, y, { size: 8, max: 22 });
+    if (p.mostrarHoras && l.horas !== null) {
+      s.textoDireita(horasTexto(l.horas), X_PAG + colHoras, y, { size: 7.5, c: "muted" });
+    }
+    if (p.mostrarHoras && l.taxaCents !== null) {
+      s.textoDireita(eur(l.taxaCents), X_PAG + colTaxa, y, { size: 7.5, c: "muted" });
+    }
+    // A linha de férias gozadas é informação, não pagamento: sai sem valor.
+    if (l.chave !== "payslip.pay_holidayTaken") {
+      s.textoDireita(eur(l.valorCents), X_PAG + colValor, y, { size: 8 });
+    }
+    y -= 12;
+  }
+
+  y -= 2;
+  s.regua(y + 6, "border", 0.6, X_PAG, X_PAG + L_PAG);
+  s.texto(t("payslip.grossPay"), X_PAG + 6, y - 4, { size: 8, bold: true, max: 22 });
+  s.textoDireita(eur(p.brutoCents), X_PAG + colValor, y - 4, { size: 9, bold: true });
+  return y - 12;
+}
+
+/**
+ * Os descontos com DUAS colunas de valor: a do período e a do acumulado.
+ *
+ * É a diferença mais importante entre este recibo e o que eu tinha feito antes.
+ * No recibo do Sage o acumulado está ao lado de cada desconto, e não numa
+ * tabela à parte no fundo da página — assim "PAYE 53,84 / 1.755,70" lê-se de
+ * uma vez, e quem confere não tem de saltar de um sítio para o outro guardando
+ * o número de cabeça pelo caminho.
+ */
+function blocoDeDescontos(s: Folha, p: Payslip, t: Traduzir, topo: number): number {
+  const colPeriodo = L_DED - 74;
+  const colSaldo = L_DED - 6;
+  cabecalho(s, X_DED, topo, L_DED, t("payslip.deductions"),
+    [[t("payslip.colThisPeriod"), colPeriodo], [t("payslip.colBalance"), colSaldo]]);
+
+  const linhas: [string, number, number][] = [
+    [t("payslip.paye"), p.descontos.payeCents, p.acumulado.payeCents],
+    [t("payslip.prsi"), p.descontos.prsiCents, p.acumulado.prsiCents],
+    [t("payslip.usc"), p.descontos.uscCents, p.acumulado.uscCents],
+  ];
+  if (p.descontos.aeCents || p.acumulado.aeCents) {
+    linhas.push([t("payslip.ae"), p.descontos.aeCents, p.acumulado.aeCents]);
+  }
+
+  let y = topo - 27;
+  for (const [rotulo, periodo, saldo] of linhas) {
+    s.texto(rotulo, X_DED + 6, y, { size: 8, max: 22 });
+    s.textoDireita(eur(periodo), X_DED + colPeriodo, y, { size: 8 });
+    s.textoDireita(eur(saldo), X_DED + colSaldo, y, { size: 8, c: "muted" });
+    y -= 12;
+  }
+
+  /*
+   * A CONTRIBUIÇÃO DO EMPREGADOR, com a linha que diz o que é.
+   *
+   * O Sage escreve "--Employer Pension Contribution---" e repete a linha da AE
+   * por baixo. Sem esse aviso, um segundo "AE Pension 9,81" logo a seguir ao
+   * primeiro lê-se como se tivesse sido descontado duas vezes — e é a primeira
+   * coisa que alguém traz de volta ao balcão.
+   */
+  if (p.patrao.aeCents) {
+    y -= 3;
+    s.texto("— " + t("payslip.employerContribution"), X_DED + 6, y,
+      { size: 6.2, c: "muted", max: 44 });
+    y -= 11;
+    s.texto(t("payslip.ae"), X_DED + 6, y, { size: 8, c: "muted", max: 22 });
+    s.textoDireita(eur(p.patrao.aeCents), X_DED + colPeriodo, y, { size: 8, c: "muted" });
+    s.textoDireita(eur(p.acumulado.aeCents), X_DED + colSaldo, y, { size: 8, c: "muted" });
+    y -= 12;
+  }
+
+  y -= 2;
+  s.regua(y + 6, "border", 0.6, X_DED, X_DED + L_DED);
+  s.texto(t("payslip.totalDeductions"), X_DED + 6, y - 4, { size: 8, bold: true, max: 24 });
+  const total = p.descontos.payeCents + p.descontos.uscCents
+    + p.descontos.prsiCents + p.descontos.aeCents;
+  s.textoDireita(eur(total), X_DED + colSaldo, y - 4, { size: 9, bold: true });
+  return y - 12;
+}
+
+/** A coluna estreita da direita: bruto, descontos, líquido. */
+function blocoDeResumo(s: Folha, p: Payslip, t: Traduzir, topo: number): number {
+  cabecalho(s, X_RES, topo, L_RES, t("payslip.summary"), []);
+
+  const total = p.descontos.payeCents + p.descontos.uscCents
+    + p.descontos.prsiCents + p.descontos.aeCents;
+
+  let y = topo - 14;
+  const caixa = (rotulo: string, valor: string, destaque = false) => {
+    const ALTURA = destaque ? 40 : 32;
+    const yc = y - ALTURA;
+    s.faixa(X_RES, yc, L_RES, ALTURA, destaque ? "primary" : "rowAlt");
+    s.texto(rotulo.toUpperCase(), X_RES + 7, yc + ALTURA - 12,
+      { size: 5.8, bold: true, c: destaque ? "surface" : "muted", max: 22 });
+    s.textoDireita(valor, X_RES + L_RES - 7, yc + 8,
+      { size: destaque ? 13 : 11, bold: true, c: destaque ? "surface" : "text" });
+    y = yc - 4;
+  };
+
+  caixa(t("payslip.grossPay"), eur(p.brutoCents));
+  caixa(t("payslip.totalDeductions"), eur(total));
+  // O líquido é o número que a pessoa procura primeiro. Fica em caixa escura, e
+  // é o maior da página.
+  caixa(t("payslip.netPay"), eur(p.liquidoCents), true);
+
+  return y;
+}
+
+/** Uma coluna da faixa de baixo: título e pares de etiqueta/valor. */
+function colunaDeDetalhe(
+  s: Folha, x: number, y: number, largura: number, altura: number,
+  titulo: string, pares: [string, string][]
+): void {
+  s.contorno(x, y, largura, altura, "border", 0.6);
+  s.faixa(x, y + altura - 13, largura, 13, "accentSoft");
+  s.texto(titulo.toUpperCase(), x + 6, y + altura - 9,
+    { size: 5.8, bold: true, c: "primary", max: 30 });
+
+  let yl = y + altura - 24;
+  for (const [rotulo, valor] of pares) {
+    s.texto(rotulo, x + 6, yl, { size: 6.5, c: "muted", max: 26 });
+    s.textoDireita(valor, x + largura - 6, yl, { size: 7.5, max: 18 });
+    yl -= 11;
+  }
 }
 
 /**
@@ -263,105 +421,4 @@ function tarjaDeRascunho(s: Folha, t: Traduzir): void {
     size: tamanho, font: s.f.negrito,
     color: rgb(c.r, c.g, c.b), rotate: degrees(38), opacity: 0.22,
   });
-}
-
-
-type LinhaDeColuna = {
-  rotulo: string; horas: string | null; taxa: string | null;
-  valor: number; semValor?: boolean;
-};
-
-/**
- * Uma coluna com cabeçalho, linhas e total.
- *
- * Devolve o `y` do fim para quem chama alinhar as duas colunas pela mais
- * comprida — sem isso, o bloco do líquido subia por cima da coluna maior
- * sempre que uma pessoa tivesse mais linhas de pagamento do que de desconto.
- */
-function coluna(
-  s: Folha, x: number, topo: number, titulo: string, comHoras: boolean,
-  linhas: LinhaDeColuna[], rotuloTotal: string, total: number
-): number {
-  const direita = x + COL;
-  let y = topo;
-
-  s.faixa(x, y - 15, COL, 15, "primary");
-  s.texto(titulo.toUpperCase(), x + 8, y - 11, { size: 7.5, bold: true, c: "surface", max: 30 });
-  s.textoDireita("EUR", direita - 8, y - 11, { size: 7, bold: true, c: "surface" });
-  y -= 24;
-
-  if (comHoras) {
-    s.texto("HRS", x + 118, y, { size: 6, c: "muted" });
-    s.texto("RATE", x + 156, y, { size: 6, c: "muted" });
-    y -= 9;
-  }
-
-  for (const l of linhas) {
-    s.texto(l.rotulo, x + 8, y, { size: 8.5, max: 26 });
-    if (l.horas) s.textoDireita(l.horas, x + 145, y, { size: 8, c: "muted" });
-    if (l.taxa) s.textoDireita(l.taxa, x + 188, y, { size: 8, c: "muted" });
-    if (!l.semValor) s.textoDireita(eur(l.valor), direita - 8, y, { size: 8.5 });
-    y -= 13;
-  }
-
-  y -= 3;
-  s.regua(y + 6, "border", 0.6, x, direita);
-  s.texto(rotuloTotal, x + 8, y - 4, { size: 8.5, bold: true, max: 26 });
-  s.textoDireita(eur(total), direita - 8, y - 4, { size: 9.5, bold: true });
-  return y - 12;
-}
-
-/**
- * O bloco de duas colunas de valor: ESTE PERÍODO | ACUMULADO.
- *
- * Duas colunas e não duas tiras separadas, porque a comparação é a razão de
- * existirem: o olho tem de saltar da esquerda para a direita na mesma linha, e
- * é aí que se vê se a semana foge do padrão do ano.
- */
-function duasColunas(
-  s: Folha, tituloA: string, tituloB: string, linhas: [string, number, number][]
-): void {
-  const ALTURA_LINHA = 13;
-  const colA = A4.w - MARGEM - 200;
-  const colB = A4.w - MARGEM - 8;
-
-  s.avanca(12);
-  s.faixa(ESQ, s.y - 15, LARGURA, 15, "primary");
-  s.textoDireita(tituloA.toUpperCase(), colA, s.y - 11, { size: 7.5, bold: true, c: "surface", max: 24 });
-  s.textoDireita(tituloB.toUpperCase(), colB, s.y - 11, { size: 7.5, bold: true, c: "surface", max: 24 });
-  s.avanca(15);
-
-  linhas.forEach(([rotulo, a, b], i) => {
-    const y = s.y - ALTURA_LINHA;
-    if (i % 2 === 1) s.faixa(ESQ, y, LARGURA, ALTURA_LINHA, "rowAlt");
-    s.texto(rotulo, ESQ + 9, y + 4, { size: 8.5, max: 30 });
-    s.textoDireita(eur(a), colA, y + 4, { size: 8.5 });
-    s.textoDireita(eur(b), colB, y + 4, { size: 8.5, c: "muted" });
-    s.avanca(ALTURA_LINHA);
-  });
-}
-
-/**
- * Uma tira de rótulos e valores, repartida em partes iguais pela largura.
- *
- * O título fica ACIMA da faixa, e não dentro dela. Estava a ser desenhado antes
- * e a faixa passava-lhe por cima: no primeiro PDF gerado lia-se metade de
- * "YEAR TO DATE" a sair debaixo do fundo cinzento. Só se vê olhando para o
- * papel — o código não tinha como acusar.
- */
-function tira(s: Folha, titulo: string, pares: [string, string][]): void {
-  const ALTURA = 26;
-  s.avanca(12);
-  s.texto(titulo.toUpperCase(), ESQ, s.y, { size: 6.5, bold: true, c: "muted", max: 40 });
-  s.avanca(8);
-
-  const y = s.y - ALTURA;
-  s.faixa(ESQ, y, LARGURA, ALTURA, "rowAlt");
-  const largura = LARGURA / pares.length;
-  pares.forEach(([k, v], i) => {
-    const x = ESQ + i * largura + 9;
-    s.texto(k, x, y + 16, { size: 6.5, c: "muted", max: 24 });
-    s.texto(v, x, y + 5, { size: 9.5, max: 20 });
-  });
-  s.y = y;
 }

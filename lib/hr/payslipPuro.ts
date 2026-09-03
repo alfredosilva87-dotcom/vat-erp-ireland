@@ -43,6 +43,8 @@ export type Payslip = {
     linhas: string[];
     /** Employer registered number — vai no recibo irlandês. */
     numeroDeEmpregador: string | null;
+    /** Company Reg. Number (CRO) — o Sage imprime-o no topo. */
+    registoComercial: string | null;
   };
   pessoa: {
     nome: string;
@@ -58,6 +60,8 @@ export type Payslip = {
     dataPagamento: string;
     /** As semanas ISO que este período cobre — o mensal cobre quatro ou cinco. */
     semanas: number[];
+    /** W, F ou M — como o Sage escreve a frequência. */
+    letra: string;
   };
   pagamentos: LinhaDePagamento[];
   brutoCents: number;
@@ -75,6 +79,8 @@ export type Payslip = {
   acumulado: {
     brutoCents: number; payeCents: number; uscCents: number;
     prsiCents: number; aeCents: number;
+    /** PRSI do empregador acumulado — o Sage chama-lhe EMPER PRSI TD. */
+    prsiEmpregadorCents: number;
   };
   patrao: { prsiCents: number; aeCents: number; custoCents: number };
   fiscal: {
@@ -94,6 +100,12 @@ export type Payslip = {
     classePRSI: string | null;
     /** Semanas seguráveis — decidem direitos sociais, não imposto. */
     semanasSeguraveis: number;
+    /**
+     * TAX/USC STATUS como o Sage o escreve: `N` normal, `W1` semana 1, `E`
+     * emergência. É a mesma informação que a base, na notação que quem confere
+     * já conhece de outros recibos.
+     */
+    estadoFiscal: string;
     anoDaTabela: number | null;
     tabelaConferida: boolean;
   };

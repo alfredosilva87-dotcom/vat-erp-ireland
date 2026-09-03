@@ -52,7 +52,7 @@ export async function payslipsDoPeriodo(args: {
 
   const [{ data: cli }, { data: cfg }, { data: emps }, { data: gravados }] = await Promise.all([
     sb.from("clients")
-      .select("name,trading_name,address,phone,email,employer_number,vat_number")
+      .select("name,trading_name,address,phone,email,employer_number,vat_number,cro")
       .eq("id", clientId).maybeSingle(),
     sb.from("hr_client").select("payslip_show_hours").eq("client_id", clientId).maybeSingle(),
     sb.from("hr_employees").select("*")
@@ -99,6 +99,7 @@ export async function payslipsDoPeriodo(args: {
       ...((cli as any).email ? [String((cli as any).email)] : []),
     ],
     numeroDeEmpregador: (cli as any).employer_number?.trim() || null,
+    registoComercial: (cli as any).cro?.trim() || null,
   };
 
   return funcionarios.map((e): Payslip => {
@@ -172,6 +173,7 @@ export async function payslipsDoPeriodo(args: {
       },
       periodo: {
         ano: year, numero: periodNo, freq: freqType, semanas,
+        letra: freqType === "monthly" ? "M" : freqType === "fortnightly" ? "F" : "W",
         dataPagamento: gravado ? String(gravado.pay_date).slice(0, 10)
           : (viva?.payDate ?? `${year}-01-01`),
       },
@@ -193,6 +195,17 @@ export async function payslipsDoPeriodo(args: {
         uscCents: gravado ? n(gravado.cum_usc_cents) : (linhaViva?.acumulado.usc ?? 0),
         prsiCents: gravado ? n(gravado.cum_prsi_cents) : (linhaViva?.acumulado.prsi ?? 0),
         aeCents: aeAteAqui + (gravado?.status === "final" ? 0 : descontos.aeCents),
+        /*
+         * O PRSI DO EMPREGADOR acumulado — `EMPER PRSI TD` no recibo do Sage.
+         *
+         * Como a AE, não tem coluna `cum_*` própria: a base cumulativa não
+         * precisa dele para calcular nada. Soma-se dos recibos fechados do ano.
+         */
+        prsiEmpregadorCents: payslips
+          .filter((p) => p.employee_id === e.id && p.status === "final"
+            && Number(p.period_no) <= periodNo)
+          .reduce((sm, p) => sm + n(p.prsi_er_cents), 0)
+          + (gravado?.status === "final" ? 0 : prsiEr),
       },
       patrao: {
         prsiCents: prsiEr, aeCents: aeEr,
@@ -217,6 +230,10 @@ export async function payslipsDoPeriodo(args: {
           cutOffPeriodoCents: porPeriodo(cutOff),
           creditosPeriodoCents: porPeriodo(creditos),
           classePRSI: e.prsi_class ?? null,
+          estadoFiscal: (() => {
+            const b = gravado ? String(gravado.basis) : (linhaViva?.aplicado.base ?? "cumulativa");
+            return b === "emergencia" ? "E" : b === "semana1" ? "W1" : "N";
+          })(),
           semanasSeguraveis: semanasSeguraveis({
             freq: freqType,
             semanasDoPeriodo: semanas,
