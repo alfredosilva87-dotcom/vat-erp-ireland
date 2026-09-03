@@ -86,7 +86,14 @@ export default function ClientLayout({
             preciso rolar por cima de tudo o que já aconteceu.
           */}
           <div className="flex flex-wrap items-center gap-2">
-            <Link href="/analyze" className="btn-primary h-9 px-3 text-sm">
+            {/*
+              Aponta para o `analyze` DESTE cliente, não para o genérico.
+              Apontava para `/analyze` e o efeito era mudo: quem estava dentro
+              de um cliente saía do contexto dele e tinha de o escolher outra
+              vez num selector. O `New sale` ao lado sempre fez o correcto — era
+              só um dos dois que perdia o cliente pelo caminho.
+            */}
+            <Link href={`${base}/analyze`} className="btn-primary h-9 px-3 text-sm">
               <svg width="15" height="15" viewBox="0 0 24 24" fill="none" aria-hidden="true">
                 <path d="M12 5v14M5 12h14" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
               </svg>

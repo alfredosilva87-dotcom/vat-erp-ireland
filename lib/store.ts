@@ -3,6 +3,7 @@ import { impedimentoParaApagar, impedimentoParaEditar } from "@/lib/financial/de
 import { getServerSupabase } from "@/lib/supabase";
 import { obrigacoesDoAno, ehDeVat } from "@/lib/fiscal/calendario";
 import { computeLines } from "@/lib/vat";
+import { apenasConferidos, pendentes } from "@/lib/fiscal/conferidos";
 import { diffFields, recordAudit, type Actor, type AuditAction } from "@/lib/reviewStore";
 import { checkFit, verifyLicenseKey } from "@/lib/licenseKey";
 import type {
@@ -647,16 +648,18 @@ const iso = (d: Date) => d.toISOString().slice(0, 10);
  */
 export async function inputVatInPeriod(clientId: string, start: string, end: string): Promise<number> {
   // Aggregate by posting date (data de lançamento / competência), fallback invoice_date.
-  const { data } = await sb().from("invoices").select("total_credit,posting_date,invoice_date").eq("client_id", clientId);
-  const sum = (data ?? []).reduce((a: number, i: any) => {
+  // `reviewed_at` entra na consulta porque a declaração conta só o que foi
+  // conferido — a regra e o porquê estão em lib/fiscal/conferidos.ts.
+  const { data } = await sb().from("invoices").select("total_credit,posting_date,invoice_date,reviewed_at").eq("client_id", clientId);
+  const sum = apenasConferidos(data ?? []).reduce((a: number, i: any) => {
     const d = i.posting_date || i.invoice_date;
     return d && d >= start && d <= end ? a + (i.total_credit || 0) : a;
   }, 0);
   return Number(sum.toFixed(2));
 }
 export async function salesVatInPeriod(clientId: string, start: string, end: string): Promise<number> {
-  const { data } = await sb().from("sales").select("vat_amount,entry_date").eq("client_id", clientId).gte("entry_date", start).lte("entry_date", end);
-  return Number((data ?? []).reduce((a: number, s: any) => a + (s.vat_amount || 0), 0).toFixed(2));
+  const { data } = await sb().from("sales").select("vat_amount,entry_date,reviewed_at").eq("client_id", clientId).gte("entry_date", start).lte("entry_date", end);
+  return Number(apenasConferidos(data ?? []).reduce((a: number, s: any) => a + (s.vat_amount || 0), 0).toFixed(2));
 }
 
 /**
@@ -919,11 +922,14 @@ const r2 = (n: number) => Number(n.toFixed(2));
 export interface RateDoc { id: string; label: string; date: string | null; net: number; vat: number; }
 export interface RateGroup { rate: number; net: number; vat: number; credit?: number; count: number; docs: RateDoc[]; }
 
-export async function vatByRate(clientId: string, start: string, end: string): Promise<{ purchases: RateGroup[]; sales: RateGroup[] }> {
+export async function vatByRate(clientId: string, start: string, end: string): Promise<{ purchases: RateGroup[]; sales: RateGroup[]; pending: { count: number; vat: number } }> {
   // ---- Purchases (entradas): group invoice_items by expected rate ----
   const { data: invs } = await sb().from("invoices")
-    .select("id,supplier_name,invoice_number,invoice_date,posting_date,total_net,total_vat,total_gross").eq("client_id", clientId);
-  const inPeriod = (invs ?? []).filter((i: any) => { const d = i.posting_date || i.invoice_date; return d && d >= start && d <= end; });
+    .select("id,supplier_name,invoice_number,invoice_date,posting_date,total_net,total_vat,total_gross,reviewed_at").eq("client_id", clientId);
+  const allInPeriod = (invs ?? []).filter((i: any) => { const d = i.posting_date || i.invoice_date; return d && d >= start && d <= end; });
+  // Só o conferido entra no mapa — é este mapa que alimenta o ecrã de IVA, o
+  // Excel e o CSV que se entrega. Ver lib/fiscal/conferidos.ts.
+  const inPeriod = apenasConferidos(allInPeriod);
   const invMap = new Map(inPeriod.map((i: any) => [i.id, i]));
   const ids = inPeriod.map((i: any) => i.id);
   let items: any[] = [];
@@ -964,9 +970,10 @@ export async function vatByRate(clientId: string, start: string, end: string): P
 
   // ---- Sales (saídas): group sales by rate ----
   const { data: sales } = await sb().from("sales")
-    .select("id,entry_date,doc_number,customer,net_amount,vat_rate,vat_amount").eq("client_id", clientId).gte("entry_date", start).lte("entry_date", end);
+    .select("id,entry_date,doc_number,customer,net_amount,vat_rate,vat_amount,reviewed_at").eq("client_id", clientId).gte("entry_date", start).lte("entry_date", end);
+  const salesConferidas = apenasConferidos(sales ?? []);
   const sMap = new Map<number, { rate: number; net: number; vat: number; docs: RateDoc[] }>();
-  for (const s of sales ?? []) {
+  for (const s of salesConferidas) {
     const rate = Number(s.vat_rate ?? 0);
     const g = sMap.get(rate) || { rate, net: 0, vat: 0, docs: [] };
     g.net += Number(s.net_amount || 0); g.vat += Number(s.vat_amount || 0);
@@ -977,7 +984,23 @@ export async function vatByRate(clientId: string, start: string, end: string): P
     rate: g.rate, net: r2(g.net), vat: r2(g.vat), count: g.docs.length, docs: g.docs,
   }));
 
-  return { purchases, sales: salesByRate };
+  /*
+   * O QUE FICOU DE FORA VIAJA COM O RESULTADO.
+   *
+   * Filtrar sem dizer seria trocar um número errado por um número incompleto —
+   * igualmente silencioso. O ecrã usa isto para avisar e para travar a
+   * exportação enquanto houver pendentes no período.
+   */
+  const pendingDocs = [
+    ...pendentes(allInPeriod).map((i: any) => ({ vat: Number(i.total_vat || 0) })),
+    ...pendentes(sales ?? []).map((s: any) => ({ vat: Number(s.vat_amount || 0) })),
+  ];
+  const pending = {
+    count: pendingDocs.length,
+    vat: Number(pendingDocs.reduce((a, d) => a + d.vat, 0).toFixed(2)),
+  };
+
+  return { purchases, sales: salesByRate, pending };
 }
 
 export interface InvoiceRateRow {
@@ -1093,7 +1116,7 @@ export async function exportData(clientId: string, year: number, opts: ExportOpt
   if (sets.has("accounts")) accounts = await listAccounts(clientId);
 
   const obligations = sets.has("obligations") ? await getObligations(clientId, year) : [];
-  const rates = sets.has("rates") ? await vatByRate(clientId, start, end) : { purchases: [], sales: [] };
+  const rates = sets.has("rates") ? await vatByRate(clientId, start, end) : { purchases: [], sales: [], pending: { count: 0, vat: 0 } };
   const invoiceRates = sets.has("rates") ? await invoiceRateBreakdowns(clientId, start, end) : [];
   const series = await monthlySeries(clientId, year);
 

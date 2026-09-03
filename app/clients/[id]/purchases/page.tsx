@@ -5,6 +5,7 @@ import { Fragment, useCallback, useEffect, useMemo, useState } from "react";
 import { useSearchParams } from "next/navigation";
 import type { StoredInvoice, StoredItem } from "@/lib/types";
 import ExportPanel from "@/components/ExportPanel";
+import PurchaseEntryDialog from "@/components/PurchaseEntryDialog";
 import { useT } from "@/lib/i18n";
 import { computeLines, rateOf } from "@/lib/vat";
 import { rememberOpenedRow, useScrollToRow } from "@/lib/useScrollToRow";
@@ -47,6 +48,9 @@ export default function Purchases({ params }: { params: { id: string } }) {
   const [itemsCache, setItemsCache] = useState<Record<string, StoredItem[]>>({});
   const [loadingItems, setLoadingItems] = useState<Set<string>>(new Set());
   const [copiedId, setCopiedId] = useState<string | null>(null);
+  /** O lançamento manual — a porta que não existia. Ver PurchaseEntryDialog. */
+  const [manualOpen, setManualOpen] = useState(false);
+  const [activityCode, setActivityCode] = useState("GENERIC");
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -69,6 +73,12 @@ export default function Purchases({ params }: { params: { id: string } }) {
 
   useEffect(() => {
     fetch(`/api/clients/${params.id}/branches`).then((r) => r.json()).then((d) => setBranches(d.branches || []));
+    // O tipo de negócio comanda as regras de crédito de IVA — o lançamento
+    // manual tem de o levar consigo, senão uma compra escrita à mão seria
+    // avaliada por regras diferentes das de uma compra lida.
+    fetch(`/api/clients/${params.id}`, { cache: "no-store" }).then((r) => r.json())
+      .then((d) => { if (d.client?.activity_code) setActivityCode(d.client.activity_code); })
+      .catch(() => {});
     // Only admins may delete; the server enforces it too.
     fetch("/api/auth/me").then((r) => r.json())
       .then((d) => setCanDelete(d.user?.role === "admin" || d.user?.role === "master"))
@@ -190,8 +200,27 @@ export default function Purchases({ params }: { params: { id: string } }) {
           <h2 className="font-display text-xl font-semibold tracking-tight">{t("purchases.title")}</h2>
           <p className="text-sm text-muted">{t("purchases.subtitle")}</p>
         </div>
-        <ExportPanel clientId={params.id} defaultSets={["invoices", "items"]} />
+        <div className="flex flex-wrap items-center gap-2">
+          {/*
+            "Lançar à mão" ao lado do exportador: esta tela era SÓ de leitura, e
+            a única porta de entrada de uma compra era a leitura por IA. Com ela
+            em baixo, o módulo ficava parado inteiro.
+          */}
+          <button className="btn-primary h-9 px-3 text-sm" onClick={() => setManualOpen(true)}>
+            {t("purchases.manualEntry")}
+          </button>
+          <ExportPanel clientId={params.id} defaultSets={["invoices", "items"]} />
+        </div>
       </div>
+
+      {manualOpen && (
+        <PurchaseEntryDialog
+          clientId={params.id}
+          activityCode={activityCode}
+          onClose={() => setManualOpen(false)}
+          onSaved={() => { setManualOpen(false); load(); }}
+        />
+      )}
 
       {batchIds && (
         <div className="flex flex-wrap items-center gap-3 rounded-xl border border-brand/40 bg-brand-50 px-4 py-2.5 text-sm">

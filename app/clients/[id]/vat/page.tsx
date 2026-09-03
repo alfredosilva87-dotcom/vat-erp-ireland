@@ -3,6 +3,7 @@
 import { Fragment, useCallback, useEffect, useState } from "react";
 import Link from "next/link";
 import type { Client } from "@/lib/types";
+import { useT } from "@/lib/i18n";
 
 type RateDoc = { id: string; label: string; date: string | null; net: number; vat: number };
 type RateGroup = { rate: number; net: number; vat: number; credit?: number; count: number; docs: RateDoc[] };
@@ -22,6 +23,7 @@ const BIMESTERS = [
 const iso = (d: Date) => d.toISOString().slice(0, 10);
 
 export default function VatByRate({ params }: { params: { id: string } }) {
+  const { t } = useT();
   const [client, setClient] = useState<Client | null>(null);
   const [year, setYear] = useState(new Date().getFullYear());
   const [bi, setBi] = useState(0);
@@ -29,6 +31,16 @@ export default function VatByRate({ params }: { params: { id: string } }) {
   const [sales, setSales] = useState<RateGroup[]>([]);
   const [open, setOpen] = useState<Record<string, boolean>>({});
   const [loading, setLoading] = useState(true);
+  /*
+   * O que o período tem por conferir. Ver lib/fiscal/conferidos.ts.
+   *
+   * Este ecrã produz o VAT3 que se entrega à Revenue e tem `Export` mesmo ao
+   * lado. Contava documentos por conferir e chegou a declarar € 115,00 de IVA
+   * sobre vendas quando o razão tinha € 230,00 — metade do imposto devido, num
+   * ficheiro marcado `Open`, pronto a submeter. Agora conta só o conferido, e
+   * o que ficou de fora é dito aqui em cima em vez de desaparecer.
+   */
+  const [pending, setPending] = useState<{ count: number; vat: number }>({ count: 0, vat: 0 });
 
   const range = useCallback(() => {
     const b = BIMESTERS[bi];
@@ -43,6 +55,7 @@ export default function VatByRate({ params }: { params: { id: string } }) {
     const d = await (await fetch(`/api/clients/${params.id}/vat-by-rate?start=${start}&end=${end}`)).json();
     setPurchases(d.purchases || []);
     setSales(d.sales || []);
+    setPending(d.pending || { count: 0, vat: 0 });
     setLoading(false);
   }, [params.id, range]);
 
@@ -54,13 +67,15 @@ export default function VatByRate({ params }: { params: { id: string } }) {
   }
 
   const sum = (g: RateGroup[], k: "net" | "vat") => g.reduce((a, x) => a + (x[k] || 0), 0);
+  const blocked = pending.count > 0;
+  const money0 = (n: number) => n.toLocaleString("en-IE", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 
   return (
     <div className="space-y-6">
       <div className="rise flex flex-wrap items-end justify-between gap-3">
         <div>
-          <h1 className="font-display text-xl font-semibold tracking-tight">VAT by rate</h1>
-          <p className="mt-1 text-muted">Entradas e saídas agrupadas por alíquota. Clique numa linha para ver os documentos.</p>
+          <h1 className="font-display text-xl font-semibold tracking-tight">{t("vat.title")}</h1>
+          <p className="mt-1 text-muted">{t("vat.subtitle")}</p>
         </div>
         <div className="flex flex-wrap items-center gap-2 print:hidden">
           <select className="input h-9 w-24" value={year} onChange={(e) => setYear(Number(e.target.value))}>
@@ -69,17 +84,40 @@ export default function VatByRate({ params }: { params: { id: string } }) {
           <select className="input h-9 w-44" value={bi} onChange={(e) => setBi(Number(e.target.value))}>
             {BIMESTERS.map((b, i) => <option key={b.label} value={i}>{b.label}</option>)}
           </select>
-          <button className="btn-ghost" onClick={exportExcel}>Export Excel</button>
-          <button className="btn-ghost" onClick={() => window.print()}>Export PDF</button>
+          {/*
+            Exportar fica TRANCADO enquanto houver documentos por conferir no
+            período. Não é zelo: o ficheiro que sai daqui é o que se entrega, e
+            entregar um número que ainda vai mudar é pior do que não entregar
+            hoje. O botão diz porquê, e destranca-se sozinho quando a fila de
+            revisão fica vazia.
+          */}
+          <button className="btn-ghost" onClick={exportExcel} disabled={blocked} title={blocked ? t("vat.exportBlocked") : undefined}>
+            {t("vat.exportExcel")}
+          </button>
+          <button className="btn-ghost" onClick={() => window.print()} disabled={blocked} title={blocked ? t("vat.exportBlocked") : undefined}>
+            {t("vat.exportPdf")}
+          </button>
         </div>
       </div>
 
+      {pending.count > 0 && (
+        <div className="rounded-xl border border-danger/40 bg-danger-50 px-4 py-3 text-sm">
+          <p className="font-medium text-danger">
+            {t("vat.pendingTitle", { n: String(pending.count), vat: money0(pending.vat) })}
+          </p>
+          <p className="mt-1 text-muted">{t("vat.pendingBody")}</p>
+          <Link href={`/clients/${params.id}/checkup`} className="mt-1 inline-block underline">
+            {t("vat.pendingAction")}
+          </Link>
+        </div>
+      )}
+
       {loading ? (
-        <p className="text-muted">Loading…</p>
+        <p className="text-muted">{t("common.loading")}</p>
       ) : (
         <div className="grid gap-6 lg:grid-cols-2">
-          <RateTable title="Entradas (compras)" groups={purchases} open={open} setOpen={setOpen} keyPrefix="p" linkDocs backTo={`/clients/${params.id}/vat`} sum={sum} />
-          <RateTable title="Saídas (vendas)" groups={sales} open={open} setOpen={setOpen} keyPrefix="s" linkDocs={false} backTo={`/clients/${params.id}/vat`} sum={sum} />
+          <RateTable title={t("vat.inputs")} groups={purchases} open={open} setOpen={setOpen} keyPrefix="p" linkDocs backTo={`/clients/${params.id}/vat`} sum={sum} />
+          <RateTable title={t("vat.outputs")} groups={sales} open={open} setOpen={setOpen} keyPrefix="s" linkDocs={false} backTo={`/clients/${params.id}/vat`} sum={sum} />
         </div>
       )}
     </div>

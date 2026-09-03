@@ -62,10 +62,43 @@ export async function readDocumentFile(file: File, ctx: ReadContext): Promise<In
   fd.append("related_categories", JSON.stringify(ctx.relatedCategories ?? []));
 
   const res = await fetch("/api/extract", { method: "POST", body: fd });
-  const data = await res.json();
-  if (!res.ok) throw new Error(data.error || "Reading failed");
-  const docs: IngestDocument[] = data.documents || [];
-  if (!docs.length) throw new Error("Reading failed");
+
+  /*
+   * PORQUE ISTO NÃO É UM `res.json()` SECO.
+   *
+   * Era, e foi assim que o utilizador passou a ver a palavra "Error" e mais
+   * nada. Quando a rota estoura o tempo, quem responde já não é a aplicação —
+   * é a borda da Vercel, com uma página HTML de 504. `res.json()` rebenta a
+   * tentar ler `<!DOCTYPE`, o `catch` lá de cima apanha um erro de sintaxe de
+   * JSON, e o ecrã mostra isso como se fosse o problema do documento.
+   *
+   * O contabilista precisa de saber uma coisa só: **vale a pena repetir?**
+   * "O documento é ilegível" e "o servidor desistiu" pedem gestos opostos, e
+   * antes disto os dois saíam iguais.
+   */
+  const data = await res.json().catch(() => null);
+
+  if (!res.ok) {
+    if (data?.error) throw new Error(data.error);
+    if (res.status === 504 || res.status === 408) {
+      throw new Error("A leitura demorou demasiado e o servidor desistiu. Tente repetir esta linha — documentos grandes por vezes passam à segunda.");
+    }
+    if (res.status === 413) {
+      throw new Error("O ficheiro é grande demais para ser lido de uma vez. Divida o PDF e tente outra vez.");
+    }
+    if (res.status === 502 || res.status === 503) {
+      throw new Error("O serviço de leitura está indisponível neste momento. Tente repetir daqui a pouco.");
+    }
+    if (res.status === 401 || res.status === 403) {
+      throw new Error("A sessão expirou ou não tem acesso a este cliente. Entre de novo e repita.");
+    }
+    throw new Error(`A leitura falhou (erro ${res.status}). Tente repetir esta linha.`);
+  }
+
+  const docs: IngestDocument[] = data?.documents || [];
+  // Resposta 200 sem documentos: o servidor respondeu, portanto repetir é
+  // inútil — o problema está no ficheiro.
+  if (!docs.length) throw new Error("Nada foi reconhecido neste ficheiro. Confirme que é mesmo uma fatura ou recibo legível.");
   return docs;
 }
 

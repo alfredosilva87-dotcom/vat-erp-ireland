@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { readDocuments } from "@/lib/extractor";
+import { openBudget } from "@/lib/extractor/timeBudget";
 import type { SplitDocument } from "@/lib/extractor";
 import { classifyItems } from "@/lib/extractor/gemini";
 import { analyzeItem, applyCategoryFromSource, creditRiskSummary, categoryRelationSummary } from "@/lib/matching";
@@ -12,7 +13,22 @@ import { collapseToSingleLine, matchSupplierRule, type SupplierRule } from "@/li
 import type { AnalyzedItem, ExtractionResult, RawItem, VatCategory } from "@/lib/types";
 
 export const runtime = "nodejs";
-export const maxDuration = 60;
+/*
+ * O TECTO SUBIU DE 60 PARA 300 SEGUNDOS — e não é o remédio, é o espaço.
+ *
+ * Com 60 s esta rota respondia 504 em todas as tentativas: a leitura de um PDF
+ * com camada de texto faz uma chamada ao Gemini e, se o score não chegar ao
+ * limiar (0,85 — alto, portanto o caso comum), faz uma segunda de visão. Duas
+ * chamadas em sequência não cabiam, e o utilizador esperava ~50 s para receber
+ * a palavra "Error".
+ *
+ * O remédio a sério é o relógio: `lib/extractor/timeBudget.ts` faz a leitura
+ * DESISTIR da segunda chamada quando já não cabe, e devolver o que tem. O tecto
+ * maior é o que devolve a escalada aos documentos que a merecem, em vez de a
+ * cortar sempre. Os dois juntos: nunca 504, e a leitura boa quando há tempo.
+ */
+export const maxDuration = 300;
+const MAX_DURATION_MS = maxDuration * 1000;
 
 const ACCEPTED = ["application/pdf", "image/png", "image/jpeg", "image/webp"];
 const hasGemini = () => Boolean(process.env.GEMINI_API_KEY);
@@ -182,6 +198,9 @@ function splitFilename(original: string, idx: number, total: number): string {
 }
 
 export async function POST(req: NextRequest) {
+  // O relógio arranca antes de tudo — inclusive antes de ler o corpo do
+  // pedido, que num PDF grande já custa tempo real.
+  const budget = openBudget(Date.now(), MAX_DURATION_MS);
   try {
     const form = await req.formData();
     const file = form.get("file");
@@ -213,7 +232,7 @@ export async function POST(req: NextRequest) {
 
     // Reads the document — transparently splitting a batch PDF (several
     // invoices scanned back-to-back) into one entry per invoice.
-    const splitDocs: SplitDocument[] = await readDocuments(buffer, mimeType);
+    const splitDocs: SplitDocument[] = await readDocuments(buffer, mimeType, budget);
     const { categories, rules, source } = await loadBase();
     const creditCtx: CreditContext = { activityCode, rules, defaultCreditUnmatched };
     // Uma leitura só das regras por requisição, não uma por documento: um PDF

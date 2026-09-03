@@ -65,6 +65,8 @@ export default function AnalyzeView({ lockedClientId }: { lockedClientId?: strin
   const [busy, setBusy] = useState(false);
   const [phase, setPhase] = useState<"idle" | "reading" | "saving">("idle");
   const [dragOver, setDragOver] = useState(false);
+  /** Ficheiros que a zona de largar recusou por tipo — ditos em voz alta. */
+  const [skipped, setSkipped] = useState<string[]>([]);
   const inputRef = useRef<HTMLInputElement>(null);
 
   const selectedClient = clients.find((c) => c.id === clientId);
@@ -95,15 +97,64 @@ export default function AnalyzeView({ lockedClientId }: { lockedClientId?: strin
   function addFiles(list: FileList | null) {
     if (!list) return;
     const accepted = ["application/pdf", "image/png", "image/jpeg", "image/webp"];
-    const add: Row[] = Array.from(list)
+    const all = Array.from(list);
+    const add: Row[] = all
       .filter((f) => accepted.includes(f.type))
       .map((f) => ({ file: f, status: "pending" as RowStatus }));
+    /*
+     * O FICHEIRO RECUSADO TEM DE SER DITO.
+     *
+     * A filtragem já existia e está certa — o que faltava era a palavra. Quem
+     * arrasta a pasta do mês para dentro do ecrã leva lá dentro um `.doc` ou um
+     * `.zip` sem reparar; o contador via "30 ficheiros" na pasta, "28" na
+     * tabela, e não tinha como saber que dois tinham ficado de fora. É a
+     * diferença entre "importei tudo" e "importei tudo menos aqueles dois".
+     */
+    const rejected = all.filter((f) => !accepted.includes(f.type)).map((f) => f.name);
+    setSkipped(rejected);
     setRows((prev) => [...prev, ...add]);
   }
 
   // Reading is the slow part (a Gemini call per document), so a batch of 50
   // runs through a small pool of concurrent workers instead of one at a time.
   // READ_CONCURRENCY is deliberately modest to stay clear of Gemini rate limits.
+  /**
+   * Lê UMA linha. Vive ao nível do componente, e não dentro do `readAll`, para
+   * o botão de repetir daquela linha poder chamá-la sozinha — sem isso, repetir
+   * uma leitura falhada obrigava a mandar ler o lote todo outra vez, e num lote
+   * de 30 com 3 falhas pagavam-se 27 leituras que já estavam boas.
+   */
+  async function readRow(i: number, file: File) {
+    setRows((prev) => prev.map((r, k) => (k === i ? { ...r, status: "reading", error: undefined } : r)));
+    try {
+      const docs = await readDocumentFile(file, {
+        clientId,
+        activityCode: activity,
+        defaultCreditUnmatched: selectedClient?.default_credit_unmatched ?? false,
+        relatedCategories: selectedClient?.related_categories ?? [],
+      });
+      if (docs.length <= 1 && docs[0]) {
+        setRows((prev) => prev.map((r, k) => (k === i ? { ...r, status: "read", result: docs[0] } : r)));
+        return;
+      }
+      // Batch PDF split into several invoices: keep the original row as a
+      // marker (appended children preserve every other in-flight index)
+      // and append one saveable row per detected invoice.
+      const children: Row[] = docs.map((d) => ({
+        file: d.pdf_base64 ? base64ToFile(d.pdf_base64, d.filename) : file,
+        status: "read" as RowStatus,
+        result: d,
+      }));
+      setRows((prev) => {
+        const next = prev.slice();
+        next[i] = { ...next[i], status: "split", splitCount: docs.length };
+        return [...next, ...children];
+      });
+    } catch (e: any) {
+      setRows((prev) => prev.map((r, k) => (k === i ? { ...r, status: "error", error: e.message } : r)));
+    }
+  }
+
   async function readAll() {
     setBusy(true); setPhase("reading");
 
@@ -112,41 +163,10 @@ export default function AnalyzeView({ lockedClientId }: { lockedClientId?: strin
       .filter((i) => i >= 0);
     let cursor = 0;
 
-    async function readOne(i: number) {
-      setRows((prev) => prev.map((r, k) => (k === i ? { ...r, status: "reading", error: undefined } : r)));
-      try {
-        const docs = await readDocumentFile(rows[i].file, {
-          clientId,
-          activityCode: activity,
-          defaultCreditUnmatched: selectedClient?.default_credit_unmatched ?? false,
-          relatedCategories: selectedClient?.related_categories ?? [],
-        });
-        if (docs.length <= 1 && docs[0]) {
-          setRows((prev) => prev.map((r, k) => (k === i ? { ...r, status: "read", result: docs[0] } : r)));
-          return;
-        }
-        // Batch PDF split into several invoices: keep the original row as a
-        // marker (appended children preserve every other in-flight index)
-        // and append one saveable row per detected invoice.
-        const children: Row[] = docs.map((d) => ({
-          file: d.pdf_base64 ? base64ToFile(d.pdf_base64, d.filename) : rows[i].file,
-          status: "read" as RowStatus,
-          result: d,
-        }));
-        setRows((prev) => {
-          const next = prev.slice();
-          next[i] = { ...next[i], status: "split", splitCount: docs.length };
-          return [...next, ...children];
-        });
-      } catch (e: any) {
-        setRows((prev) => prev.map((r, k) => (k === i ? { ...r, status: "error", error: e.message } : r)));
-      }
-    }
-
     async function worker() {
       while (cursor < queue.length) {
         const i = queue[cursor++];
-        await readOne(i);
+        await readRow(i, rows[i].file);
       }
     }
 
@@ -286,6 +306,19 @@ export default function AnalyzeView({ lockedClientId }: { lockedClientId?: strin
               <p className="text-xs text-muted">PDF, PNG, JPEG, WebP</p>
               <input ref={inputRef} type="file" multiple accept="application/pdf,image/png,image/jpeg,image/webp" className="hidden" onChange={(e) => addFiles(e.target.files)} />
             </div>
+            {skipped.length > 0 && (
+              <div className="mt-2 rounded-lg border border-warn/40 bg-warn-50 px-3 py-2 text-xs">
+                <p className="font-medium">
+                  {skipped.length === 1
+                    ? t("analyze.skippedOne")
+                    : t("analyze.skippedMany").replace("{n}", String(skipped.length))}
+                </p>
+                <p className="mt-1 text-muted break-words">{skipped.join(", ")}</p>
+                <button className="mt-1 underline" onClick={(e) => { e.stopPropagation(); setSkipped([]); }}>
+                  {t("common.dismiss")}
+                </button>
+              </div>
+            )}
           </div>
         </div>
 
@@ -394,7 +427,7 @@ export default function AnalyzeView({ lockedClientId }: { lockedClientId?: strin
                       </>
                     )}
                     <td className="px-4 py-3">
-                      <StatusChip r={r} canSave={canSave} backTo={backTo} onForceSave={() => saveOne(i, true)} onMerge={() => mergeRow(i)} onDiscard={() => discardRow(i)} />
+                      <StatusChip r={r} canSave={canSave} backTo={backTo} onForceSave={() => saveOne(i, true)} onMerge={() => mergeRow(i)} onDiscard={() => discardRow(i)} onRetry={() => readRow(i, r.file)} />
                     </td>
                   </tr>
                 ))}
@@ -415,7 +448,7 @@ export default function AnalyzeView({ lockedClientId }: { lockedClientId?: strin
  * `backTo` mantém o menu do módulo de pé ao abrir um documento daqui: sem ele,
  * a tela de revisão não sabe de que cliente é a nota e cai no menu geral.
  */
-function StatusChip({ r, canSave, backTo, onForceSave, onMerge, onDiscard }: { r: Row; canSave: boolean; backTo: string; onForceSave: () => void; onMerge: () => void; onDiscard: () => void }) {
+function StatusChip({ r, canSave, backTo, onForceSave, onMerge, onDiscard, onRetry }: { r: Row; canSave: boolean; backTo: string; onForceSave: () => void; onMerge: () => void; onDiscard: () => void; onRetry: () => void }) {
   const { t: tt } = useT();
   const open = (id: string | undefined) => `/invoice/${id}?from=${encodeURIComponent(backTo)}`;
   if (r.status === "saved") return <Link href={open(r.savedId)} className="chip-ok">{tt("analyze.statusSaved")}</Link>;
@@ -456,7 +489,27 @@ function StatusChip({ r, canSave, backTo, onForceSave, onMerge, onDiscard }: { r
       </span>
     );
   }
-  if (r.status === "error") return <span className="chip-danger" title={r.error}>{tt("analyze.statusError")}</span>;
+  /*
+   * O ERRO DEIXA DE SER A PALAVRA "ERROR".
+   *
+   * Era um `chip-danger` com a causa escondida num `title` — ou seja, só
+   * aparecia a quem passasse o rato por cima e soubesse que valia a pena. Ao
+   * lado de 50 s de espera, isso não é uma mensagem, é um beco.
+   *
+   * Agora a causa está escrita na linha (`lib/ingestFlow.ts` traduz o estado
+   * HTTP para linguagem de gente e diz se vale a pena repetir), e o `Repetir`
+   * vive AQUI, na linha que falhou. É a diferença entre repetir 3 leituras e
+   * repetir 30.
+   */
+  if (r.status === "error") return (
+    <span className="inline-flex flex-wrap items-center gap-1.5">
+      <span className="chip-danger">{tt("analyze.statusError")}</span>
+      <button onClick={onRetry} className="text-xs text-brand underline underline-offset-2">
+        {tt("analyze.retry")}
+      </button>
+      {r.error && <span className="block w-full text-xs text-muted">{r.error}</span>}
+    </span>
+  );
   if (r.status === "reading") return <span className="chip bg-brand-50 text-brand-700">{tt("analyze.statusReading")}</span>;
   if (r.status === "saving") return <span className="chip bg-brand-50 text-brand-700">{tt("analyze.statusSaving")}</span>;
   if (r.status === "read") return <span className="chip bg-surface-2 border border-line text-muted">{tt("analyze.statusReady")}</span>;
