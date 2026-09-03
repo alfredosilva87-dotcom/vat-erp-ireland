@@ -55,6 +55,16 @@ const EXEMPT = {
     "tabelas fiscais (PAYE/USC/PRSI): a lei irlandesa e a mesma para os 35 " +
     "clientes do escritorio, entao e referencia global como a base de aliquotas. " +
     "Gravar exige `requireRole('admin')`.",
+  "app/api/revenue/credential/route.ts":
+    "o certificado do ROS e do ESCRITORIO, nao de um cliente: e com ele que o " +
+    "escritorio fala a Revenue em nome dos 35, usando o TAIN de agente. A rota " +
+    "nunca le um id de cliente do pedido — trabalha sempre em " +
+    "getSessionUser().company_id, e escrever exige `requireRole('admin')`.",
+  "app/api/revenue/test/route.ts":
+    "testar a ligacao usa a credencial da PROPRIA empresa (company_id da sessao) " +
+    "e faz uma leitura pura de RPN. O numero de empregador vem no pedido de " +
+    "proposito — e o proprio ensaio, feito por um administrador, e nao devolve " +
+    "dado fiscal nenhum: so a contagem.",
   "app/api/base/route.ts": "tabela de aliquotas: referencia global, igual para todos",
   "app/api/base/category/route.ts": "tabela de aliquotas: referencia global",
   "app/api/credit-rules/route.ts": "regras de credito por tipo de negocio: referencia global",

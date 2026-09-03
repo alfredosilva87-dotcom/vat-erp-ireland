@@ -74,6 +74,13 @@ export const HR_SCREENS: PermScreen[] = [
   // os 35 clientes. Por isso vivem no menu geral do RH, e nao dentro de um
   // cliente: edita-las de dentro de um deles mentia sobre o alcance.
   { id: "rh.tabelas", labelKey: "hr.navTaxTables", href: "/hr/tax-tables" },
+  /*
+   * A ligação à Revenue fica ao lado das tabelas fiscais, e pela mesma razão:
+   * o certificado é do ESCRITÓRIO, não do cliente. Dentro de um cliente
+   * sugeriria que cada um tem o seu — e o que existe é um certificado do
+   * escritório mais um TAIN de agente.
+   */
+  { id: "rh.revenue", labelKey: "hr.navRevenue", href: "/hr/revenue" },
 ];
 
 export const PERM_TREE: PermGroup[] = [
