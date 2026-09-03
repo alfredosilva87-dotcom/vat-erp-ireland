@@ -1,7 +1,6 @@
 "use client";
 
 import { useT } from "@/lib/i18n";
-"use client";
 
 /**
  * A rosca (donut) dos indicadores da agenda.
