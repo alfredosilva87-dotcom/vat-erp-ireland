@@ -45,7 +45,20 @@
  * que é exactamente o erro que se quer apanhar.
  */
 
-export type Aviso = { ok: true } | { ok: false; aviso: string };
+/*
+ * O AVISO DEVOLVE UMA CHAVE, NÃO UMA FRASE.
+ *
+ * A primeira versão devolvia texto em português, e o resultado apareceu no
+ * cadastro de cliente — que está em inglês — em português. Ou seja, a correcção
+ * de um achado de mistura de línguas trazia a mistura de volta por outra porta.
+ *
+ * Com a chave, este módulo continua puro e testável (o teste compara chaves,
+ * que não mudam quando alguém reescreve uma frase) e quem mostra decide a
+ * língua. `params` viaja porque algumas mensagens levam o valor lá dentro.
+ */
+export type Aviso =
+  | { ok: true }
+  | { ok: false; chave: string; params?: Record<string, string> };
 
 const OK: Aviso = { ok: true };
 const CHECK_CHARS = "WABCDEFGHIJKLMNOPQRSTUV";
@@ -84,17 +97,17 @@ export function avisoVatIrlandes(bruto: string | null | undefined): Aviso {
     const digitos = `${d1}${resto}0`.slice(0, 7); // o sinal não conta; alinha-se à direita
     return caractereDeControlo(`0${d1}${resto}`.slice(0, 7)) === check || caractereDeControlo(digitos) === check
       ? OK
-      : { ok: false, aviso: "O dígito de controlo deste VAT não bate. Confirme o número." };
+      : { ok: false, chave: "id.vatCheckDigit" };
   }
 
   const m = corpo.match(/^(\d{7})([A-Z])([A-Z])?$/);
   if (!m) {
-    return { ok: false, aviso: "Não parece um VAT irlandês. O formato é IE + 7 dígitos + 1 ou 2 letras (ex.: IE1234567T)." };
+    return { ok: false, chave: "id.vatFormat" };
   }
   const [, digitos, check, segunda] = m;
   return caractereDeControlo(digitos, segunda) === check
     ? OK
-    : { ok: false, aviso: "O dígito de controlo deste VAT não bate. Confirme o número." };
+    : { ok: false, chave: "id.vatCheckDigit" };
 }
 
 /**
@@ -109,12 +122,12 @@ export function avisoPps(bruto: string | null | undefined): Aviso {
   if (!s) return OK;
   const m = s.match(/^(\d{7})([A-Z])([A-Z])?$/);
   if (!m) {
-    return { ok: false, aviso: "Não parece um PPS. O formato é 7 dígitos seguidos de 1 ou 2 letras (ex.: 1234567AA)." };
+    return { ok: false, chave: "id.ppsFormat" };
   }
   const [, digitos, check, segunda] = m;
   return caractereDeControlo(digitos, segunda) === check
     ? OK
-    : { ok: false, aviso: "O dígito de controlo deste PPS não bate. Confirme o número antes de submeter à Revenue." };
+    : { ok: false, chave: "id.ppsCheckDigit" };
 }
 
 /**
@@ -127,7 +140,7 @@ export function avisoEmail(bruto: string | null | undefined): Aviso {
   const s = String(bruto ?? "").trim();
   if (!s) return OK;
   const plausivel = /^[^\s@]+@[^\s@]+\.[A-Za-z]{2,}$/.test(s);
-  return plausivel ? OK : { ok: false, aviso: "Este e-mail não parece completo — falta o @ ou o domínio." };
+  return plausivel ? OK : { ok: false, chave: "id.emailIncomplete" };
 }
 
 /**
@@ -140,10 +153,10 @@ export function avisoEmail(bruto: string | null | undefined): Aviso {
 export function avisoTelefone(bruto: string | null | undefined): Aviso {
   const s = String(bruto ?? "").trim();
   if (!s) return OK;
-  if (/[A-Za-z]/.test(s)) return { ok: false, aviso: "O telefone tem letras. O link de WhatsApp só funciona com dígitos." };
+  if (/[A-Za-z]/.test(s)) return { ok: false, chave: "id.phoneLetters" };
   const digitos = s.replace(/\D/g, "");
-  if (digitos.length < 7) return { ok: false, aviso: "O telefone parece curto demais." };
-  if (digitos.length > 15) return { ok: false, aviso: "O telefone parece comprido demais (o máximo internacional são 15 dígitos)." };
+  if (digitos.length < 7) return { ok: false, chave: "id.phoneShort" };
+  if (digitos.length > 15) return { ok: false, chave: "id.phoneLong" };
   return OK;
 }
 

@@ -94,7 +94,7 @@ export default function EmployeeForm({
   /** Saída antes da entrada — nada o impedia, e é um erro de dedo comum. */
   const avisoSaida =
     f.start_date && f.end_date && f.end_date < f.start_date
-      ? { ok: false, aviso: t("emp.endBeforeStart") }
+      ? { ok: false, chave: "emp.endBeforeStart" }
       : { ok: true };
 
   /*
@@ -111,7 +111,7 @@ export default function EmployeeForm({
    */
   const avisoBase =
     !String(f.rpn_number ?? "").trim() && f.tax_basis === "cumulativa"
-      ? { ok: false, aviso: t("emp.cumulativeNeedsRpn") }
+      ? { ok: false, chave: "emp.cumulativeNeedsRpn" }
       : { ok: true };
   const horario = f.pay_type === "Hourly";
 
@@ -155,7 +155,7 @@ export default function EmployeeForm({
    */
   const campo = (
     k: string, rotulo: string, tipo = "text", largura = "w-full",
-    extra?: { obrigatorio?: boolean; placeholder?: string; maxLength?: number; aviso?: { ok: boolean; aviso?: string } }
+    extra?: { obrigatorio?: boolean; placeholder?: string; maxLength?: number; aviso?: { ok: boolean; chave?: string } }
   ) => (
     <label className={`flex flex-col leading-tight ${largura}`}>
       <span className="text-[10px] font-medium uppercase tracking-wide text-muted">
@@ -164,8 +164,8 @@ export default function EmployeeForm({
       <input type={tipo} className="input mt-1 h-9 py-0 text-sm"
         required={extra?.obrigatorio} placeholder={extra?.placeholder} maxLength={extra?.maxLength}
         value={f[k] ?? ""} onChange={(e) => set(k, e.target.value)} />
-      {extra?.aviso && !extra.aviso.ok && extra.aviso.aviso && (
-        <span className="mt-1 text-[11px] text-warning">{extra.aviso.aviso}</span>
+      {extra?.aviso && !extra.aviso.ok && extra.aviso.chave && (
+        <span className="mt-1 text-[11px] text-warning">{t(extra.aviso.chave as TKey)}</span>
       )}
     </label>
   );
@@ -302,7 +302,7 @@ export default function EmployeeForm({
                 onChange={(e) => set("tax_basis", e.target.value)}>
                 {BASES.map(([v, k]) => <option key={v} value={v}>{t(k)}</option>)}
               </select>
-              {!avisoBase.ok && <span className="mt-1 text-[11px] text-warning">{avisoBase.aviso}</span>}
+              {!avisoBase.ok && avisoBase.chave && <span className="mt-1 text-[11px] text-warning">{t(avisoBase.chave as TKey)}</span>}
             </label>
             <label className="flex flex-col leading-tight">
               <span className="text-[10px] font-medium uppercase tracking-wide text-muted">{t("emp.marital")}</span>

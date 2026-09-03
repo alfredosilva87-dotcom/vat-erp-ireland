@@ -67,7 +67,8 @@ console.log("\n== formato antes de conta: o que nem tem forma de VAT ==");
 ok(mau(avisoVatIrlandes("12345")), "curto demais");
 ok(mau(avisoVatIrlandes("IE12345678901")), "comprido demais");
 ok(mau(avisoVatIrlandes("ABCDEFGH")), "so letras");
-ok(avisoVatIrlandes("12345").aviso.includes("IE1234567T"), "e o aviso MOSTRA o formato certo", avisoVatIrlandes("12345").aviso);
+ok(avisoVatIrlandes("12345").chave === "id.vatFormat", "e diz QUAL o problema: formato", avisoVatIrlandes("12345"));
+ok(avisoVatIrlandes("IE1234567A").chave === "id.vatCheckDigit" || bom(avisoVatIrlandes("IE1234567A")), "digito de controlo tem chave propria — formato e digito pedem correccoes diferentes");
 
 console.log("\n== o prefixo IE e os separadores nao atrapalham ==");
 {

@@ -360,7 +360,8 @@ function Field({ label, children }: { label: string; children: React.ReactNode }
  * bem para isto" a quem está a escrever, no momento em que está a escrever —
  * que é a única altura em que corrigir custa um segundo.
  */
-function Aviso({ r }: { r: { ok: boolean; aviso?: string } }) {
-  if (r.ok || !r.aviso) return null;
-  return <p className="mt-1 text-xs text-warning">{r.aviso}</p>;
+function Aviso({ r }: { r: { ok: boolean; chave?: string } }) {
+  const { t } = useT();
+  if (r.ok || !r.chave) return null;
+  return <p className="mt-1 text-xs text-warning">{t(r.chave as any)}</p>;
 }
