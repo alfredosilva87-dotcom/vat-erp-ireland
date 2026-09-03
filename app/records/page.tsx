@@ -183,6 +183,13 @@ export default function Records() {
             {clients.map((c) => (
               <option key={c.id} value={c.id}>{c.client_code} · {c.name}</option>
             ))}
+            {/*
+              As faturas que sobreviveram ao cliente. Sem esta opção, apagar um
+              cliente fazia os documentos dele saírem da interface para sempre —
+              continuavam na base, como a confirmação promete, mas nenhum filtro
+              chegava lá.
+            */}
+            <option value="__none__">{t("records.noClient")}</option>
           </select>
           {tab === "invoices" && branches.length > 0 && (
             <select className="input w-44" value={branchId} onChange={(e) => setBranchId(e.target.value)}>
@@ -197,10 +204,19 @@ export default function Records() {
               e.preventDefault();
               setQuery(q);
             }}
-            className="flex flex-wrap items-center gap-2"
+            className="flex w-full flex-wrap items-center gap-2 sm:w-auto"
           >
+          {/*
+            `w-64` fixo dentro de uma barra em `overflow: visible`: no telemóvel
+            a linha media 488 px num contentor de 343, e como a PÁGINA não
+            desliza na horizontal, o que passava dos 375 px ficava cortado e sem
+            forma de lá chegar — via-se menos de metade do que se escrevia.
+            `w-full sm:w-64` deixa o campo encolher onde não há espaço e mantém
+            a largura confortável onde há. A tabela ao lado, no mesmo ecrã, já
+            fazia o correcto com o seu próprio `overflow-x-auto`.
+          */}
           <input
-            className="input w-64"
+            className="input w-full sm:w-64"
             placeholder={t("records.searchPlaceholder")}
             value={q}
             onChange={(e) => setQ(e.target.value)}

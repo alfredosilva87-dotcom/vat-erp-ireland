@@ -292,8 +292,22 @@ export default function SalesEntryDialog({
                     <td className="py-1 pr-2"><input type="date" className="input h-8 w-36 text-xs" value={d.entry_date} onChange={(e) => setDraft(i, { entry_date: e.target.value })} /></td>
                     <td className="py-1 pr-2"><input className="input h-8 w-28 text-xs" value={d.doc_number} onChange={(e) => setDraft(i, { doc_number: e.target.value })} /></td>
                     <td className="py-1 pr-2"><input className="input h-8 w-44 text-xs" value={d.customer} onChange={(e) => setDraft(i, { customer: e.target.value })} /></td>
-                    <td className="py-1 pr-2"><input className="input h-8 w-28 text-right text-xs tnum" value={d.net} onChange={(e) => setDraft(i, { net: e.target.value })} /></td>
-                    <td className="py-1 pr-2"><input className="input h-8 w-20 text-right text-xs tnum" value={d.rate} onChange={(e) => setDraft(i, { rate: e.target.value })} /></td>
+                    {/*
+                      `type="number" min="0" step="0.01"` — e não texto.
+                      Como texto, este campo aceitava `abc` (que virava € 0,00
+                      em silêncio, fazendo uma venda desaparecer valendo zero) e
+                      aceitava negativos (que ABATIAM ao IVA a entregar à
+                      Revenue). Os dois casos foram reproduzidos, e em ambos os
+                      totais do rodapé e o T1 das obrigações mexeram-se antes de
+                      alguém conferir. Três atributos matam a categoria inteira.
+                    */}
+                    <td className="py-1 pr-2"><input type="number" min="0" step="0.01" inputMode="decimal" className="input h-8 w-28 text-right text-xs tnum" value={d.net} onChange={(e) => setDraft(i, { net: e.target.value })} aria-label={`Líquido da linha ${i + 1}`} /></td>
+                    <td className="py-1 pr-2">
+                      {/* Alíquota é lista fechada: as taxas irlandesas são cinco. */}
+                      <select className="input h-8 w-20 text-right text-xs tnum" value={d.rate} onChange={(e) => setDraft(i, { rate: e.target.value })} aria-label={`Alíquota da linha ${i + 1}`}>
+                        {["0", "4.8", "9", "13.5", "23"].map((r) => <option key={r} value={r}>{r}%</option>)}
+                      </select>
+                    </td>
                     <td className="py-1 text-right text-xs tnum text-muted">{money(vatOf(d))}</td>
                   </tr>
                 ))}

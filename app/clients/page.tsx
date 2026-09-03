@@ -7,11 +7,28 @@ import { ACTIVITIES } from "@/lib/activities";
 import { getCurrentClient, setCurrentClient } from "@/lib/currentClient";
 import { useT } from "@/lib/i18n";
 import WhatsAppLink from "@/components/WhatsAppLink";
+import { avisoVatIrlandes, avisoEmail, avisoTelefone } from "@/lib/fiscal/identificadores";
 
 const money = (n: number) => n.toLocaleString("en-IE", { minimumFractionDigits: 2 });
+/**
+ * O NOME TEM TECTO, E O TIPO NASCE NEUTRO.
+ *
+ * `NOME_MAX`: um nome de 503 caracteres esticou a tabela de clientes para
+ * 5.341 px numa janela de 1.440 e empurrou a coluna de acções inteira para
+ * fora do ecrã — incluindo o `Delete` que desfaria o estrago. 160 é folgado
+ * para qualquer razão social real.
+ *
+ * `activity_code`: era "RESTAURANT" por ser a PRIMEIRA da lista, não por ser a
+ * mais provável — e um `<select>` que ninguém toca grava a primeira opção. O
+ * tipo de negócio comanda as regras de crédito de IVA, portanto um
+ * transportador criado à pressa ficava com regras de restauração e ninguém
+ * via. "GENERIC" é o neutro: não acerta sozinho, mas também não erra em
+ * silêncio a favor de um sector ao calhas.
+ */
+const NOME_MAX = 160;
 const empty = {
   name: "", client_code: "", vat_number: "", tax_reg_no: "",
-  activity_code: "RESTAURANT", default_credit_unmatched: false,
+  activity_code: "GENERIC", default_credit_unmatched: false,
   related_categories: [] as string[],
   email: "", phone: "", address: "", notes: "",
 };
@@ -19,6 +36,7 @@ const empty = {
 export default function Clients() {
   const { t } = useT();
   const [clients, setClients] = useState<ClientWithStats[]>([]);
+  const [loading, setLoading] = useState(true);
   const [form, setForm] = useState({ ...empty });
   const [editId, setEditId] = useState<string | null>(null);
   const [showForm, setShowForm] = useState(false);
@@ -27,9 +45,13 @@ export default function Clients() {
   const [categories, setCategories] = useState<{ code: string | null; description: string; vat_rate: number }[]>([]);
 
   const load = useCallback(async () => {
-    const res = await fetch("/api/clients?stats=1");
-    const data = await res.json();
-    setClients(data.clients || []);
+    try {
+      const res = await fetch("/api/clients?stats=1", { cache: "no-store" });
+      const data = await res.json();
+      setClients(data.clients || []);
+    } finally {
+      setLoading(false);
+    }
   }, []);
 
   useEffect(() => {
@@ -85,7 +107,20 @@ export default function Clients() {
   }
 
   async function remove(id: string) {
-    if (!confirm("Delete this client? Their invoices stay in the database but become unassigned.")) return;
+    /*
+     * A confirmação passa a dizer QUANTAS faturas ficam sem dono.
+     *
+     * O texto anterior anunciava a consequência sem a medir — "their invoices
+     * become unassigned" —, e zero faturas e vinte e sete faturas pedem
+     * decisões opostas. O número já está na linha da tabela; só não estava a
+     * ser usado onde decide.
+     */
+    const c = clients.find((x) => x.id === id);
+    const n = c?.invoice_count ?? 0;
+    const aviso = n > 0
+      ? `Apagar ${c?.name || "este cliente"}?\n\n${n} fatura(s) ficam na base de dados SEM DONO — deixam de aparecer nas listas por cliente. Use o filtro "sem cliente" na Base de dados para as encontrar depois.`
+      : `Apagar ${c?.name || "este cliente"}? Não tem faturas associadas.`;
+    if (!confirm(aviso)) return;
     await fetch(`/api/clients/${id}`, { method: "DELETE" });
     if (currentId === id) {
       setCurrentClient(null);
@@ -133,7 +168,8 @@ export default function Clients() {
           <h2 className="font-display text-lg font-semibold">{editId ? "Edit client" : "New client"}</h2>
           <div className="mt-4 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
             <Field label="Company name *">
-              <input className="input" value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} />
+              <input className="input" maxLength={NOME_MAX} value={form.name}
+                onChange={(e) => setForm({ ...form, name: e.target.value })} />
             </Field>
             <Field label="Client code (optional, auto)">
               <input className="input" value={form.client_code} onChange={(e) => setForm({ ...form, client_code: e.target.value })} placeholder="auto" disabled={!!editId} />
@@ -145,23 +181,36 @@ export default function Clients() {
                 ))}
               </select>
             </Field>
+            {/*
+              Os avisos AVISAM, não bloqueiam — ver lib/fiscal/identificadores.ts.
+              Um número estrangeiro, ou ainda por confirmar, tem de poder ser
+              gravado; o que não pode é `XXXX` entrar calado num campo que vai
+              parar ao VAT3.
+            */}
             <Field label="VAT number">
-              <input className="input" value={form.vat_number} onChange={(e) => setForm({ ...form, vat_number: e.target.value })} placeholder="IE1234567X" />
+              <input className="input" maxLength={20} value={form.vat_number}
+                onChange={(e) => setForm({ ...form, vat_number: e.target.value.toUpperCase() })} placeholder="IE1234567X" />
+              <Aviso r={avisoVatIrlandes(form.vat_number)} />
             </Field>
             <Field label="Tax Registration No (Revenue)">
-              <input className="input" value={form.tax_reg_no} onChange={(e) => setForm({ ...form, tax_reg_no: e.target.value })} />
+              <input className="input" maxLength={20} value={form.tax_reg_no}
+                onChange={(e) => setForm({ ...form, tax_reg_no: e.target.value.toUpperCase() })} />
             </Field>
             <Field label="Email">
-              <input className="input" value={form.email} onChange={(e) => setForm({ ...form, email: e.target.value })} />
+              <input className="input" type="email" maxLength={160} value={form.email}
+                onChange={(e) => setForm({ ...form, email: e.target.value })} placeholder="nome@empresa.ie" />
+              <Aviso r={avisoEmail(form.email)} />
             </Field>
             <Field label="Phone">
-              <input className="input" value={form.phone} onChange={(e) => setForm({ ...form, phone: e.target.value })} />
+              <input className="input" type="tel" maxLength={24} value={form.phone}
+                onChange={(e) => setForm({ ...form, phone: e.target.value })} placeholder="+353 83 838 0361" />
+              <Aviso r={avisoTelefone(form.phone)} />
             </Field>
             <Field label="Address">
-              <input className="input" value={form.address} onChange={(e) => setForm({ ...form, address: e.target.value })} />
+              <input className="input" maxLength={240} value={form.address} onChange={(e) => setForm({ ...form, address: e.target.value })} />
             </Field>
             <Field label="Notes">
-              <input className="input" value={form.notes} onChange={(e) => setForm({ ...form, notes: e.target.value })} />
+              <input className="input" maxLength={500} value={form.notes} onChange={(e) => setForm({ ...form, notes: e.target.value })} />
             </Field>
           </div>
           <div className="mt-4 rounded-xl2 border border-line bg-surface-2 p-3">
@@ -232,9 +281,17 @@ export default function Clients() {
               {clients.map((c) => (
                 <tr key={c.id} className={`border-b border-line/70 ${currentId === c.id ? "bg-ok-50/60" : ""}`}>
                   <td className="px-4 py-3 font-mono text-xs">{c.client_code}</td>
-                  <td className="px-4 py-3">
-                    <div className="font-medium">{c.name}</div>
-                    {c.email && <div className="text-xs text-muted">{c.email}</div>}
+                  {/*
+                    Tecto de largura + reticências na célula do nome.
+                    O `maxLength` do formulário impede o dado sujo daqui para a
+                    frente; isto é a outra metade — impede que um nome comprido
+                    já gravado (ou colado por API) volte a empurrar a coluna de
+                    acções para fora do ecrã, que era o que escondia o próprio
+                    botão de apagar.
+                  */}
+                  <td className="px-4 py-3 max-w-[280px]">
+                    <div className="truncate font-medium" title={c.name}>{c.name}</div>
+                    {c.email && <div className="truncate text-xs text-muted" title={c.email}>{c.email}</div>}
                   </td>
                   <td className="px-4 py-3">{c.activity_label}</td>
                   <td className="px-4 py-3 font-mono text-xs">
@@ -260,7 +317,19 @@ export default function Clients() {
                   </td>
                 </tr>
               ))}
-              {!clients.length && (
+              {/*
+                "Ainda não sei" e "já sei, e está vazio" deixam de ser a mesma
+                coisa. A tela dizia "No clients yet" durante o segundo em que os
+                dados vinham a caminho — e para um contabilista que abre o
+                sistema de manhã, ler que não há clientes parece perda de dados,
+                não lentidão.
+              */}
+              {loading && !clients.length && (
+                <tr>
+                  <td colSpan={8} className="px-4 py-10 text-center text-muted">{t("common.loading")}</td>
+                </tr>
+              )}
+              {!loading && !clients.length && (
                 <tr>
                   <td colSpan={8} className="px-4 py-10 text-center text-muted">
                     No clients yet. Click “New client” to register the first company.
@@ -282,4 +351,16 @@ function Field({ label, children }: { label: string; children: React.ReactNode }
       {children}
     </div>
   );
+}
+
+/**
+ * O aviso amarelo por baixo do campo.
+ *
+ * Amarelo e não vermelho de propósito: isto não impede de gravar. Diz "olhe
+ * bem para isto" a quem está a escrever, no momento em que está a escrever —
+ * que é a única altura em que corrigir custa um segundo.
+ */
+function Aviso({ r }: { r: { ok: boolean; aviso?: string } }) {
+  if (r.ok || !r.aviso) return null;
+  return <p className="mt-1 text-xs text-warning">{r.aviso}</p>;
 }

@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { saveInvoice, listInvoices, listMasterItems, stats } from "@/lib/store";
+import { saveInvoice, listInvoices, listMasterItems, stats, SEM_CLIENTE } from "@/lib/store";
 import type { SavePayload } from "@/lib/store";
 import { findDuplicate } from "@/lib/duplicates";
 import { denied, requireClient, visibleClientIds } from "@/lib/access";
@@ -27,7 +27,9 @@ export async function GET(req: NextRequest) {
   // devolvia as notas de TODOS os escritórios da instalação.
   const allowed = await visibleClientIds();
   if (allowed && "error" in allowed) return allowed.error;
-  if (clientId) {
+  // O sentinela "sem cliente" não é um id: não há cliente a que pedir acesso, e
+  // o próprio listInvoices devolve vazio a quem tem recorte por empresa.
+  if (clientId && clientId !== SEM_CLIENTE) {
     const access = await requireClient(clientId);
     if (denied(access)) return access.error;
   }

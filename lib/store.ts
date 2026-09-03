@@ -331,6 +331,15 @@ export interface InvoiceFilter {
   ids?: string[];
 }
 
+/**
+ * O valor mágico do selector de cliente para "faturas sem dono".
+ *
+ * Um valor sentinela e não um booleano à parte porque o selector do ecrã é UM
+ * `<select>`: "todos", um cliente, ou este. Um segundo controlo para o mesmo
+ * eixo seria uma maneira de os dois se contradizerem.
+ */
+export const SEM_CLIENTE = "__none__";
+
 export async function listInvoices(
   q?: string | InvoiceFilter,
   clientId?: string,
@@ -340,7 +349,24 @@ export async function listInvoices(
   const f: InvoiceFilter = typeof q === "object" && q !== null ? q : { q, clientId, branchId };
 
   let query = sb().from("invoices").select("*").order("created_at", { ascending: false });
-  if (f.clientId) query = query.eq("client_id", f.clientId);
+  /*
+   * "sem cliente" — o filtro que faltava para as órfãs serem visíveis.
+   *
+   * Apagar um cliente deixa as faturas dele na base sem dono, de propósito e
+   * anunciado na confirmação. Só que TODOS os filtros desta tela eram por
+   * cliente: a partir do momento em que o cliente desaparecia, as faturas dele
+   * não estavam em lado nenhum da interface. A promessa "ficam na base de
+   * dados" era verdadeira e inútil.
+   *
+   * Só vale para quem NÃO tem recorte por empresa. Uma nota sem cliente não
+   * pertence a escritório nenhum (ver o `else` abaixo), portanto mostrá-la a
+   * um escritório concreto seria mostrar-lhe dado que pode não ser dele.
+   */
+  if (f.clientId === SEM_CLIENTE) {
+    if (f.allowedClientIds) return [];
+    query = query.is("client_id", null);
+  }
+  else if (f.clientId) query = query.eq("client_id", f.clientId);
   // Recorte por empresa. Uma nota sem cliente não pertence a escritório nenhum e
   // fica de fora quando há recorte — é dado solto, e num sistema multiempresa não
   // há como dizer de quem é.

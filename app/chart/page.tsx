@@ -150,7 +150,7 @@ export default function ChartOfAccounts() {
           <h2 className="font-display text-lg font-semibold">
             {contas.length} conta(s)
           </h2>
-          <input className="input h-9 w-64 text-[13px]" placeholder="procurar código ou nome…"
+          <input className="input h-9 w-full text-[13px] sm:w-64" placeholder="procurar código ou nome…"
             value={busca} onChange={(e) => setBusca(e.target.value)} />
         </div>
         <div className="overflow-x-auto">

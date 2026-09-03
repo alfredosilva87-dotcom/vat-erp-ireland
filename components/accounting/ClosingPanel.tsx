@@ -70,9 +70,43 @@ export default function ClosingPanel({ clientId, ano }: { clientId: string; ano:
     } finally { setCarregando(false); }
   }, [clientId, ano, mes, t]);
 
+  /*
+   * TROCAR DE MÊS APAGA OS INDICADORES DO MÊS ANTERIOR.
+   *
+   * Sem isto, `d` continuava a segurar os números do mês de onde se veio
+   * enquanto os novos vinham a caminho — e como o painel só mostrava o
+   * esqueleto quando `d` era nulo, o utilizador via as oito verificações
+   * `clean`, a frase "Everything checks out for this month" e o botão a mudar
+   * de rótulo para `Close Jul` e a ficar **clicável**. Carregar nessa janela
+   * fechava Julho com base nos números de Setembro, e o fecho tranca o razão no
+   * banco de dados.
+   *
+   * A janela é curta; o gesto é natural (clicar no mês e no botão logo abaixo).
+   */
+  useEffect(() => { setD(null); setMsg(null); setErro(null); }, [ano, mes]);
+
   useEffect(() => { void carregar(); }, [carregar]);
 
   async function fechar() {
+    /*
+     * A ASSIMETRIA ESTAVA INVERTIDA.
+     *
+     * Apagar uma venda perguntava "Excluir esta venda?"; fechar um mês — que
+     * tranca o razão NO BANCO DE DADOS — não perguntava nada, um clique único.
+     * A acção pequena e reversível avisava, a grande não.
+     *
+     * O resumo não é enfeite: diz quantos lançamentos e que valor ficam
+     * trancados, que é a informação com que se decide se é mesmo este o mês.
+     */
+    const nomeMes = t(("close.m" + mes) as any);
+    const linhas = [
+      t("close.confirmTitle", { mes: nomeMes, ano: String(ano) }),
+      "",
+      t("close.confirmLock"),
+    ];
+    if (avisa.length) linhas.push(t("close.confirmWarnings", { n: String(avisa.length) }));
+    if (!confirm(linhas.join("\n"))) return;
+
     setGravando(true); setErro(null); setMsg(null);
     try {
       const r = await fetch(`/api/clients/${clientId}/closing`, {
@@ -88,6 +122,9 @@ export default function ClosingPanel({ clientId, ano }: { clientId: string; ano:
   }
 
   async function reabrir(id: string) {
+    // O botão deixou de estar `disabled`: um botão que não reage e não diz nada
+    // lê-se como avariado. A validação existia — só não se via.
+    if (!motivo.trim()) { setErro(t("close.reopenNeedsReason")); return; }
     setGravando(true); setErro(null); setMsg(null);
     try {
       const r = await fetch(`/api/clients/${clientId}/closing`, {
@@ -172,7 +209,7 @@ export default function ClosingPanel({ clientId, ano }: { clientId: string; ano:
               <input className="input mt-2 w-full text-[13px]" value={motivo}
                 onChange={(e) => setMotivo(e.target.value)} placeholder={t("close.reopenReason")} />
               <div className="mt-2 flex flex-wrap gap-2">
-                <button className="btn-primary h-8 px-3 text-xs" disabled={gravando || !motivo.trim()}
+                <button className="btn-primary h-8 px-3 text-xs" disabled={gravando}
                   onClick={() => reabrir(d.fechado!.id)}>
                   {gravando ? t("common.saving") : t("close.reopenBtn")}
                 </button>
@@ -208,7 +245,7 @@ export default function ClosingPanel({ clientId, ano }: { clientId: string; ano:
                     <input className="input w-full text-[13px]" value={nota}
                       onChange={(e) => setNota(e.target.value)} placeholder={t("close.notePlaceholder")} />
                   </label>
-                  <button className="btn-primary h-9 px-4 text-sm" disabled={gravando} onClick={fechar}>
+                  <button className="btn-primary h-9 px-4 text-sm" disabled={gravando || carregando} onClick={fechar}>
                     {gravando ? t("common.saving") : t("close.closeBtn", { n: t(("close.m" + mes) as any) })}
                   </button>
                 </div>

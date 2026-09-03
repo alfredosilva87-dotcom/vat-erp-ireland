@@ -307,7 +307,7 @@ export default function AnalyzeView({ lockedClientId }: { lockedClientId?: strin
               <input ref={inputRef} type="file" multiple accept="application/pdf,image/png,image/jpeg,image/webp" className="hidden" onChange={(e) => addFiles(e.target.files)} />
             </div>
             {skipped.length > 0 && (
-              <div className="mt-2 rounded-lg border border-warn/40 bg-warn-50 px-3 py-2 text-xs">
+              <div className="mt-2 rounded-lg border border-warning/40 bg-warning-50 px-3 py-2 text-xs">
                 <p className="font-medium">
                   {skipped.length === 1
                     ? t("analyze.skippedOne")

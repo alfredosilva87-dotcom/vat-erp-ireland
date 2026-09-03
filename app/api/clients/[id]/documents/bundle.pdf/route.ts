@@ -3,6 +3,7 @@ import { PDFDocument, StandardFonts, rgb } from "pdf-lib";
 import { requireClient, denied } from "@/lib/access";
 import { getServerSupabase } from "@/lib/supabase";
 import { listPeriodDocs, type Lado, type PeriodDoc } from "@/lib/periodDocs";
+import { winAnsiSafe } from "@/lib/pdfText";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -41,19 +42,16 @@ const eur = (v: number) =>
   "EUR " + v.toLocaleString("en-IE", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 
 /**
- * O texto vai para dentro de fontes WinAnsi, que não sabem escrever tudo o que
- * um nome de fornecedor irlandês traz (aspa curva vinda de OCR, travessão, um
- * acento fora da tabela). `drawText` REBENTA nesses casos em vez de ignorar —
- * então limpa-se antes, e o arquivo sai com o nome ligeiramente estropiado em
- * vez de não sair.
+ * O texto vai para dentro de fontes WinAnsi, e `drawText` REBENTA com um
+ * caractere que a fonte não sabe desenhar — então limpa-se antes, para o
+ * arquivo sair sempre.
+ *
+ * O que mudou: a limpeza deitava fora TUDO o que não era ASCII, e o maço
+ * entregue ao cliente saía com "Saidas", "lancamento" e "ate". WinAnsi não é
+ * ASCII — sabe escrever á, ç, ã, é, o travessão e as aspas curvas. Ver
+ * lib/pdfText.ts para a regra e o porquê.
  */
-const ascii = (s: string | null | undefined, max = 60) =>
-  String(s ?? "—")
-    .replace(/[‘’]/g, "'")
-    .replace(/[“”]/g, '"')
-    .replace(/[–—]/g, "-")
-    .replace(/[^\x20-\x7E]/g, "")
-    .slice(0, max) || "-";
+const ascii = (s: string | null | undefined, max = 60) => winAnsiSafe(s, max);
 
 export async function GET(req: NextRequest, { params }: { params: { id: string } }) {
   const acesso = await requireClient(params.id);
