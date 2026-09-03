@@ -29,6 +29,8 @@ import { integracoesDo } from "@/lib/integrations";
  */
 
 const VENCIMENTO_PADRAO_DIAS = 30;
+/** Prefixo que marca um vencimento DEDUZIDO, e não acordado. Ver o uso abaixo. */
+export const NOTA_VENCIMENTO_ESTIMADO = "[estimado] Vencimento deduzido: 30 dias a contar da data do documento. Nenhuma condicao de pagamento foi indicada.";
 
 const somarDias = (iso: string, dias: number): string => {
   const d = new Date(iso + "T00:00:00Z");
@@ -136,7 +138,19 @@ export async function garantirTituloDeCompra(
     counterparty: n.supplier_name, issue_date: dataDoc,
     due_date: somarDias(dataDoc, VENCIMENTO_PADRAO_DIAS),
     original_amount: bruto, journal_id: journalId ?? null,
-    notes: "Vencimento estimado em 30 dias",
+    /*
+     * MARCA, e não só um comentário.
+     *
+     * O prazo de 30 dias é um palpite — nem o lançamento de vendas nem a
+     * leitura de uma nota trazem condições de pagamento. O palpite é razoável,
+     * mas era INVISÍVEL: o título nascia com uma data que ninguém indicou e a
+     * seguir aparecia marcado "Overdue" por causa dela, ou seja, o sistema
+     * inventava a data e depois acusava o cliente com base nela.
+     *
+     * O prefixo `[estimado]` deixa a lista distinguir um vencimento acordado
+     * de um deduzido, sem precisar de coluna nova.
+     */
+    notes: NOTA_VENCIMENTO_ESTIMADO,
   }).select("id").single();
   if (error) return { id: null, jaExistia: false, ignorado: error.message };
   return { id: (data as any).id, jaExistia: false };

@@ -64,7 +64,7 @@ export default function Purchases({ params }: { params: { id: string } }) {
         if (end) p.set("end", end);
         if (onlyReview) p.set("review", "1");
       }
-      const d = await (await fetch(`/api/invoices?${p}`)).json();
+      const d = await (await fetch(`/api/invoices?${p}`, { cache: "no-store" })).json();
       setInvoices(d.invoices || []);
     } finally {
       setLoading(false);
@@ -72,7 +72,7 @@ export default function Purchases({ params }: { params: { id: string } }) {
   }, [params.id, query, branchId, start, end, onlyReview, batchIds]);
 
   useEffect(() => {
-    fetch(`/api/clients/${params.id}/branches`).then((r) => r.json()).then((d) => setBranches(d.branches || []));
+    fetch(`/api/clients/${params.id}/branches`, { cache: "no-store" }).then((r) => r.json()).then((d) => setBranches(d.branches || []));
     // O tipo de negócio comanda as regras de crédito de IVA — o lançamento
     // manual tem de o levar consigo, senão uma compra escrita à mão seria
     // avaliada por regras diferentes das de uma compra lida.
@@ -80,7 +80,7 @@ export default function Purchases({ params }: { params: { id: string } }) {
       .then((d) => { if (d.client?.activity_code) setActivityCode(d.client.activity_code); })
       .catch(() => {});
     // Only admins may delete; the server enforces it too.
-    fetch("/api/auth/me").then((r) => r.json())
+    fetch("/api/auth/me", { cache: "no-store" }).then((r) => r.json())
       .then((d) => setCanDelete(d.user?.role === "admin" || d.user?.role === "master"))
       .catch(() => {});
   }, [params.id]);
@@ -146,7 +146,7 @@ export default function Purchases({ params }: { params: { id: string } }) {
     if (!itemsCache[id]) {
       setLoadingItems((prev) => new Set(prev).add(id));
       try {
-        const d = await (await fetch(`/api/invoices/${id}`)).json();
+        const d = await (await fetch(`/api/invoices/${id}`, { cache: "no-store" })).json();
         setItemsCache((prev) => ({ ...prev, [id]: d.items || [] }));
       } finally {
         setLoadingItems((prev) => { const n = new Set(prev); n.delete(id); return n; });

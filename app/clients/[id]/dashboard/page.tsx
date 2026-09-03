@@ -49,14 +49,14 @@ export default function ClientDashboard({ params }: { params: { id: string } }) 
 
   useEffect(() => {
     setLoading(true);
-    fetch(`/api/clients/${params.id}/dashboard?year=${year}`)
+    fetch(`/api/clients/${params.id}/dashboard?year=${year}`, { cache: "no-store" })
       .then((r) => r.json())
       .then((data) => setD(data.error ? null : data))
       .finally(() => setLoading(false));
   }, [params.id, year]);
 
   useEffect(() => {
-    fetch(`/api/invoices?client=${params.id}`)
+    fetch(`/api/invoices?client=${params.id}`, { cache: "no-store" })
       .then((r) => r.json())
       .then((data) => setRecent(data.invoices || []));
   }, [params.id]);

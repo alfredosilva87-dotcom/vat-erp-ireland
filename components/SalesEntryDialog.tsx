@@ -187,7 +187,7 @@ export default function SalesEntryDialog({
       const d = await res.json();
       // O T1 das obrigações vem das vendas: sem este refresh o VAT3 continua
       // mostrando o número de antes até alguém abrir a tela e recalcular.
-      await fetch(`/api/clients/${clientId}/obligations?refresh=1`);
+      await fetch(`/api/clients/${clientId}/obligations?refresh=1`, { cache: "no-store" });
       onSaved(d.count ?? rows.length);
     } finally { setSaving(false); }
   }

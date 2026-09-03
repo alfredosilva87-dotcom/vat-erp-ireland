@@ -254,8 +254,18 @@ const A2026: TabelaAno = {
     idadeMinima: 23, idadeMaxima: 60,
   },
   confirmadoEm: null,
-  fonte: "Base de 2025 + tecto do USC de 2% a 28.700, deduzido de um payslip Sage real de 2026. "
-    + "O resto do Orcamento 2026 NAO foi aplicado. Conferir contra revenue.ie.",
+  /*
+   * ISTO SAI NO ECRA, PARA O CONTABILISTA IRLANDES LER.
+   *
+   * Estava escrito como recado interno, em portugues sem acentos ("Orcamento",
+   * "NAO") — o que da a um ecra de impostos de folha o ar de sistema
+   * inacabado, mesmo quando o conteudo esta certo. A informacao E importante e
+   * fica; o que muda e a lingua e o tom.
+   */
+  fonte: "Derived from the 2025 bands plus the 2% USC ceiling of EUR 28,700, "
+    + "reconciled against a real 2026 Sage payslip. The remaining Budget 2026 "
+    + "changes have not been applied yet — please verify against revenue.ie "
+    + "before relying on these figures.",
 };
 
 const TABELAS: Record<number, TabelaAno> = { 2025: A2025, 2026: A2026 };

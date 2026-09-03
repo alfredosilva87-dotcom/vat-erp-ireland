@@ -82,7 +82,7 @@ export default function AnalyzeView({ lockedClientId }: { lockedClientId?: strin
   const canSave = !branchRequired || Boolean(branchId);
 
   useEffect(() => {
-    fetch("/api/clients").then((r) => r.json()).then((d) => setClients(d.clients || []));
+    fetch("/api/clients", { cache: "no-store" }).then((r) => r.json()).then((d) => setClients(d.clients || []));
     if (lockedClientId) return;
     const cur = getCurrentClient();
     if (cur) setClientId(cur.id);
@@ -91,7 +91,7 @@ export default function AnalyzeView({ lockedClientId }: { lockedClientId?: strin
   useEffect(() => {
     setBranchId("");
     if (!clientId) { setBranches([]); return; }
-    fetch(`/api/clients/${clientId}/branches`).then((r) => r.json()).then((d) => setBranches(d.branches || []));
+    fetch(`/api/clients/${clientId}/branches`, { cache: "no-store" }).then((r) => r.json()).then((d) => setBranches(d.branches || []));
   }, [clientId]);
 
   function addFiles(list: FileList | null) {

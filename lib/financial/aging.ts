@@ -42,6 +42,8 @@ export type TituloParcial = {
   documentRef: string | null;
   contraparte: string | null;
   dueDate: string | null;
+  /** O vencimento foi DEDUZIDO (30 dias), não acordado. Ver titles.ts. */
+  vencimentoEstimado?: boolean;
   original: number;
   encargos: number;
   pago: number;
@@ -77,7 +79,7 @@ export async function agingDoCliente(clientId: string): Promise<Aging> {
    * muda nenhum deles — `status <> 'settled'` já é o universo da pergunta.
    */
   const { data, error } = await sb.from("ledger_items_open")
-    .select("id,kind,document_ref,counterparty,due_date,original_amount," +
+    .select("id,kind,document_ref,counterparty,due_date,notes,original_amount," +
             "charges_amount,settled_amount,outstanding_amount,status")
     .eq("client_id", clientId)
     .neq("status", "settled")
@@ -110,6 +112,8 @@ export async function agingDoCliente(clientId: string): Promise<Aging> {
         documentRef: t.document_ref ?? null,
         contraparte: t.counterparty ?? null,
         dueDate: t.due_date ?? null,
+        // Vencimento deduzido, não acordado — ver NOTA_VENCIMENTO_ESTIMADO.
+        vencimentoEstimado: String(t.notes ?? "").startsWith("[estimado]"),
         original, encargos, pago, aberto,
         pagoPct: devido > 0 ? Math.round((pago / devido) * 100) : 0,
         vencido: Boolean(t.due_date && t.due_date < hoje),

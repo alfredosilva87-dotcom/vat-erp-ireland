@@ -51,7 +51,7 @@ export default function LimiarVat() {
 
   useEffect(() => {
     let vivo = true;
-    fetch("/api/obligations/vat-threshold")
+    fetch("/api/obligations/vat-threshold", { cache: "no-store" })
       .then((r) => r.json())
       .then((j) => { if (vivo) { if (j.error) setErro(j.error); else setD(j); } })
       .catch(() => { if (vivo) setErro(t("vatLimit.readErr")); });

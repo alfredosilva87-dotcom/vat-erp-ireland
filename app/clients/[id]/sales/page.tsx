@@ -52,7 +52,7 @@ export default function SalesPage({ params }: { params: { id: string } }) {
   const load = useCallback(async () => {
     setLoading(true);
     try {
-      const d = await (await fetch(`/api/clients/${params.id}/sales`)).json();
+      const d = await (await fetch(`/api/clients/${params.id}/sales`, { cache: "no-store" })).json();
       setSales(d.sales || []);
     } finally { setLoading(false); }
   }, [params.id]);
@@ -104,7 +104,7 @@ export default function SalesPage({ params }: { params: { id: string } }) {
     await fetch(`/api/sales/${id}`, { method: "DELETE" });
     // O T1 do VAT3 vem daqui: sem recalcular, a obrigação segue mostrando o
     // número de antes.
-    await fetch(`/api/clients/${params.id}/obligations?refresh=1`);
+    await fetch(`/api/clients/${params.id}/obligations?refresh=1`, { cache: "no-store" });
     load();
   }
 
@@ -118,7 +118,7 @@ export default function SalesPage({ params }: { params: { id: string } }) {
     if (!itemsCache[id]) {
       setLoadingItems((prev) => new Set(prev).add(id));
       try {
-        const d = await (await fetch(`/api/clients/${params.id}/sales/${id}`)).json();
+        const d = await (await fetch(`/api/clients/${params.id}/sales/${id}`, { cache: "no-store" })).json();
         setItemsCache((prev) => ({ ...prev, [id]: d.items || [] }));
       } finally {
         setLoadingItems((prev) => { const n = new Set(prev); n.delete(id); return n; });

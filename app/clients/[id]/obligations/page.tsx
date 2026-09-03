@@ -59,7 +59,7 @@ export default function Obligations({ params }: { params: { id: string } }) {
   }, [params.id, year]);
 
   const loadManual = useCallback(async () => {
-    const d = await (await fetch(`/api/clients/${params.id}/recurring-obligations`)).json();
+    const d = await (await fetch(`/api/clients/${params.id}/recurring-obligations`, { cache: "no-store" })).json();
     setManual(d.obligations || []);
   }, [params.id]);
 

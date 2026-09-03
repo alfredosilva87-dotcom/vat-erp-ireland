@@ -36,7 +36,7 @@ export default function LicenseAlertBanner() {
       if (!me.user) return;
 
       if (me.user.role === "master") {
-        const compRes = await fetch("/api/companies");
+        const compRes = await fetch("/api/companies", { cache: "no-store" });
         if (!compRes.ok) return;
         const { companies } = (await compRes.json()) as { companies: Company[] };
         const flagged = (companies || []).filter((c) =>

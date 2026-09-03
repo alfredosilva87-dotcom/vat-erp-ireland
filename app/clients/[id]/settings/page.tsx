@@ -46,7 +46,7 @@ export default function ClientSettings({ params }: { params: { id: string } }) {
 
   useEffect(() => { load(); }, [load]);
   useEffect(() => {
-    fetch("/api/base").then((r) => r.json()).then((d) => setCategories(d.categories || []));
+    fetch("/api/base", { cache: "no-store" }).then((r) => r.json()).then((d) => setCategories(d.categories || []));
   }, []);
 
   function set<K extends keyof Client>(k: K, v: Client[K]) {

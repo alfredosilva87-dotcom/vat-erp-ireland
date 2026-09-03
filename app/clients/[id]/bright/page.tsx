@@ -14,9 +14,9 @@ export default function BrightPage({ params }: { params: { id: string } }) {
   const [api, setApi] = useState<ApiStatus | null>(null);
 
   const load = useCallback(async () => {
-    const c = await (await fetch(`/api/clients/${params.id}`)).json();
+    const c = await (await fetch(`/api/clients/${params.id}`, { cache: "no-store" })).json();
     setClient(c.client || null);
-    const s = await (await fetch(`/api/clients/${params.id}/bright/push`)).json();
+    const s = await (await fetch(`/api/clients/${params.id}/bright/push`, { cache: "no-store" })).json();
     setApi(s);
   }, [params.id]);
   useEffect(() => { load(); }, [load]);

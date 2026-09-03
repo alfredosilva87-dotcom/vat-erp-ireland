@@ -12,7 +12,7 @@ export default function ClientsOverview() {
   const [loaded, setLoaded] = useState(false);
 
   useEffect(() => {
-    fetch("/api/clients?stats=1")
+    fetch("/api/clients?stats=1", { cache: "no-store" })
       .then((r) => r.json())
       .then((d) => setClients(d.clients || []))
       .finally(() => setLoaded(true));

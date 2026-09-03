@@ -124,7 +124,16 @@ export async function middleware(req: NextRequest) {
     return new NextResponse("Not found", { status: 404 });
   }
   if (ehConsole) {
-    return new NextResponse("Not found", { status: 404 });
+    /*
+     * 404 COM A CARA DO PRODUTO, e não a palavra `Not found` numa página em
+     * branco sem `<title>` e sem forma de voltar.
+     *
+     * A recusa continua a ser a mesma e continua certa. `rewrite` para uma
+     * rota inexistente faz o Next servir o `app/not-found.tsx`, com o layout,
+     * o menu e um botão de regresso — mantendo o estado 404 para quem o lê por
+     * programa.
+     */
+    return NextResponse.rewrite(new URL("/404", req.url), { status: 404 });
   }
 
   if (

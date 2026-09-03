@@ -70,7 +70,7 @@ export default function ClientVault({ clientId }: { clientId: string }) {
   const fileRef = useRef<HTMLInputElement>(null);
 
   const carregar = useCallback(async () => {
-    const r = await fetch(`/api/clients/${clientId}/vault`);
+    const r = await fetch(`/api/clients/${clientId}/vault`, { cache: "no-store" });
     const j = await r.json();
     setDocs(j.documentos ?? []);
   }, [clientId]);

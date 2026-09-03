@@ -27,7 +27,7 @@ export default function Users() {
   const [loading, setLoading] = useState(true);
 
   const load = useCallback(async () => {
-    const res = await fetch("/api/users");
+    const res = await fetch("/api/users", { cache: "no-store" });
     if (res.status === 401 || res.status === 403) { setForbidden(true); setLoading(false); return; }
     const d = await res.json();
     setUsers(d.users || []);
@@ -35,7 +35,7 @@ export default function Users() {
   }, []);
 
   useEffect(() => {
-    fetch("/api/auth/me").then((r) => r.json()).then((d) => setMe(d.user ?? null));
+    fetch("/api/auth/me", { cache: "no-store" }).then((r) => r.json()).then((d) => setMe(d.user ?? null));
     load();
   }, [load]);
 
@@ -75,7 +75,10 @@ export default function Users() {
   }
 
   async function remove(u: User) {
-    if (!confirm(t("users.deleteConfirm"))) return;
+    // A confirmação passa a NOMEAR quem vai desaparecer. "Delete this user?"
+    // é a mesma pergunta em todas as linhas, e numa tabela de contas iguais é
+    // exactamente onde se apaga a errada.
+    if (!confirm(`${t("users.deleteConfirm")}\n\n${u.name || ""} · ${u.email}`)) return;
     const res = await fetch(`/api/users/${u.id}`, { method: "DELETE" });
     const d = await res.json();
     if (!res.ok) setMsg(d.error); else load();
@@ -212,9 +215,23 @@ export default function Users() {
                       <button className="btn-ghost h-8 px-3 text-xs" onClick={() => toggleActive(u)} disabled={u.id === me?.id}>
                         {u.active ? t("users.deactivate") : t("users.activate")}
                       </button>
-                      <button className="btn-ghost h-8 px-3 text-xs text-danger" onClick={() => remove(u)} disabled={u.id === me?.id}>
-                        {t("common.delete")}
-                      </button>
+                      {/*
+                        APAGAR DEIXA DE ESTAR ENCOSTADO A SUSPENDER.
+                        Os dois estavam lado a lado, e um clique ao lado do
+                        outro separava "suspender" de "apagar". O servidor já
+                        recusava apagar a própria conta e o botão já estava
+                        `disabled` — mas continuava a aparecer na linha marcada
+                        "you", que é um convite a um clique que nunca vai dar em
+                        nada. Some da própria linha, e ganha um separador.
+                      */}
+                      {u.id !== me?.id && (
+                        <>
+                          <span aria-hidden className="mx-1 h-4 w-px bg-line" />
+                          <button className="btn-ghost h-8 px-3 text-xs text-danger" onClick={() => remove(u)}>
+                            {t("common.delete")}
+                          </button>
+                        </>
+                      )}
                     </div>
                   </td>
                 </tr>

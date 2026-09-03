@@ -65,8 +65,8 @@ export default function InvoiceEditor({ params }: { params: { id: string; invoic
 
   const carregar = useCallback(async () => {
     const [ri, rc] = await Promise.all([
-      fetch(`/api/clients/${params.id}/invoices/${params.invoiceId}`),
-      fetch(`/api/clients/${params.id}/customers`),
+      fetch(`/api/clients/${params.id}/invoices/${params.invoiceId}`, { cache: "no-store" }),
+      fetch(`/api/clients/${params.id}/customers`, { cache: "no-store" }),
     ]);
     const ji = await ri.json();
     const jc = await rc.json();

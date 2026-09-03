@@ -38,6 +38,17 @@ export default function DashboardStats() {
       .then((r) => r.json()).then((d) => setS(d.stats)).catch(() => {});
   }, [year]);
 
+  /*
+   * OS CARTOES DIZEM DE QUE PERIODO SAO.
+   *
+   * Eles leem `/api/invoices?year=…` — o exercicio da barra do topo — e a
+   * tabela de clientes logo por baixo e o historico INTEIRO. Sem rotulo, o
+   * ecra mostrava "PURCHASES 25 invoices" com uma tabela por baixo a somar 27,
+   * e "INPUT CREDIT EUR 644,60" contra um "Total credit EUR 694,78" na mesma
+   * pagina. Nao ha erro de calculo nenhum: sao recortes diferentes. Mas dois
+   * numeros diferentes para a mesma coisa no mesmo ecra destroem a confianca
+   * no relatorio, e quem le nao tem como adivinhar qual e qual.
+   */
   const tiles = [
     {
       label: t("dash.revenueT1"), value: s ? `€ ${money(s.sales_gross)}` : "—",
@@ -54,7 +65,7 @@ export default function DashboardStats() {
     },
     {
       label: t("dash.inputCredit"), value: s ? `€ ${money(s.total_credit)}` : "—",
-      sub: s ? `${s.clients} · ${s.unique_items}` : "", tone: "success" as const, icon: IconEuro,
+      sub: s ? t("dash.creditSub", { c: String(s.clients), i: String(s.unique_items) }) : "", tone: "success" as const, icon: IconEuro,
     },
   ];
   const toneCls = {
@@ -66,6 +77,7 @@ export default function DashboardStats() {
 
   return (
     <div className="space-y-3">
+      <p className="text-xs text-muted">{t("dash.periodNote", { year: String(year) })}</p>
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
         {tiles.map((t, i) => {
           const Icon = t.icon;

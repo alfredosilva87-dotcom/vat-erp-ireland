@@ -100,21 +100,21 @@ export default function InvoiceEdit({ params }: { params: { id: string } }) {
   const [msg, setMsg] = useState<string | null>(null);
 
   useEffect(() => {
-    fetch(`/api/invoices/${params.id}`).then((r) => r.json()).then((d) => {
+    fetch(`/api/invoices/${params.id}`, { cache: "no-store" }).then((r) => r.json()).then((d) => {
       setInv(d.invoice || null);
       setItems(d.items || []);
       setAudit(d.audit || []);
       setDocuments(d.documents || []);
       setIntegration(d.integration ?? null);
     }).finally(() => setLoading(false));
-    fetch("/api/base").then((r) => r.json()).then((d) => setCats(d.categories || []));
+    fetch("/api/base", { cache: "no-store" }).then((r) => r.json()).then((d) => setCats(d.categories || []));
   }, [params.id]);
 
   useEffect(() => {
     if (!inv?.client_id) { setAccounts([]); setBranches([]); setRelatedCategories([]); return; }
-    fetch(`/api/clients/${inv.client_id}/accounts`).then((r) => r.json()).then((d) => setAccounts(d.accounts || []));
-    fetch(`/api/clients/${inv.client_id}/branches`).then((r) => r.json()).then((d) => setBranches(d.branches || []));
-    fetch(`/api/clients/${inv.client_id}`).then((r) => r.json()).then((d) => setRelatedCategories(d.client?.related_categories || []));
+    fetch(`/api/clients/${inv.client_id}/accounts`, { cache: "no-store" }).then((r) => r.json()).then((d) => setAccounts(d.accounts || []));
+    fetch(`/api/clients/${inv.client_id}/branches`, { cache: "no-store" }).then((r) => r.json()).then((d) => setBranches(d.branches || []));
+    fetch(`/api/clients/${inv.client_id}`, { cache: "no-store" }).then((r) => r.json()).then((d) => setRelatedCategories(d.client?.related_categories || []));
   }, [inv?.client_id]);
 
   function setHdr<K extends keyof StoredInvoice>(k: K, v: StoredInvoice[K]) {

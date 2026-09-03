@@ -278,7 +278,7 @@ export default function TaxTablesPage() {
                     {num("employer_threshold_weekly_cents", (s) => paraCents(s), eur)}
                     <td className="py-1.5 pl-2 text-right">
                       <button className="text-[12px] text-danger underline"
-                        onClick={() => setPrsi((ps) => ps.filter((_, j) => j !== i))}>remover</button>
+                        onClick={() => setPrsi((ps) => ps.filter((_, j) => j !== i))}>{t("common.remove")}</button>
                     </td>
                   </tr>
                 );

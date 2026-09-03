@@ -16,7 +16,7 @@ export default function CreditRulesManager() {
   const [msg, setMsg] = useState<string | null>(null);
 
   const load = useCallback(async () => {
-    const d = await (await fetch("/api/credit-rules")).json();
+    const d = await (await fetch("/api/credit-rules", { cache: "no-store" })).json();
     setRules(d.rules || []);
   }, []);
   useEffect(() => { load(); }, [load]);

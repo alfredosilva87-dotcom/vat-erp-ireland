@@ -31,9 +31,9 @@ export default function ClientInvoiceBranding({ clientId }: { clientId: string }
 
   const carregar = useCallback(async () => {
     const [rc, rb, rl] = await Promise.all([
-      fetch(`/api/clients/${clientId}`),
-      fetch(`/api/clients/${clientId}/bank-accounts`),
-      fetch(`/api/clients/${clientId}/logo`),
+      fetch(`/api/clients/${clientId}`, { cache: "no-store" }),
+      fetch(`/api/clients/${clientId}/bank-accounts`, { cache: "no-store" }),
+      fetch(`/api/clients/${clientId}/logo`, { cache: "no-store" }),
     ]);
     const jc = await rc.json();
     const jb = await rb.json().catch(() => ({}));

@@ -60,7 +60,7 @@ export default function Records() {
         if (onlyReview) p.set("review", "1");
       }
       if (tab === "items") p.set("view", "items");
-      const res = await fetch(`/api/invoices?${p.toString()}`);
+      const res = await fetch(`/api/invoices?${p.toString()}`, { cache: "no-store" });
       const data = await res.json();
       setStats(data.stats);
       if (tab === "items") setItems(data.items || []);
@@ -122,7 +122,7 @@ export default function Records() {
   }
 
   useEffect(() => {
-    fetch("/api/clients")
+    fetch("/api/clients", { cache: "no-store" })
       .then((r) => r.json())
       .then((d) => setClients(d.clients || []));
     const cur = getCurrentClient();
@@ -132,7 +132,7 @@ export default function Records() {
   useEffect(() => {
     setBranchId("");
     if (!clientId) { setBranches([]); return; }
-    fetch(`/api/clients/${clientId}/branches`).then((r) => r.json()).then((d) => setBranches(d.branches || []));
+    fetch(`/api/clients/${clientId}/branches`, { cache: "no-store" }).then((r) => r.json()).then((d) => setBranches(d.branches || []));
   }, [clientId]);
 
   useEffect(() => {

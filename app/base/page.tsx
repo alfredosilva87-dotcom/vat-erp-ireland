@@ -34,7 +34,7 @@ export default function BasePage() {
   const editable = source === "supabase";
 
   async function load() {
-    const res = await fetch("/api/base");
+    const res = await fetch("/api/base", { cache: "no-store" });
     const data = await res.json();
     setCategories(data.categories || []);
     setRules(data.rules || []);

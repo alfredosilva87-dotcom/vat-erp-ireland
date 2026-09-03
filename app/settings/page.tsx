@@ -25,7 +25,7 @@ export default function Settings() {
 
   useEffect(() => {
     setTheme((document.documentElement.dataset.theme as "dark" | "light") || "light");
-    fetch("/api/auth/me").then((r) => r.json()).then((d) => setMe(d.user ?? null)).catch(() => {});
+    fetch("/api/auth/me", { cache: "no-store" }).then((r) => r.json()).then((d) => setMe(d.user ?? null)).catch(() => {});
   }, []);
 
   const loadLicense = useCallback(async (companyId: string) => {

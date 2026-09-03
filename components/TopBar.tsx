@@ -107,7 +107,7 @@ export default function TopBar() {
   }, [sessao.user]);
 
   useEffect(() => {
-    fetch("/api/clients").then((r) => r.json())
+    fetch("/api/clients", { cache: "no-store" }).then((r) => r.json())
       .then((d) => setClients(d.clients || [])).catch(() => {});
   }, []);
 

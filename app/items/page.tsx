@@ -14,7 +14,7 @@ export default function Items() {
   const [savingId, setSavingId] = useState<string | null>(null);
 
   const load = useCallback(async () => {
-    const res = await fetch(`/api/items?q=${encodeURIComponent(query)}`);
+    const res = await fetch(`/api/items?q=${encodeURIComponent(query)}`, { cache: "no-store" });
     const d = await res.json();
     setItems(d.items || []);
     setDirty({});
@@ -22,7 +22,7 @@ export default function Items() {
 
   useEffect(() => {
     load();
-    fetch("/api/base").then((r) => r.json()).then((d) => setCats(d.categories || []));
+    fetch("/api/base", { cache: "no-store" }).then((r) => r.json()).then((d) => setCats(d.categories || []));
   }, [load]);
 
   function setField(id: string, patch: Partial<MasterItem>) {
@@ -62,6 +62,18 @@ export default function Items() {
   }
 
   const uncategorised = useMemo(() => items.filter((m) => !m.category_code).length, [items]);
+  /*
+   * O CONTADOR PASSA A SER UM FILTRO.
+   *
+   * Dizia "12 uncategorised" numa tabela de 179 linhas e não havia forma de
+   * saltar para essas 12 — era procurá-las à mão, linha a linha. Um número que
+   * identifica trabalho por fazer e não leva lá é uma promessa por cumprir.
+   */
+  const [soSemCategoria, setSoSemCategoria] = useState(false);
+  const visiveis = useMemo(
+    () => (soSemCategoria ? items.filter((m) => !m.category_code) : items),
+    [items, soSemCategoria]
+  );
 
   return (
     <div className="space-y-8">
@@ -75,7 +87,16 @@ export default function Items() {
         </div>
         <div className="flex flex-wrap gap-2 text-sm">
           <span className="chip bg-surface-2 border border-line text-muted">{items.length} items</span>
-          {uncategorised > 0 && <span className="chip-warn">{uncategorised} uncategorised</span>}
+          {uncategorised > 0 && (
+            <button
+              type="button"
+              onClick={() => setSoSemCategoria((v) => !v)}
+              className={soSemCategoria ? "chip-warn ring-2 ring-warning" : "chip-warn"}
+              title={soSemCategoria ? "Show every item again" : "Show only the items still to categorise"}
+            >
+              {uncategorised} uncategorised{soSemCategoria ? " · showing only these" : ""}
+            </button>
+          )}
         </div>
       </div>
 
@@ -106,7 +127,7 @@ export default function Items() {
               </tr>
             </thead>
             <tbody>
-              {items.map((m) => (
+              {visiveis.map((m) => (
                 <tr key={m.id} className="border-b border-line/70 align-middle">
                   <td className="px-3 py-2">
                     <input className="input h-9" value={m.canonical_name} onChange={(e) => setField(m.id, { canonical_name: e.target.value })} />

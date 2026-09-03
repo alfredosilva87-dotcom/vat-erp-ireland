@@ -94,28 +94,38 @@ export async function GET(req: NextRequest, { params }: { params: { id: string }
     y -= size + 5;
   };
 
+  /*
+   * O MACO FALA A MESMA LINGUA DOS OUTROS DOIS.
+   *
+   * O razao (`ledger.pdf`) e a demonstracao (`export.pdf`) saem em ingles;
+   * este saia em portugues — "Entradas/Saidas/Lado/Parte/Numero". Sao os tres
+   * ficheiros que vao no mesmo envelope para o cliente irlandes, e um envelope
+   * nao pode falar duas linguas.
+   *
+   * Os acentos ja nao caem (ver lib/pdfText.ts); o que muda aqui e a lingua.
+   */
   linha(ascii(cliente?.name, 70), 18, true);
-  linha(`${ascii(cliente?.client_code, 20)}  ${de}  ate  ${ate}`, 10, false, suave);
+  linha(`${ascii(cliente?.client_code, 20)}  ${de}  to  ${ate}`, 10, false, suave);
   y -= 8;
-  linha(`Entradas: ${entradas.length}   ${eur(soma(entradas, "total"))}   VAT ${eur(soma(entradas, "vat"))}`, 10, true);
-  linha(`Saidas:   ${saidas.length}   ${eur(soma(saidas, "total"))}   VAT ${eur(soma(saidas, "vat"))}`, 10, true);
+  linha(`Purchases: ${entradas.length}   ${eur(soma(entradas, "total"))}   VAT ${eur(soma(entradas, "vat"))}`, 10, true);
+  linha(`Sales:     ${saidas.length}   ${eur(soma(saidas, "total"))}   VAT ${eur(soma(saidas, "vat"))}`, 10, true);
   y -= 10;
-  linha("Data        Lado      Parte                          Numero        Total     Doc", 8, true, suave);
+  linha("Date        Side      Party                          Number        Total     Doc", 8, true, suave);
   y -= 2;
 
   const semDocumento: PeriodDoc[] = [];
   for (const d of docs) {
     if (!d.document_path) semDocumento.push(d);
     linha(
-      `${(d.data ?? "—").padEnd(11)} ${d.lado === "entrada" ? "entrada" : "saida  "}   ` +
+      `${(d.data ?? "—").padEnd(11)} ${d.lado === "entrada" ? "purchase" : "sale    "}   ` +
       `${ascii(d.parte, 30).padEnd(31)}${ascii(d.numero, 13).padEnd(14)}` +
-      `${d.total.toFixed(2).padStart(9)}   ${d.document_path ? "sim" : "-"}`,
+      `${d.total.toFixed(2).padStart(9)}   ${d.document_path ? "yes" : "-"}`,
       8
     );
   }
   if (semDocumento.length) {
     y -= 8;
-    linha(`${semDocumento.length} lancamento(s) sem ficheiro anexado — constam acima com "-".`, 8, false, suave);
+    linha(`${semDocumento.length} entry(ies) have no attached file — they appear above marked "-".`, 8, false, suave);
   }
 
   // ------------------------------------------------------- os documentos

@@ -115,7 +115,7 @@ export default function ExportPanel({
       if (fmt === "pdf") {
         // PDF is laid out in the browser; fetch the same payload the other
         // formats use so all three stay identical.
-        const res = await fetch(`/api/clients/${clientId}/export.json?${qs()}`);
+        const res = await fetch(`/api/clients/${clientId}/export.json?${qs()}`, { cache: "no-store" });
         const data = await res.json();
         if (!res.ok) throw new Error(data.error || t("export.pdfFailed"));
         downloadClientPdf(data);

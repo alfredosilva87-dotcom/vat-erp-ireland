@@ -49,10 +49,10 @@ export default function VatByRate({ params }: { params: { id: string } }) {
 
   const load = useCallback(async () => {
     setLoading(true);
-    const c = await (await fetch(`/api/clients/${params.id}`)).json();
+    const c = await (await fetch(`/api/clients/${params.id}`, { cache: "no-store" })).json();
     setClient(c.client || null);
     const { start, end } = range();
-    const d = await (await fetch(`/api/clients/${params.id}/vat-by-rate?start=${start}&end=${end}`)).json();
+    const d = await (await fetch(`/api/clients/${params.id}/vat-by-rate?start=${start}&end=${end}`, { cache: "no-store" })).json();
     setPurchases(d.purchases || []);
     setSales(d.sales || []);
     setPending(d.pending || { count: 0, vat: 0 });

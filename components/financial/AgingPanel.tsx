@@ -27,6 +27,8 @@ type Parcial = {
   documentRef: string | null; contraparte: string | null; dueDate: string | null;
   original: number; encargos: number; pago: number; aberto: number;
   pagoPct: number; vencido: boolean;
+  /** O vencimento foi deduzido (30 dias), não acordado. Ver lib/financial/titles.ts. */
+  vencimentoEstimado?: boolean;
 };
 type Aging = { payable: Lado; receivable: Lado; parciais: Parcial[] };
 
@@ -94,6 +96,17 @@ export default function AgingPanel({ clientId }: { clientId: string }) {
                     </td>
                     <td className={`py-1.5 font-mono text-[12px] ${p.vencido ? "text-danger" : "text-muted"}`}>
                       {p.dueDate || "—"}
+                      {/*
+                        Um vencimento deduzido diz que o é. Sem isto, um título
+                        aparecia "Overdue" por causa de uma data que ninguém
+                        indicou — o sistema inventava o prazo e depois acusava o
+                        cliente com base nele.
+                      */}
+                      {p.vencimentoEstimado && (
+                        <span className="ml-1 text-[10px] not-italic text-muted" title={t("aging.estimatedHint")}>
+                          ({t("aging.estimated")})
+                        </span>
+                      )}
                     </td>
                     <td className="py-1.5 text-right font-mono tabular-nums">
                       {eur(p.original + p.encargos)}

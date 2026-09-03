@@ -20,7 +20,7 @@ export default function ClientBranches({ clientId }: { clientId: string }) {
   const [msg, setMsg] = useState("");
 
   async function load() {
-    const d = await (await fetch(`/api/clients/${clientId}/branches`)).json();
+    const d = await (await fetch(`/api/clients/${clientId}/branches`, { cache: "no-store" })).json();
     setBranches(d.branches || []);
     setLoading(false);
   }

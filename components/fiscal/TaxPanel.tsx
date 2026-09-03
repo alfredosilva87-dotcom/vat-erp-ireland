@@ -134,7 +134,7 @@ export default function TaxPanel({ clientId, tipo }: { clientId: string; tipo: "
   const carregar = useCallback(async () => {
     setCarregando(true); setErro(null);
     try {
-      const r = await fetch(`/api/clients/${clientId}/tax?de=${de}&ate=${ate}`);
+      const r = await fetch(`/api/clients/${clientId}/tax?de=${de}&ate=${ate}`, { cache: "no-store" });
       const j = await r.json();
       if (!r.ok) { setErro(j.error || t("tax.loadErr")); setD(null); return; }
       setD(j);

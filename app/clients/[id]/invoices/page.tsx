@@ -38,7 +38,7 @@ export default function InvoicesPage({ params }: { params: { id: string } }) {
   const [criando, setCriando] = useState(false);
 
   const carregar = useCallback(async () => {
-    const r = await fetch(`/api/clients/${params.id}/invoices`);
+    const r = await fetch(`/api/clients/${params.id}/invoices`, { cache: "no-store" });
     const j = await r.json();
     setLista(j.invoices ?? []);
   }, [params.id]);

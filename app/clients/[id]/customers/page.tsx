@@ -39,7 +39,7 @@ export default function CustomersPage({ params }: { params: { id: string } }) {
   const [gravando, setGravando] = useState(false);
 
   const carregar = useCallback(async () => {
-    const r = await fetch(`/api/clients/${params.id}/customers?todos=1`);
+    const r = await fetch(`/api/clients/${params.id}/customers?todos=1`, { cache: "no-store" });
     const j = await r.json();
     setLista(j.clientes ?? []);
   }, [params.id]);

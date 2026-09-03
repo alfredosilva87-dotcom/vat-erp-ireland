@@ -55,7 +55,7 @@ export default function SaleReview({ params }: { params: { id: string; saleId: s
 
   const load = useCallback(async () => {
     setLoading(true);
-    const d = await (await fetch(`/api/clients/${params.id}/sales/${params.saleId}`)).json();
+    const d = await (await fetch(`/api/clients/${params.id}/sales/${params.saleId}`, { cache: "no-store" })).json();
     setSale(d.sale || null);
     setItems(d.items || []);
     setIntegration(d.integration ?? null);

@@ -35,7 +35,7 @@ export default function Master() {
   const [historyLoading, setHistoryLoading] = useState(false);
 
   const load = useCallback(async () => {
-    const res = await fetch("/api/companies");
+    const res = await fetch("/api/companies", { cache: "no-store" });
     if (res.status === 401 || res.status === 403) { setForbidden(true); setLoading(false); return; }
     const d = await res.json();
     setCompanies(d.companies || []);
@@ -84,7 +84,7 @@ export default function Master() {
     if (historyId === id) { setHistoryId(null); return; }
     setHistoryId(id);
     setHistoryLoading(true);
-    const res = await fetch(`/api/companies/${id}/history`);
+    const res = await fetch(`/api/companies/${id}/history`, { cache: "no-store" });
     const d = await res.json();
     setHistory(res.ok ? d.events || [] : []);
     setHistoryLoading(false);
@@ -223,14 +223,34 @@ export default function Master() {
                         <button className="btn-ghost h-8 px-3 text-xs" onClick={() => patch(c.id, { regenerateKey: true })}>
                           {t("master.newKey")}
                         </button>
-                        <button
-                          className={`btn-ghost h-8 px-3 text-xs ${c.active ? "text-danger" : ""}`}
-                          onClick={() => patch(c.id, { active: !c.active })}
-                        >
-                          {c.active ? t("users.deactivate") : t("users.activate")}
-                        </button>
                         <button className="btn-ghost h-8 px-3 text-xs" onClick={() => generateRenewal(c.id)}>
                           Generate renewal
+                        </button>
+                        {/*
+                          DESACTIVAR SAI DO MEIO DA ROTINA.
+                          Estava entre `New key` e `Generate renewal`, e o
+                          próprio ecrã avisa que uma licença inactiva IMPEDE O
+                          LOGIN de todos os utilizadores dessa empresa. Um
+                          clique ao lado de um botão de rotina derrubava o
+                          acesso de um escritório inteiro. Vai para o fim,
+                          atrás de um separador, e a confirmação obriga a
+                          escrever o nome da empresa — o gesto deixa de ser
+                          possível por engano.
+                        */}
+                        <span aria-hidden className="mx-1 h-4 w-px bg-line" />
+                        <button
+                          className={`btn-ghost h-8 px-3 text-xs ${c.active ? "text-danger" : ""}`}
+                          onClick={() => {
+                            if (c.active) {
+                              const escrito = prompt(
+                                `Deactivating this licence signs out every user of "${c.name}" and blocks them from signing in again.\n\nType the company name to confirm:`
+                              );
+                              if (escrito?.trim() !== c.name?.trim()) return;
+                            }
+                            patch(c.id, { active: !c.active });
+                          }}
+                        >
+                          {c.active ? t("users.deactivate") : t("users.activate")}
                         </button>
                         <button className="btn-ghost h-8 px-3 text-xs" onClick={() => toggleHistory(c.id)}>
                           {historyId === c.id ? "Hide history" : "History"}

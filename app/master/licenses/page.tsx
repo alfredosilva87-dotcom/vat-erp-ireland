@@ -119,17 +119,23 @@ export default function LicensesPage() {
   if (semCofre) {
     return (
       <div className="space-y-4">
-        <h1 className="font-display text-2xl font-semibold tracking-tight">Licenças</h1>
+        <h1 className="font-display text-2xl font-semibold tracking-tight">Licences</h1>
+        {/*
+          O QUE ESTAVA AQUI ERA UM RECADO DE PROGRAMADOR.
+          Um caminho de ficheiro e um comando `node …` num ecrã de produto,
+          em português dentro de um app inglês, dito a um contabilista que não
+          tem nada que correr comandos. A informação verdadeira — esta máquina
+          não emite licenças — fica; a instrução técnica sai do ecrã e passa a
+          viver onde pertence, na documentação de quem instala.
+        */}
         <div className="card border-l-4 border-l-warning p-5">
           <p className="text-sm">
-            Esta máquina não tem a chave privada de emissão, então não é daqui que se emitem licenças.
+            Licences are not issued from this installation.
           </p>
           <p className="mt-2 text-sm text-muted">
-            Na máquina de quem vende, gere o par de chaves uma única vez com{" "}
-            <code className="rounded bg-surface-2 px-1.5 py-0.5 font-mono text-xs">
-              node selfhost/scripts/license-keygen.js
-            </code>{" "}
-            e recarregue esta tela.
+            Issuing requires the signing key, which is held only on the vendor&apos;s own machine.
+            If you need a new licence or a renewal, ask your supplier — they can generate and send
+            you a key, and you activate it from Settings.
           </p>
         </div>
       </div>

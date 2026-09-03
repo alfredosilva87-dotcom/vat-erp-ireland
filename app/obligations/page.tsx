@@ -65,6 +65,19 @@ export default function AgendaFiscal() {
    * verdes empurram os cinco que importam para fora do ecrã — e o que fica à
    * vista deixa de ser o trabalho.
    */
+  /*
+   * O FILTRO VALE PARA O ECRÃ INTEIRO, E NÃO SÓ PARA A TABELA DE BAIXO.
+   *
+   * "Hide clients that are up to date" está LIGADO por omissão, e mesmo assim
+   * o quadro de declarações continuava a mostrar o cliente em dia e o gráfico
+   * continuava a contá-lo. Um filtro que só obedece num sítio é pior do que
+   * filtro nenhum: quem o liga conta com ele, e depois lê números que ainda o
+   * incluem.
+   *
+   * Os cartões do topo ficam DE FORA de propósito — eles são o retrato da
+   * carteira toda, e é isso que lhes dá sentido: "1 de 5" com o denominador
+   * filtrado passaria a dizer "1 de 4", que é outra coisa.
+   */
   const linhas = (d?.linhas ?? []).filter((l) => !soPendentes || l.semaforo !== "verde");
 
   return (
@@ -113,14 +126,14 @@ export default function AgendaFiscal() {
       )}
 
       {/* Quanto de cada cliente ja esta entregue — ver o componente. */}
-      {d && <ProgressoPorCliente linhas={d.linhas} />}
+      {d && <ProgressoPorCliente linhas={linhas} />}
 
       {/*
         * O quadro le-se POR COLUNA: uma declaracao de cada vez, em todos os
         * clientes. E a pergunta de quem fecha um prazo — "o VAT3 ja esta
         * entregue em toda a gente?" — e a tabela por cliente nao a responde.
         */}
-      {d && <QuadroDeObrigacoes linhas={d.linhas} />}
+      {d && <QuadroDeObrigacoes linhas={linhas} />}
 
       {/*
         * O limiar vem ANTES da tabela de prazos.

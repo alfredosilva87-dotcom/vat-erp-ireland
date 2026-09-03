@@ -57,7 +57,7 @@ export default function Clients() {
   useEffect(() => {
     load();
     setCurrentId(getCurrentClient()?.id ?? null);
-    fetch("/api/base").then((r) => r.json()).then((d) => setCategories(d.categories || []));
+    fetch("/api/base", { cache: "no-store" }).then((r) => r.json()).then((d) => setCategories(d.categories || []));
   }, [load]);
 
   function toggleCategory(code: string) {
