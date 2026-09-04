@@ -367,6 +367,50 @@ só conhece `"invoice" | "sale"`.
 **Isto é pré-requisito de tudo o resto neste documento.** Não vale a pena gerar
 ficheiro de pagamento enquanto o pagamento não souber voltar.
 
+### Porque não é "acrescentar um terceiro tipo de candidato"
+
+Medido o âmbito (por `folha-e2e`, e conferido aqui), há uma **assimetria no
+modo de liquidar** que não se vê de fora e que é o verdadeiro trabalho:
+
+| | Nota de compra / venda | Título (`ledger_items`) |
+|---|---|---|
+| Como fica liquidado | **Implícito**: uma coluna `invoice_id` / `sale_id` na própria `bank_transactions` | **Explícito**: uma linha em `ledger_settlements` **mais** a partida no razão, escritas por `settle()` |
+| Quem escreve | `reconcileLine`, com um `insert` directo | `settle()` em `lib/accounting/service.ts` |
+
+`reconcileLine` só conhece o modo implícito. Conciliar um título não é preencher
+mais uma coluna — é **chamar um segundo mecanismo de liquidação** dentro da
+mesma função. É aí que está o esforço, e não nos candidatos.
+
+O que **é** pequeno, e vale registar para quem lá for:
+
+- A view `ledger_items_open` (migração 026) já devolve `outstanding_amount` e
+  `status` calculados. O terceiro bloco de `openDocuments()` são poucas linhas.
+- Em `suggestMatches`, `expected` deduz-se hoje do **sinal** da linha
+  (`amount < 0 → "invoice"`). Um título tem `kind` próprio: `payable` casa com
+  saída, `receivable` com entrada. É uma condição, não uma reescrita.
+
+### E a trava que impede fazer metade
+
+> **Um candidato que se pode escolher mas cuja baixa não é escrita é pior do
+> que não haver candidato nenhum.** A linha ficaria marcada como conciliada, o
+> movimento no banco criado, e o título a dever na mesma — o mesmo dinheiro
+> contado duas vezes, com o ecrã a dizer que está tudo certo. A situação de
+> hoje ("nenhum documento em aberto parecido com esta linha") é feia, mas é
+> **visível**, e por isso corrigível.
+
+Sobre voltar atrás, há uma boa notícia que corrige uma suposição minha: **o
+caminho de reversão já existe e já está decidido.** O `undoLine` já sabe de
+`ledger_settlements` — quando o movimento deu baixa num título, **recusa**, e
+manda desfazer no painel do título. O comentário no código explica porquê, e a
+razão é boa: *"a baixa é uma decisão contábil, e desfazê-la a partir do ecrã do
+banco escondia dela quem a tomou"*. O `unlinkLine` desfaz só o vínculo e deixa
+o dinheiro lançado, que é o estado verdadeiro.
+
+Ou seja, quem construir isto **não tem de inventar a reversão** — herda uma
+recusa deliberada. O que tem de aceitar é a consequência: desfazer a
+conciliação de uma folha manda o utilizador para outro ecrã, ao contrário do
+que acontece com uma nota. Assimetria real, e defensável.
+
 E há um segundo problema, que só aparece quando o ficheiro existir:
 
 > **O AIB posta UM débito por bloco de pagamento**, não um por transferência. A
@@ -383,6 +427,13 @@ que reparte o valor de uma linha por vários documentos, obriga a soma das parte
 a fechar com o valor da linha, e manda a diferença de cêntimos para conta de
 arredondamento em vez de a esconder. É exactamente o que faz falta. Só precisa
 que os candidatos incluam títulos.
+
+> **E precisa de funcionar no painel de dividir, não só no casamento
+> um-para-um.** Com pagamento por ficheiro, o débito único por bloco é o caso
+> **normal** da folha, não a excepção: uma linha de extracto contra N
+> funcionários, ou contra LIQ e IMP quando os dois vão no mesmo bloco. Um
+> `kind: "ledger"` que só funcione no casamento simples resolve o caso raro e
+> falha o comum.
 
 ```mermaid
 flowchart TD
@@ -695,15 +746,24 @@ ordens de grandeza são de esforço, não promessas.
 
 **Sem certificação nenhuma. Sem acordo com banco nenhum.**
 
-`openDocuments()` passa a incluir `ledger_items` em aberto, e `MatchCandidate.kind`
-ganha `"ledger"`. É o que faz o título de folha aparecer na conciliação — hoje
-não aparece, verificado em produção.
+`openDocuments()` passa a incluir `ledger_items` em aberto, `MatchCandidate.kind`
+ganha `"ledger"`, e `reconcileLine` aprende a liquidar pelo caminho explícito
+(`settle()`). É o que faz o título de folha aparecer na conciliação — hoje não
+aparece, verificado em produção no DEMO-COR.
 
 - **Ganha-se:** a folha deixa de ser um buraco no extracto. Sozinho já justifica.
 - **Fora do software:** nada.
-- **Esforço:** dias.
-- **É de outro agente** (`folha-e2e` sinalizou-o), e é pré-requisito de tudo
-  abaixo.
+- **Esforço:** **semanas, não dias** — e a estimativa de "dias" que estava aqui
+  antes estava errada. Os candidatos são pequenos; o que custa é o segundo
+  mecanismo de liquidação dentro de `reconcileLine` (ver 2.3). Toca em
+  `lib/bankMatch.ts`, `lib/bankReconcile.ts`, o POST de `lines/[lineId]`,
+  `ReconcileRow.tsx` e `SplitSettlement.tsx`. Dois desses ficheiros estão sob
+  teste, o que ajuda.
+- **Não se pode entregar metade.** Ver a trava em 2.3: candidatos sem baixa
+  contam o dinheiro duas vezes e o ecrã diz que está certo.
+- **Está por decidir do utilizador.** O `folha-e2e` levantou-o, mediu-o, e não
+  o construiu — o briefing dele excluía a ligação ao banco, e isto atravessa-a.
+  Fica aqui como a primeira decisão a tomar, e não como trabalho em curso.
 
 ## Fase 1 — A lista de pagamentos a fazer
 
@@ -810,6 +870,13 @@ Cinco coisas que apareceram na investigação e que valem mais do que o resto:
 5. **O EBICS não existe na Irlanda.** É DACH e França. O host-to-host irlandês é
    SFTP com o mesmo ficheiro — a "conectividade corporativa" não é um formato
    diferente, é outra porta para a mesma coisa.
+6. **Conciliar um título não é "mais um tipo de candidato".** Notas liquidam-se
+   por uma **coluna** na transacção; títulos liquidam-se por uma **linha em
+   `ledger_settlements` mais uma partida no razão**. São dois mecanismos, e
+   `reconcileLine` só conhece um. Em compensação — e ao contrário do que eu
+   próprio assumi na primeira versão deste documento — **a reversão já está
+   resolvida**: o `undoLine` já recusa desfazer uma linha que deu baixa, e
+   manda ao painel do título. Não há nada a inventar aí.
 
 E o que **não** contraria nada, mas convém dizer em voz alta: **o utilizador
 estava certo ao suspeitar que dependia de certificação.** Depende — mas só o
