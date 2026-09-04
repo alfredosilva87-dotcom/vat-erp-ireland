@@ -6,6 +6,7 @@ import { useT } from "@/lib/i18n";
 import { hrYearOptions, useHrYear } from "@/components/hr/useHrYear";
 import { useHrCompanies } from "@/components/hr/useHrCompanies";
 import { diaDaSemana, origemDasHoras } from "@/components/hr/labels";
+import PayrollBatch from "@/components/hr/PayrollBatch";
 
 /**
  * As empresas que fazem folha.
@@ -146,6 +147,15 @@ export default function HrCompanies() {
           </div>
         </div>
       )}
+
+      {/*
+        * A CORRIDA EM LOTE fica ACIMA da lista, e não numa tela própria.
+        *
+        * É a acção da semana; a lista é referência. Enterrada noutro ecrã seria
+        * como a opção das horas antes de subir para junto dos recibos: existia
+        * e ninguém a encontrava.
+        */}
+      {!!companies.length && <PayrollBatch companies={companies} year={year} />}
 
       <div className="card overflow-hidden">
         <div className="flex flex-wrap items-center gap-3 border-b border-line bg-surface-2/60 px-4 py-2.5">

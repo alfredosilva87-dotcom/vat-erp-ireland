@@ -1451,6 +1451,18 @@ const en = {
   "run.titulosCriados": "Payables opened — {quais}.",
   "run.titulosRemovidos": "{n} payable(s) removed.",
   "run.titulosMantidos": "Kept: {quais}.",
+  // A corrida em lote — ver components/hr/PayrollBatch.tsx.
+  "lote.title": "Run payroll in batch",
+  "lote.help": "The week's payroll is every company on the same block, not one company at a time. Pick the block and the period, tick the companies, and finalise them in one go. Each company reports back on its own line — including the ones where nothing happened, and why.",
+  "lote.correr": "Finalise {n} payroll(s)",
+  "lote.confirmar": "Finalise period {p} for {n} compan(ies)? Payslips become final and two payables open for each — net wages and Revenue.",
+  "lote.colCompany": "Company",
+  "lote.colResult": "Result",
+  "lote.gravados": "{n} payslip(s)",
+  "lote.nenhuma": "No company runs this payslip type with staff on it.",
+  "lote.semAcesso": "No access to this client.",
+  "lote.naoFechou": "Not finalised: {erro}",
+  "lote.erro": "Failed: {erro}",
 
   // ------------------------------------------------------------- o recibo
   "payslip.title": "PAYSLIP",

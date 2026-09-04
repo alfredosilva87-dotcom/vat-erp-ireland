@@ -1451,6 +1451,17 @@ const pt: Dict = {
   "run.titulosCriados": "Contas a pagar abertas — {quais}.",
   "run.titulosRemovidos": "{n} conta(s) a pagar removida(s).",
   "run.titulosMantidos": "Mantidas: {quais}.",
+  "lote.title": "Correr a folha em lote",
+  "lote.help": "A folha da semana são as empresas todas do mesmo bloco, e não uma de cada vez. Escolha o bloco e o período, marque as empresas e feche-as de uma vez. Cada empresa responde na sua linha — incluindo aquelas em que não aconteceu nada, e porquê.",
+  "lote.correr": "Fechar {n} folha(s)",
+  "lote.confirmar": "Fechar o período {p} de {n} empresa(s)? Os recibos passam a definitivos e abrem duas contas a pagar em cada uma — salários líquidos e Revenue.",
+  "lote.colCompany": "Empresa",
+  "lote.colResult": "Resultado",
+  "lote.gravados": "{n} recibo(s)",
+  "lote.nenhuma": "Nenhuma empresa corre este tipo de payslip com gente nele.",
+  "lote.semAcesso": "Sem acesso a este cliente.",
+  "lote.naoFechou": "Não fechou: {erro}",
+  "lote.erro": "Falhou: {erro}",
 
   // ------------------------------------------------------------- o recibo
   "payslip.title": "RECIBO DE VENCIMENTO",

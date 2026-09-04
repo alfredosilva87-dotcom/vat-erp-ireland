@@ -221,6 +221,17 @@ const es: Partial<Record<TKey, string>> = {
   "run.titulosCriados": "Cuentas a pagar abiertas — {quais}.",
   "run.titulosRemovidos": "{n} cuenta(s) a pagar eliminada(s).",
   "run.titulosMantidos": "Mantenidas: {quais}.",
+  "lote.title": "Correr la nómina en lote",
+  "lote.help": "La nómina de la semana son todas las empresas del mismo bloque, y no una a una. Elija el bloque y el período, marque las empresas y ciérrelas de una vez. Cada empresa responde en su propia línea — incluidas aquellas en las que no pasó nada, y por qué.",
+  "lote.correr": "Cerrar {n} nómina(s)",
+  "lote.confirmar": "¿Cerrar el período {p} de {n} empresa(s)? Los recibos pasan a definitivos y se abren dos cuentas a pagar en cada una — salarios netos y Revenue.",
+  "lote.colCompany": "Empresa",
+  "lote.colResult": "Resultado",
+  "lote.gravados": "{n} recibo(s)",
+  "lote.nenhuma": "Ninguna empresa corre este tipo de recibo con personal.",
+  "lote.semAcesso": "Sin acceso a este cliente.",
+  "lote.naoFechou": "No se cerró: {erro}",
+  "lote.erro": "Falló: {erro}",
 
   // ------------------------------------------------------------- el recibo
   "payslip.title": "NÓMINA",
