@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { denied, requireClient } from "@/lib/access";
 import { getSessionUser } from "@/lib/auth";
 import { getServerSupabase } from "@/lib/supabase";
+import { colunasDaCelula } from "@/lib/hr/lancamentoDeHoras";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -40,14 +41,6 @@ export const dynamic = "force-dynamic";
  * a folha fechada é `final`. Reabrir é um acto próprio, com o seu botão. Aqui
  * recusa-se apenas o que é obviamente impossível.
  */
-
-const NUM = (v: unknown): number | null => {
-  if (v === null || v === undefined || v === "") return null;
-  const n = Number(v);
-  if (!Number.isFinite(n)) return null;
-  // Mais de 168 horas não cabe numa semana. É engano de digitação.
-  return n < 0 || n > 168 ? null : n;
-};
 
 export async function PUT(req: NextRequest, { params }: { params: { id: string } }) {
   const acesso = await requireClient(params.id);
@@ -89,14 +82,7 @@ export async function PUT(req: NextRequest, { params }: { params: { id: string }
   };
   // Só se escreve o que veio no pedido. Assim uma tela que edita as horas não
   // apaga sem querer o domingo que outra pessoa lançou na mesma célula.
-  if ("hours" in b) linha.hours = NUM(b.hours);
-  if ("sundayHours" in b) linha.sunday_hours = NUM(b.sundayHours);
-  if ("holidayHours" in b) linha.holiday_hours = NUM(b.holidayHours);
-  if ("weekWorked" in b) linha.week_worked = b.weekWorked === null ? null : Boolean(b.weekWorked);
-  if ("grossOverride" in b) {
-    const g = b.grossOverride === null || b.grossOverride === "" ? null : Number(b.grossOverride);
-    linha.gross_override = g !== null && Number.isFinite(g) && g >= 0 ? g : null;
-  }
+  Object.assign(linha, colunasDaCelula(b));
 
   const { data, error } = await sb.from("hr_employee_hours")
     .upsert(linha, { onConflict: "employee_id,year,week_no" })
