@@ -19,6 +19,7 @@ cronologia.
 | [pesquisa-dext.md](pesquisa-dext.md) | como o Dext resolve a ingestão de documentos |
 | [pesquisa-xero.md](pesquisa-xero.md) | o que o Xero faz e onde ficam as fronteiras |
 | [plano-conciliacao-ingestao.md](plano-conciliacao-ingestao.md) | o plano da conciliação bancária e da ingestão |
+| [pagamento-pelo-banco.md](pagamento-pelo-banco.md) | como se paga a partir do ERP: o ficheiro SEPA, o que exige licença, e por que a ligação directa ao banco não compensa |
 | [traducao-pendente.md](traducao-pendente.md) | o que falta traduzir |
 | [manual/](manual/) | o manual do utilizador |
 
