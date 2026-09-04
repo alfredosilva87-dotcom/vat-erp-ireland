@@ -1062,6 +1062,7 @@ const en = {
   "hr.navContacts": "Communication",
   "hr.navConversations": "Conversations",
   "conv.titulo": "Payroll conversations",
+  "conv.semana": "Week",
   "conv.ajuda": "What each client sent about the week's hours, kept next to what was read from it. This does not read WhatsApp on its own — no personal number can be read that way — it stops the message from living only on someone's phone.",
   "conv.emFalta": "{n} client(s) with nothing received for week {semana}",
   "conv.soEmFalta": "Only the ones missing",

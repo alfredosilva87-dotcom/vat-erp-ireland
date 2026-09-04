@@ -1063,6 +1063,7 @@ const pt: Dict = {
   "hr.navContacts": "Comunicação",
   "hr.navConversations": "Conversas",
   "conv.titulo": "Conversas da folha",
+  "conv.semana": "Semana",
   "conv.ajuda": "O que cada cliente mandou sobre as horas da semana, guardado ao pé do que se leu dela. Isto não lê o WhatsApp sozinho — nenhum número pessoal é legível por via oficial — o que faz é impedir que a mensagem viva só no telemóvel de alguém.",
   "conv.emFalta": "{n} cliente(s) sem nada recebido na semana {semana}",
   "conv.soEmFalta": "Só quem falta",

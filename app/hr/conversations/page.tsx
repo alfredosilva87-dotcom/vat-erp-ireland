@@ -133,8 +133,10 @@ export default function Conversas() {
           <p className="mt-1 max-w-3xl text-muted">{t("conv.ajuda")}</p>
         </div>
         <label className="flex flex-col leading-tight">
+          {/* "W" sozinho não é uma etiqueta: ao lado de um campo isolado no
+              topo, ninguém sabe do que é aquele número. */}
           <span className="text-[9.5px] font-medium uppercase tracking-wide text-muted">
-            {t("hr.weekShort")}
+            {t("conv.semana")}
           </span>
           <input className="input h-9 w-24 text-[13px] font-semibold" type="number" min="1" max="53"
             value={semana} onChange={(e) => setSemana(Number(e.target.value))} />
