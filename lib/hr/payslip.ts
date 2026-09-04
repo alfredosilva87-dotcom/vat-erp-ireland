@@ -2,6 +2,7 @@ import "server-only";
 import { getServerSupabase } from "@/lib/supabase";
 import { correrFolha, semanasDoPeriodo } from "@/lib/hr/folha";
 import { grossFor, type Employee, type WeekHours } from "@/lib/hr/payroll";
+import type { ConfigDaEmpresa } from "@/lib/hr/regrasDaEmpresa";
 import {
   cents, linhasDePagamento, type FreqType, type Payslip,
 } from "@/lib/hr/payslipPuro";
@@ -102,6 +103,12 @@ export async function payslipsDoPeriodo(args: {
     registoComercial: (cli as any).cro?.trim() || null,
   };
 
+  const { data: regrasDaEmpresa } = await getServerSupabase().from("hr_client")
+    .select("sunday_mode,sunday_multiplier,overtime_after_hours,overtime_multiplier,"
+      + "holiday_accrual_pct,holiday_days_year")
+    .eq("client_id", clientId).maybeSingle();
+  const cfgEmpresa = (regrasDaEmpresa ?? null) as ConfigDaEmpresa | null;
+
   return funcionarios.map((e): Payslip => {
     const gravado = payslips.find(
       (p) => p.employee_id === e.id && Number(p.period_no) === periodNo
@@ -121,7 +128,15 @@ export async function payslipsDoPeriodo(args: {
     const brutoCents = gravado
       ? n(gravado.gross_cents)
       : linhaViva?.brutoCents
-        ?? doPeriodo.reduce((s, h) => s + cents(grossFor(e as Employee, h)), 0);
+        /*
+         * O último recurso passa as REGRAS DA EMPRESA.
+         *
+         * Sem elas, um recibo reimpresso de um período ainda por fechar pagava
+         * o domingo à taxa normal enquanto o ecrã da folha mostrava o prémio —
+         * dois números para o mesmo salário, e o que a pessoa recebe em papel é
+         * este.
+         */
+        ?? doPeriodo.reduce((s, h) => s + cents(grossFor(e as Employee, h, cfgEmpresa)), 0);
 
     /*
      * O ACUMULADO DE AE não tem coluna própria em `hr_payslip`.

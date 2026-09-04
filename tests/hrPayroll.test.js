@@ -295,5 +295,50 @@ console.log("\n== semanas ISO ==");
   ok(P.monthOfWeek(2026, 1) === 0, "a semana 1 de 2026 e de janeiro, pela quinta-feira dela");
 }
 
+console.log("\n== A REGRA DA EMPRESA CHEGA A QUEM CALCULA ==");
+{
+  /*
+   * Este bloco existe por causa de um erro que quase passou: as regras da
+   * empresa estavam gravadas, o ecra mostrava-as, o exemplo batia certo — e
+   * `grossFor` era chamado SEM configuracao em quatro sitios (a folha, o
+   * recibo em PDF, o titulo a pagar, o quadro). O domingo continuava a ser
+   * pago a taxa normal com tudo a volta a dizer que funcionava.
+   */
+  const e = { id: "x", pay_type: "Hourly", hourly_rate: 13 };
+  const empresa = { sunday_mode: "multiplier", sunday_multiplier: 2 };
+
+  ok(P.grossFor(e, { hours: 32, sunday_hours: 8 }) === 32 * 13 + 8 * 13,
+    "sem configuracao, o domingo paga a taxa normal — como sempre pagou");
+  ok(P.grossFor(e, { hours: 32, sunday_hours: 8 }, empresa) === 32 * 13 + 8 * 26,
+    "com a regra da empresa, paga a dobrar",
+    P.grossFor(e, { hours: 32, sunday_hours: 8 }, empresa));
+
+  // A ficha continua a ganhar: ha sempre o contrato individual diferente.
+  const comFicha = { id: "y", pay_type: "Hourly", hourly_rate: 13, sunday_rate: 30 };
+  ok(P.grossFor(comFicha, { hours: 0, sunday_hours: 1 }, empresa) === 30,
+    "a taxa da ficha ganha ao multiplicador da empresa");
+}
+
+console.log("\n== A MEMORIA DE CALCULO ==");
+{
+  const e = { id: "x", pay_type: "Hourly", hourly_rate: 13 };
+  const d = P.grossDetail(e, { hours: 32, sunday_hours: 8 },
+    { sunday_mode: "multiplier", sunday_multiplier: 2 });
+  ok(d.total === 32 * 13 + 8 * 26, "o total e o mesmo que grossFor devolve", d.total);
+  ok(d.parcelas.length === 2, "e vem partido, para se poder conferir", d.parcelas);
+  ok(d.parcelas[1].taxa === 26, "com a TAXA a vista, que e o que apanha o erro", d.parcelas[1]);
+
+  // Contrato fixo nao tem parcelas — mas tem de dizer PORQUE nao paga.
+  const fixo = { id: "f", pay_type: "Weekly Fixed", fixed_amount: 500 };
+  const naoMarcada = P.grossDetail(fixo, { week_worked: false }, null);
+  ok(naoMarcada.total === 0 && naoMarcada.avisos.includes("parcela.semanaNaoMarcada"),
+    "semana nao marcada paga zero E diz porque", naoMarcada);
+
+  // O valor forcado a mao nao passa pelas taxas, e isso tem de ficar dito.
+  const forcado = P.grossDetail(e, { hours: 40, gross_override: 700 }, null);
+  ok(forcado.total === 700 && forcado.avisos.includes("parcela.valorForcado"),
+    "o bruto escrito a mao manda, e avisa que as taxas nao foram usadas", forcado);
+}
+
 console.log(`\n=========== ${pass} passaram, ${fail} falharam ===========\n`);
 process.exit(fail === 0 ? 0 : 1);

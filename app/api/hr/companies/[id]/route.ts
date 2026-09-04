@@ -74,6 +74,48 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
   if (typeof corpo?.payslip_show_hours === "boolean") {
     campos.payslip_show_hours = corpo.payslip_show_hours;
   }
+
+  /*
+   * AS REGRAS DE PAGAMENTO DA EMPRESA — domingo, extras, férias.
+   *
+   * Cada campo só se escreve se vier no pedido, e nunca em bloco: o painel das
+   * regras e a caixa das horas no recibo gravam pela mesma rota, e um `upsert`
+   * com o objecto inteiro apagaria o que a outra tela acabou de pôr.
+   *
+   * NULO É UM VALOR e quer dizer "esta empresa não tem esta regra" — não é o
+   * mesmo que zero, que seria uma regra a mandar não pagar nada. Por isso o
+   * teste é `in corpo` e não a verdade do valor.
+   */
+  const numeroOuNulo = (v: unknown, max: number): number | null | undefined => {
+    if (v === null || v === "") return null;
+    const n = Number(v);
+    // Um valor impossível não se grava nem se corrige em silêncio: ignora-se, e
+    // o campo fica como estava. Corrigi-lo aqui era decidir pela pessoa.
+    return Number.isFinite(n) && n >= 0 && n <= max ? n : undefined;
+  };
+  if ("sunday_mode" in corpo && ["rate", "multiplier"].includes(String(corpo.sunday_mode))) {
+    campos.sunday_mode = corpo.sunday_mode;
+  }
+  for (const [chave, max] of [
+    ["sunday_multiplier", 10],
+    ["overtime_multiplier", 10],
+    ["overtime_after_hours", 168],
+    ["holiday_accrual_pct", 100],
+    ["holiday_days_year", 365],
+  ] as const) {
+    if (!(chave in corpo)) continue;
+    const v = numeroOuNulo(corpo[chave], max);
+    if (v !== undefined) campos[chave] = v;
+  }
+  /*
+   * Estes dois NÃO aceitam nulo: têm padrão `not null` na base, e o mínimo
+   * legal é o que vale quando ninguém configurou. Apagá-los deixaria a coluna
+   * sem valor e o cálculo das férias sem chão.
+   */
+  for (const chave of ["holiday_accrual_pct", "holiday_days_year"] as const) {
+    if (campos[chave] === null) delete campos[chave];
+  }
+
   if (!Object.keys(campos).length) {
     return NextResponse.json({ error: "Nada para gravar." }, { status: 400 });
   }

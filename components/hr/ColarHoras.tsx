@@ -27,10 +27,14 @@ import { useT } from "@/lib/i18n";
 
 interface LinhaLida {
   nome: string;
+  /** O total como a pessoa o escreveu. */
   horas: number | null;
+  /** O que vai mesmo para a coluna das horas normais: o total menos o resto. */
+  horasNormais: number | null;
   horasDomingo: number | null;
   horasFeriado: number | null;
   trabalhou: boolean;
+  aviso: string | null;
   origem: string;
 }
 
@@ -135,7 +139,8 @@ export default function ColarHoras({
                 <thead>
                   <tr className="border-b border-line text-[10.5px] uppercase tracking-wide text-muted">
                     <th className="px-2 py-2 text-left font-medium">{t("wa.colNome")}</th>
-                    <th className="px-2 py-2 text-right font-medium">{t("wa.colHoras")}</th>
+                    <th className="px-2 py-2 text-right font-medium">{t("wa.colTotal")}</th>
+                    <th className="px-2 py-2 text-right font-medium">{t("wa.colNormais")}</th>
                     <th className="px-2 py-2 text-right font-medium">{t("wa.colDomingo")}</th>
                     <th className="px-2 py-2 text-right font-medium">{t("wa.colFeriado")}</th>
                     <th className="px-2 py-2 text-left font-medium">{t("wa.colOrigem")}</th>
@@ -145,11 +150,24 @@ export default function ColarHoras({
                   {previa.linhas.map((l, i) => (
                     <tr key={i} className={`border-b border-line/50 ${l.trabalhou ? "" : "text-muted"}`}>
                       <td className="px-2 py-1.5">{l.nome}</td>
-                      <td className="px-2 py-1.5 text-right tnum">{l.horas ?? "—"}</td>
+                      {/*
+                        * O TOTAL e as NORMAIS lado a lado, e não só um número.
+                        *
+                        * "38 (4 domingo)" grava 34 + 4, porque as colunas somam-se
+                        * no bruto. Quem confere tem de ver essa conta, senão o 34
+                        * parece um erro de leitura.
+                        */}
+                      <td className="px-2 py-1.5 text-right tnum text-muted">{l.horas ?? "—"}</td>
+                      <td className="px-2 py-1.5 text-right tnum">{l.horasNormais ?? "—"}</td>
                       <td className="px-2 py-1.5 text-right tnum">{l.horasDomingo ?? "—"}</td>
                       <td className="px-2 py-1.5 text-right tnum">{l.horasFeriado ?? "—"}</td>
                       {/* O original, ao lado. Quem confere compara em vez de confiar. */}
-                      <td className="px-2 py-1.5 font-mono text-[11px] text-muted">{l.origem}</td>
+                      <td className="px-2 py-1.5 font-mono text-[11px] text-muted">
+                        {l.origem}
+                        {l.aviso && (
+                          <span className="ml-2 font-sans text-warning">{t(l.aviso as any)}</span>
+                        )}
+                      </td>
                     </tr>
                   ))}
                 </tbody>

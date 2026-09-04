@@ -10,6 +10,9 @@ import {
   type Employee, type WeekHours,
 } from "@/lib/hr/payroll";
 import EmployeeForm from "@/components/hr/EmployeeForm";
+import EditorDeHoras from "@/components/hr/EditorDeHoras";
+import RegrasDaEmpresa from "@/components/hr/RegrasDaEmpresa";
+import HistoricoDeRecibos from "@/components/hr/HistoricoDeRecibos";
 import PayrollRun from "@/components/hr/PayrollRun";
 import ImportEmployees from "@/components/hr/ImportEmployees";
 import RevenueSubmission from "@/components/hr/RevenueSubmission";
@@ -23,7 +26,17 @@ type Row = Employee & {
 };
 type HourRow = WeekHours & { employee_id: string; week_no: number };
 
-const ABAS = ["employees", "hours", "gross", "holidays", "bank", "run", "revenue", "import"] as const;
+/*
+ * A ORDEM É A DO TRABALHO, e não a da história do ficheiro.
+ *
+ * Lança-se as horas, confere-se o bruto, corre-se a folha, olha-se o que já
+ * saiu. "rules" fica ao pé das horas porque é lá que se descobre que falta uma
+ * — a olhar para um domingo que pagou o preço de terça-feira.
+ */
+const ABAS = [
+  "employees", "hours", "gross", "rules", "holidays", "bank",
+  "run", "history", "revenue", "import",
+] as const;
 type Aba = (typeof ABAS)[number];
 
 /**
@@ -43,6 +56,15 @@ export default function CompanyPayroll({ params }: { params: { id: string } }) {
   const [loading, setLoading] = useState(true);
   // `null` = fechado · `{}` = a criar · `{...emp}` = a editar aquele.
   const [aEditar, setAEditar] = useState<any | null>(null);
+  /*
+   * A CÉLULA ESCOLHIDA no quadro das horas.
+   *
+   * Editar dentro da própria célula obrigaria a meter três campos (normais,
+   * domingo, feriado) num espaço de dois dígitos. Escolher a célula e abrir o
+   * painel em baixo dá lugar aos três, à memória de cálculo e à correcção da
+   * taxa — e é uma só porta de escrita, em vez de uma por campo.
+   */
+  const [celula, setCelula] = useState<{ empId: string; week: number } | null>(null);
 
   const load = useCallback(async () => {
     try {
@@ -111,7 +133,7 @@ export default function CompanyPayroll({ params }: { params: { id: string } }) {
       for (let w = 1; w <= totalSemanas; w++) {
         const h = horasDe(e.id, w);
         if (!h) continue;
-        bruto += grossFor(e, h);
+        bruto += grossFor(e, h, dados?.config);
         hs += Number(h.hours ?? 0) + Number(h.sunday_hours ?? 0);
         if (h.week_worked) semanas++;
         usadas += Number(h.holiday_hours ?? 0);
@@ -128,7 +150,7 @@ export default function CompanyPayroll({ params }: { params: { id: string } }) {
       });
     }
     return out;
-  }, [employees, horasDe, totalSemanas]);
+  }, [employees, horasDe, totalSemanas, dados?.config]);
 
   const eur = (v: number) =>
     "€" + v.toLocaleString("en-IE", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
@@ -328,7 +350,7 @@ export default function CompanyPayroll({ params }: { params: { id: string } }) {
                       {janela(semanaAgora, totalSemanas).map((w) => {
                         const h = horasDe(e.id, w);
                         if (aba === "gross") {
-                          const g = grossFor(e, h);
+                          const g = grossFor(e, h, dados?.config);
                           return (
                             <td key={w} className="px-2 py-2 text-right font-mono text-xs tabular-nums">
                               {g ? eur(g) : <span className="text-muted">—</span>}
@@ -338,9 +360,39 @@ export default function CompanyPayroll({ params }: { params: { id: string } }) {
                         const v = isHourly(e)
                           ? Number(h?.hours ?? 0) + Number(h?.sunday_hours ?? 0)
                           : h?.week_worked ? 1 : 0;
+                        const escolhida = celula?.empId === e.id && celula?.week === w;
+                        /*
+                         * A CÉLULA É UM BOTÃO, e não um número.
+                         *
+                         * O quadro era só de leitura, e não havia nada a
+                         * indicar que se podia lançar horas — a queixa foi
+                         * exactamente essa ("não achei onde inserir"). Um
+                         * campo por célula, com três valores a caber em dois
+                         * dígitos, não passava; um botão que abre o painel
+                         * passa, e diz o que faz ao ser tocado.
+                         */
                         return (
-                          <td key={w} className="px-2 py-2 text-right font-mono text-xs tabular-nums">
-                            {v ? n2(v) : <span className="text-muted">—</span>}
+                          <td key={w} className="px-1 py-1 text-right font-mono text-xs tabular-nums">
+                            <button
+                              type="button"
+                              onClick={() => setCelula(escolhida ? null : { empId: e.id, week: w })}
+                              title={t("horas.editarCelula", { semana: String(w) })}
+                              className={`w-full rounded-md px-1.5 py-1 text-right transition
+                                ${escolhida ? "bg-brand-100 font-semibold text-brand-800 ring-1 ring-brand-400"
+                                            : "hover:bg-surface-2"}`}
+                            >
+                              {/* Uma célula APAGADA e uma a zero não são a
+                                  mesma coisa: `—` é "não há registo", `0,00`
+                                  é "trabalhou zero horas". */}
+                              {h ? n2(v) : <span className="text-muted">—</span>}
+                              {/* O domingo aparece na célula: era ele que
+                                  desaparecia dentro de um total. */}
+                              {isHourly(e) && Number(h?.sunday_hours ?? 0) > 0 && (
+                                <span className="block text-[9px] font-normal text-brand-700">
+                                  {t("horas.domSigla")} {n2(Number(h!.sunday_hours))}
+                                </span>
+                              )}
+                            </button>
                           </td>
                         );
                       })}
@@ -355,6 +407,58 @@ export default function CompanyPayroll({ params }: { params: { id: string } }) {
               </tbody>
             </table>
             </div>
+          )}
+
+          {/*
+            * O PAINEL DA CÉLULA ESCOLHIDA.
+            *
+            * Fica por baixo do quadro e não numa janela por cima: quem lança
+            * horas de uma equipa inteira precisa de continuar a ver a linha da
+            * pessoa e as semanas ao lado enquanto escreve. Uma janela modal
+            * tapava exactamente o que se está a conferir.
+            */}
+          {aba === "hours" && celula && (() => {
+            const emp = employees.find((e) => e.id === celula.empId);
+            if (!emp) return null;
+            return (
+              <EditorDeHoras
+                clientId={params.id}
+                employee={emp as any}
+                nome={nome(emp)}
+                year={year}
+                week={celula.week}
+                linha={horasDe(celula.empId, celula.week)}
+                config={dados?.config ?? null}
+                aoGravar={load}
+                aoFechar={() => setCelula(null)}
+              />
+            );
+          })()}
+
+          {/* ---------------------------------- As regras desta empresa */}
+          {aba === "rules" && (
+            <RegrasDaEmpresa
+              clientId={params.id}
+              config={dados?.config ?? null}
+              /*
+               * O exemplo usa uma taxa REAL desta empresa — a primeira que
+               * houver. Um exemplo com um número inventado não apanha o
+               * multiplicador escrito a mais; um com a taxa do João apanha.
+               */
+              taxaExemplo={Number(
+                employees.find((e) => isHourly(e) && Number(e.hourly_rate ?? 0) > 0)?.hourly_rate ?? 0
+              )}
+              aoGravar={load}
+            />
+          )}
+
+          {/* ------------------------------------ O que já se pagou */}
+          {aba === "history" && (
+            <HistoricoDeRecibos
+              clientId={params.id}
+              year={year}
+              funcionarios={employees.map((e) => ({ id: e.id, nome: nome(e) }))}
+            />
           )}
 
           {/* ------------------------------------------------- Férias */}
@@ -461,6 +565,8 @@ export default function CompanyPayroll({ params }: { params: { id: string } }) {
           {aba === "gross" && t("hr.grossNote")}
           {aba === "hours" && t("hr.hoursNote")}
           {aba === "employees" && t("hr.employeesNote")}
+          {aba === "rules" && t("hr.rulesNote")}
+          {aba === "history" && t("hr.historyNote")}
         </div>
       </div>
     </div>

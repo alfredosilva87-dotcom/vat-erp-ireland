@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { Fragment, useCallback, useEffect, useState } from "react";
 import { useT, type TKey } from "@/lib/i18n";
 import { currentIsoWeek } from "@/lib/hr/payroll";
 
@@ -29,9 +29,15 @@ type Aviso = { codigo: string; params?: Record<string, string | number> };
  * emergência — que são coisas para tratar antes de fechar, não depois.
  */
 
+type Parcela = { chave: string; horas: number; taxaCents: number; valorCents: number };
+type Memoria = {
+  semana: number; totalCents: number; parcelas: Parcela[];
+  avisos: string[]; origemDomingo: string;
+};
+
 type Linha = {
   employeeId: string; nome: string; jobTitle: string | null;
-  brutoCents: number; payeCents: number; uscCents: number;
+  brutoCents: number; memoria?: Memoria[]; payeCents: number; uscCents: number;
   prsiEeCents: number; prsiErCents: number; liquidoCents: number;
   custoEmpregadorCents: number; aeEeCents: number; aeErCents: number;
   acumulado: { bruto: number; paye: number; usc: number; prsi: number };
@@ -76,6 +82,15 @@ export default function PayrollRun({
   const [recado, setRecado] = useState<string | null>(null);
   const [ocupado, setOcupado] = useState(false);
   const [horas, setHoras] = useState(mostrarHoras);
+  /*
+   * A MEMÓRIA DE CÁLCULO abre por linha, e fechada por omissão.
+   *
+   * Aberta para toda a gente, a tabela da folha passava a ter cinco linhas por
+   * pessoa e deixava de se ler de uma vez — que é o que esta tela serve para
+   * fazer. Fechada, o detalhe está a um clique de quem tem uma dúvida sobre
+   * UMA pessoa, que é como a dúvida aparece.
+   */
+  const [aberta, setAberta] = useState<string | null>(null);
 
   /** O endereço do recibo. Sem `employee`, sai a empresa inteira. */
   const linkDoRecibo = (employeeId?: string) =>
@@ -217,7 +232,8 @@ export default function PayrollRun({
           </thead>
           <tbody>
             {(d?.linhas ?? []).map((l) => (
-              <tr key={l.employeeId} className="border-b border-line/60 align-top">
+              <Fragment key={l.employeeId}>
+              <tr className="border-b border-line/60 align-top">
                 <td className="px-3 py-2">
                   <span className="font-medium">{l.nome}</span>
                   {l.jobTitle && <span className="ml-2 text-[11.5px] text-muted">{l.jobTitle}</span>}
@@ -228,7 +244,13 @@ export default function PayrollRun({
                     </ul>
                   )}
                 </td>
-                <td className="px-3 py-2 text-right font-mono tabular-nums">{eur(l.brutoCents)}</td>
+                <td className="px-3 py-2 text-right font-mono tabular-nums">
+                  <button type="button" className="underline decoration-dotted underline-offset-2"
+                    title={t("run.verMemoria")}
+                    onClick={() => setAberta(aberta === l.employeeId ? null : l.employeeId)}>
+                    {eur(l.brutoCents)}
+                  </button>
+                </td>
                 {/* PAYE negativo é DEVOLUÇÃO, e o cumulativo fá-la sozinho. */}
                 <td className={`px-3 py-2 text-right font-mono tabular-nums ${l.payeCents < 0 ? "text-ok" : ""}`}>
                   {eur(l.payeCents)}
@@ -271,6 +293,65 @@ export default function PayrollRun({
                   </a>
                 </td>
               </tr>
+
+              {/* ------------------------------ de onde vem este bruto */}
+              {aberta === l.employeeId && (
+                <tr className="border-b border-line/60 bg-surface-2/40">
+                  <td colSpan={10} className="px-3 py-3">
+                    <p className="text-[10px] font-medium uppercase tracking-wide text-muted">
+                      {t("horas.memoria")}
+                    </p>
+                    {(l.memoria ?? []).length ? (
+                      <table className="mt-2 text-[12.5px]">
+                        <tbody>
+                          {(l.memoria ?? []).map((m) => (
+                            <Fragment key={m.semana}>
+                              {m.parcelas.map((p, i) => (
+                                <tr key={m.semana + ":" + i}>
+                                  <td className="py-0.5 pr-4 font-mono text-muted">
+                                    {i === 0 ? `${t("hr.weekShort")}${m.semana}` : ""}
+                                  </td>
+                                  <td className="py-0.5 pr-4">{t(p.chave as TKey)}</td>
+                                  <td className="py-0.5 pr-2 text-right font-mono tabular-nums">{p.horas} h</td>
+                                  <td className="py-0.5 pr-2 text-muted">×</td>
+                                  <td className="py-0.5 pr-4 text-right font-mono tabular-nums">{eur(p.taxaCents)}</td>
+                                  <td className="py-0.5 text-right font-mono tabular-nums">{eur(p.valorCents)}</td>
+                                </tr>
+                              ))}
+                              {/* Sem parcelas (contrato fixo, ou bruto escrito
+                                  à mão) mostra-se o valor na mesma: uma semana
+                                  que some do detalhe parece não ter sido paga. */}
+                              {!m.parcelas.length && (
+                                <tr>
+                                  <td className="py-0.5 pr-4 font-mono text-muted">
+                                    {t("hr.weekShort")}{m.semana}
+                                  </td>
+                                  <td className="py-0.5 pr-4 text-muted" colSpan={4}>
+                                    {m.avisos.map((a) => t(a as TKey)).join(" · ") || "—"}
+                                  </td>
+                                  <td className="py-0.5 text-right font-mono tabular-nums">{eur(m.totalCents)}</td>
+                                </tr>
+                              )}
+                            </Fragment>
+                          ))}
+                          <tr className="border-t border-line font-semibold">
+                            <td className="py-1 pr-4" colSpan={5}>{t("horas.bruto")}</td>
+                            <td className="py-1 text-right font-mono tabular-nums">{eur(l.brutoCents)}</td>
+                          </tr>
+                        </tbody>
+                      </table>
+                    ) : (
+                      <p className="mt-1 text-[12.5px] text-muted">{t("run.semHoras")}</p>
+                    )}
+                    {/* Os avisos das REGRAS — o domingo sem prémio, a regra de
+                        extras por acabar. Ao pé da conta que eles explicam. */}
+                    {Array.from(new Set((l.memoria ?? []).flatMap((m) => m.avisos))).map((a) => (
+                      <p key={a} className="mt-1.5 text-[12px] text-warning">· {t(a as TKey)}</p>
+                    ))}
+                  </td>
+                </tr>
+              )}
+              </Fragment>
             ))}
             {!(d?.linhas ?? []).length && (
               <tr><td className="px-3 py-6 text-center text-muted" colSpan={10}>{t("run.nobody")}</td></tr>

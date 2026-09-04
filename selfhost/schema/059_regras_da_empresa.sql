@@ -1,5 +1,9 @@
 -- AS REGRAS DE PAGAMENTO QUE MUDAM DE EMPRESA PARA EMPRESA.
 --
+-- NOTA: esta migracao pos as colunas na tabela ERRADA (hr_client_config e por
+-- bloco de frequencia, nao por empresa). A 060 move-as para hr_client e apaga
+-- estas. Fica aqui por historia; quem instalar de novo corre as duas em ordem.
+--
 -- ---------------------------------------------------------------------------
 -- O QUE FALTAVA, E O QUE ISSO CUSTAVA
 --

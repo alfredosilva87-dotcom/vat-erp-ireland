@@ -3,7 +3,8 @@ import { getServerSupabase } from "@/lib/supabase";
 import { tabelaDoBanco } from "@/lib/hr/fiscal/tabelasDb";
 import { calcular, type Aviso, type Base, type Situacao } from "@/lib/hr/fiscal/motor";
 import { escolherRpn } from "@/lib/hr/fiscal/origemDoRpn";
-import { grossFor, isoWeekStart, type Employee, type WeekHours } from "@/lib/hr/payroll";
+import { grossDetail, grossFor, isoWeekStart, type Employee, type WeekHours } from "@/lib/hr/payroll";
+import type { ConfigDaEmpresa } from "@/lib/hr/regrasDaEmpresa";
 
 /**
  * CORRER A FOLHA de um cliente num período.
@@ -35,6 +36,14 @@ export type LinhaDaFolha = {
   jobTitle: string | null;
   freqType: "weekly" | "fortnightly" | "monthly";
   brutoCents: number;
+  /** De onde vem o bruto, semana a semana — ver a nota em `correrFolha`. */
+  memoria: {
+    semana: number;
+    totalCents: number;
+    parcelas: { chave: string; horas: number; taxaCents: number; valorCents: number }[];
+    avisos: string[];
+    origemDomingo: string;
+  }[];
   payeCents: number;
   uscCents: number;
   prsiEeCents: number;
@@ -139,6 +148,22 @@ export async function correrFolha(args: {
     sb.from("revenue_credentials").select("id", { count: "exact", head: true }),
   ]);
 
+  /*
+   * AS REGRAS DE PAGAMENTO DA EMPRESA — e isto faltava aqui.
+   *
+   * O bruto era calculado com `grossFor(e, h)` **sem configuração nenhuma**.
+   * Ou seja: o multiplicador de domingo podia estar gravado no cadastro, o ecrã
+   * das regras mostrá-lo, o exemplo bater certo — e a folha continuar a pagar o
+   * domingo à taxa normal, porque quem calcula a sério nunca lia a regra.
+   *
+   * Um erro assim é dos piores que há: tudo à volta diz que está a funcionar.
+   */
+  const { data: regrasDaEmpresa } = await sb.from("hr_client")
+    .select("sunday_mode,sunday_multiplier,overtime_after_hours,overtime_multiplier,"
+      + "holiday_accrual_pct,holiday_days_year")
+    .eq("client_id", args.clientId).maybeSingle();
+  const cfgEmpresa = (regrasDaEmpresa ?? null) as ConfigDaEmpresa | null;
+
   const funcionarios = ((emps ?? []) as any[]);
   const porFuncionario = new Map<string, any[]>();
   for (const h of ((horas ?? []) as any[])) {
@@ -170,8 +195,35 @@ export async function correrFolha(args: {
     // ---- 1. o BRUTO, pelas funções que já existiam
     const doPeriodo = (porFuncionario.get(e.id) ?? []).filter((h) => semanas.includes(h.week_no));
     const brutoCents = doPeriodo.reduce(
-      (s, h) => s + Math.round(grossFor(e as Employee, h as WeekHours) * 100), 0
+      (s, h) => s + Math.round(grossFor(e as Employee, h as WeekHours, cfgEmpresa) * 100), 0
     );
+
+    /*
+     * A MEMÓRIA DE CÁLCULO do bruto, semana a semana.
+     *
+     * Vai junto com a linha porque é a resposta à única pergunta que se faz a
+     * olhar para um recibo: *de onde vem este número?*. Um total sozinho não se
+     * confere — com "32h × 13,00 + 8h × 26,00" ao lado, uma taxa errada salta à
+     * vista em vez de sair no salário.
+     *
+     * Calcula-se aqui e não no ecrã: repetir a multiplicação no navegador daria
+     * um detalhe que concorda com a tela e discorda do recibo.
+     */
+    const memoria = doPeriodo
+      .sort((a, b) => a.week_no - b.week_no)
+      .map((h) => {
+        const d = grossDetail(e as Employee, h as WeekHours, cfgEmpresa);
+        return {
+          semana: h.week_no,
+          totalCents: Math.round(d.total * 100),
+          parcelas: d.parcelas.map((pa) => ({
+            chave: pa.chave, horas: pa.horas,
+            taxaCents: Math.round(pa.taxa * 100), valorCents: Math.round(pa.valor * 100),
+          })),
+          avisos: d.avisos,
+          origemDomingo: d.regras.origemDomingo,
+        };
+      });
 
     /*
      * ---- 2. o ACUMULADO ANTES deste período
@@ -304,6 +356,7 @@ export async function correrFolha(args: {
       jobTitle: e.job_title ?? null,
       freqType,
       brutoCents,
+      memoria,
       payeCents: r.paye,
       uscCents: r.usc,
       prsiEeCents: r.prsiEmpregado,

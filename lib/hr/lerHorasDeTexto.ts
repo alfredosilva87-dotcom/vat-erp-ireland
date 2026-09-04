@@ -41,11 +41,25 @@
 export interface LinhaLida {
   /** O nome como veio escrito. O casamento com o funcionário é outro passo. */
   nome: string;
+  /**
+   * O TOTAL da semana, tal como a pessoa o escreveu.
+   *
+   * Em `Pedro 38 (4 domingo)` isto é 38 — as 38 incluem as 4. É o número que se
+   * mostra ao lado da mensagem original, para quem confere reconhecer o que leu.
+   */
   horas: number | null;
+  /**
+   * O que vai para a coluna `hours` da base — o total MENOS o que já tem coluna
+   * própria. Ver a nota extensa em `separarOTotal`: aqui as colunas somam-se, e
+   * escrever 38 e 4 daria 42.
+   */
+  horasNormais: number | null;
   horasDomingo: number | null;
   horasFeriado: number | null;
   /** `false` quando a mensagem diz explicitamente que não trabalhou. */
   trabalhou: boolean;
+  /** Chave de aviso quando as contas da linha não fecham. Nunca uma frase. */
+  aviso: string | null;
   /** A linha original, para quem confere poder comparar. */
   origem: string;
 }
@@ -189,6 +203,47 @@ function nomeDe(linha: string): string {
 const RUIDO = /^(bo[am]\s|ol[áa]\b|oi\b|hi\b|hello\b|obrigad|thanks?\b|abra[çc]o|cumprimentos|segue|aqui\s+v[ãa]o|boa\s+noite|bom\s+dia)/i;
 
 /**
+ * O TOTAL NÃO É UMA PARCELA — e confundir os dois inflacionava o salário.
+ *
+ * ---------------------------------------------------------------------------
+ * O DEFEITO, QUE FUI EU QUE O PUS CÁ
+ *
+ * `Pedro 38 (4 domingo)` lia-se como `horas = 38` e `domingo = 4`. Ambos os
+ * números certos, e o resultado errado: neste sistema as duas colunas **somam-se**
+ * no bruto — `horas × taxa + domingo × taxaDomingo` —, portanto o Pedro passava a
+ * ter 42 horas pagas. Quatro a mais, todas as semanas, com o prémio de domingo
+ * por cima.
+ *
+ * E era invisível: 42 é um número plausível para uma semana de trabalho. Ninguém
+ * o vai contestar a olhar para o recibo.
+ *
+ * ---------------------------------------------------------------------------
+ * A REGRA, E O QUE ELA ASSUME
+ *
+ * Quem escreve `38 (4 domingo)` está a dizer "38 no total, das quais 4 ao
+ * domingo". O número solto é o TOTAL da semana, e os etiquetados são partes
+ * dele. Então o que vai para a coluna das horas normais é `total − etiquetadas`.
+ *
+ * ---------------------------------------------------------------------------
+ * E QUANDO A CONTA NÃO FECHA
+ *
+ * `Pedro 4 domingo 8` — o "total" é menor do que a parte. Aí a suposição está
+ * errada e não há maneira de saber qual: pode ser alguém a somar (4 normais + 8
+ * de domingo), pode ser um engano de digitação. **Não se corrige nada**: ficam os
+ * números como vieram e a linha leva um aviso, para quem aprova a fila decidir.
+ * Inventar aqui seria repetir o defeito ao contrário.
+ */
+export function separarOTotal(
+  total: number | null, domingo: number | null, feriado: number | null
+): { horasNormais: number | null; aviso: string | null } {
+  const partes = (domingo ?? 0) + (feriado ?? 0);
+  if (total === null) return { horasNormais: null, aviso: null };
+  if (partes <= 0) return { horasNormais: total, aviso: null };
+  if (total < partes) return { horasNormais: total, aviso: "wa.somaNaoBate" };
+  return { horasNormais: Math.round((total - partes) * 100) / 100, aviso: null };
+}
+
+/**
  * Lê a mensagem inteira.
  *
  * Não tenta ser esperta: percorre linha a linha, e cada linha que tenha um nome
@@ -229,7 +284,8 @@ export function lerHorasDeTexto(texto: string): Leitura {
       if (semArtigo) {
         linhas.push({
           nome: semArtigo,
-          horas: 0, horasDomingo: null, horasFeriado: null, trabalhou: false, origem: linha,
+          horas: 0, horasNormais: 0, horasDomingo: null, horasFeriado: null,
+          trabalhou: false, aviso: null, origem: linha,
         });
         continue;
       }
@@ -277,7 +333,12 @@ export function lerHorasDeTexto(texto: string): Leitura {
 
     if (horas === null && domingo === null && feriado === null) { naoLidas.push(linha); continue; }
 
-    linhas.push({ nome, horas, horasDomingo: domingo, horasFeriado: feriado, trabalhou: true, origem: linha });
+    const { horasNormais, aviso } = separarOTotal(horas, domingo, feriado);
+    linhas.push({
+      nome, horas, horasNormais,
+      horasDomingo: domingo, horasFeriado: feriado,
+      trabalhou: true, aviso, origem: linha,
+    });
   }
 
   return { semana, linhas, naoLidas };

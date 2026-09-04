@@ -2,6 +2,7 @@ import "server-only";
 import { getServerSupabase } from "@/lib/supabase";
 import { integracoesDo } from "@/lib/integrations";
 import { grossFor, isoWeekDay, type Employee, type WeekHours } from "@/lib/hr/payroll";
+import type { ConfigDaEmpresa } from "@/lib/hr/regrasDaEmpresa";
 import { CONTAS_PADRAO } from "@/lib/accounting/post";
 
 /**
@@ -54,12 +55,25 @@ async function brutoDoPeriodo(
 
   const porFuncionario = new Map<string, any>(((horas ?? []) as any[]).map((h) => [h.employee_id, h]));
 
+  /*
+   * As REGRAS DA EMPRESA entram também aqui.
+   *
+   * Este total vira o título a pagar da folha, na contabilidade. Calculá-lo sem
+   * o prémio de domingo punha o razão a discordar do recibo — e a diferença
+   * apareceria como um desencontro no banco, meses depois, sem causa aparente.
+   */
+  const { data: regrasDaEmpresa } = await sb().from("hr_client")
+    .select("sunday_mode,sunday_multiplier,overtime_after_hours,overtime_multiplier,"
+      + "holiday_accrual_pct,holiday_days_year")
+    .eq("client_id", clientId).maybeSingle();
+  const cfgEmpresa = (regrasDaEmpresa ?? null) as ConfigDaEmpresa | null;
+
   let total = 0;
   for (const f of lista) {
     // `grossFor` é o MESMO cálculo do quadro semanal — importado, não
     // reescrito. Duas contas do mesmo salário divergem no dia em que uma
     // delas for corrigida.
-    total += grossFor(f as Employee, (porFuncionario.get(f.id) ?? null) as WeekHours | null);
+    total += grossFor(f as Employee, (porFuncionario.get(f.id) ?? null) as WeekHours | null, cfgEmpresa);
   }
   return { total: Math.round(total * 100) / 100, pessoas: lista.length };
 }

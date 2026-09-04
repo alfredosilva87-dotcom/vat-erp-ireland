@@ -35,6 +35,12 @@ A Ana não trabalhou esta semana`);
   ok(acha(r, "Maria").horas === 42.5, "42.5h com ponto e com o 'h' colado", acha(r, "Maria").horas);
   ok(acha(r, "Pedro").horas === 38 && acha(r, "Pedro").horasDomingo === 4,
     "38 no total e 4 ao domingo, com a etiqueta DEPOIS do numero", acha(r, "Pedro"));
+  // O defeito que isto fecha: as colunas SOMAM-SE no bruto, entao gravar 38 a
+  // par das 4 pagava 42 horas — quatro a mais por semana, e 42 e plausivel
+  // que chegue para ninguem estranhar.
+  ok(acha(r, "Pedro").horasNormais === 34,
+    "e o que vai para as horas normais e 34, para o total continuar a ser 38",
+    acha(r, "Pedro").horasNormais);
   ok(acha(r, "Ana").trabalhou === false && acha(r, "Ana").horas === 0,
     "e quem nao trabalhou fica marcado, com zero explicito", acha(r, "Ana"));
   // Apanhado a olhar para a producao: o nome saia "A Ana ou esta semana",
@@ -42,6 +48,35 @@ A Ana não trabalhou esta semana`);
   ok(acha(r, "Ana").nome === "Ana",
     "e o NOME e so o nome — sem o artigo nem os restos da frase", acha(r, "Ana").nome);
   ok(!/boa noite/i.test(r.linhas.map((l) => l.nome).join(" ")), "a saudacao nao virou pessoa");
+}
+
+console.log("\n== O TOTAL NAO E UMA PARCELA ==");
+{
+  // Quem escreve "40 domingo 8" quer dizer 40 no total. Somar as duas colunas
+  // dava 48.
+  const r = lerHorasDeTexto("Tiago 40 domingo 8");
+  ok(acha(r, "Tiago").horas === 40, "o total escrito e 40");
+  ok(acha(r, "Tiago").horasNormais === 32, "e 32 + 8 volta a dar 40", acha(r, "Tiago").horasNormais);
+
+  const f = lerHorasDeTexto("Ines 32 (8 feriado)");
+  ok(acha(f, "Ines").horasNormais === 24, "o feriado sai do total pela mesma razao", acha(f, "Ines"));
+
+  const dois = lerHorasDeTexto("Rita 40 (8 domingo, 8 feriado)");
+  ok(acha(dois, "Rita").horasNormais === 24, "e as duas parcelas juntas tambem", acha(dois, "Rita"));
+
+  const sem = lerHorasDeTexto("Bruno 39");
+  ok(acha(sem, "Bruno").horasNormais === 39, "sem parcelas, normais = total");
+}
+
+console.log("\n== QUANDO A CONTA NAO FECHA, NAO SE CORRIGE ==");
+{
+  // O "total" menor do que a parte quer dizer que a suposicao esta errada — e
+  // nao ha maneira de saber qual dos dois numeros e que esta mal.
+  const r = lerHorasDeTexto("Nuno 4 domingo 8");
+  ok(acha(r, "Nuno").horasNormais === 4, "os numeros ficam como vieram", acha(r, "Nuno"));
+  ok(acha(r, "Nuno").aviso === "wa.somaNaoBate",
+    "e a linha leva aviso, para quem aprova decidir", acha(r, "Nuno").aviso);
+  ok(acha(r, "Nuno").horasNormais >= 0, "e nunca sai um numero negativo");
 }
 
 console.log("\n== A REGRA QUE MAIS IMPORTA: na duvida NAO adivinhar ==");

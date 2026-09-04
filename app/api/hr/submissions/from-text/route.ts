@@ -104,7 +104,14 @@ export async function POST(req: NextRequest) {
       employee_name: emp ? `${emp.first_name} ${emp.surname}`.trim() : l.nome,
       year: ano,
       week_no: semana,
-      hours: l.horas,
+      /*
+       * `horasNormais`, e NÃO o total escrito.
+       *
+       * As colunas somam-se no cálculo do bruto. Gravar aqui o 38 de
+       * `Pedro 38 (4 domingo)` a par das 4 de domingo pagaria 42 horas — ver a
+       * nota em `separarOTotal`.
+       */
+      hours: l.horasNormais,
       sunday_hours: l.horasDomingo,
       holiday_hours: l.horasFeriado,
       week_worked: l.trabalhou,
