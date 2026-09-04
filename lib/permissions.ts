@@ -69,6 +69,12 @@ export const HR_SCREENS: PermScreen[] = [
   { id: "rh.empresas", labelKey: "hr.navCompanies", href: "/hr/companies" },
   { id: "rh.folha", labelKey: "hr.navPayroll", href: "/hr/companies/:id" },
   { id: "rh.recebidas", labelKey: "hr.navSubmissions", href: "/hr/submissions" },
+  /*
+   * O painel de conversas fica ANTES da lista de contactos, porque é por onde
+   * o trabalho passa: a pergunta de sexta-feira é "quem não mandou as horas",
+   * e a lista de contactos só serve para ir buscar o número de quem falta.
+   */
+  { id: "rh.conversas", labelKey: "hr.navConversations", href: "/hr/conversations" },
   { id: "rh.comunicacao", labelKey: "hr.navContacts", href: "/hr/contacts" },
   // As tabelas fiscais sao referencia GLOBAL — a lei irlandesa e a mesma para
   // os 35 clientes. Por isso vivem no menu geral do RH, e nao dentro de um

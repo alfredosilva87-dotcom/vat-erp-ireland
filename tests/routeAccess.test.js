@@ -65,6 +65,10 @@ const EXEMPT = {
     "e faz uma leitura pura de RPN. O numero de empregador vem no pedido de " +
     "proposito — e o proprio ensaio, feito por um administrador, e nao devolve " +
     "dado fiscal nenhum: so a contagem.",
+  "app/api/hr/conversations/route.ts":
+    "lista de conversas: nao recebe id no caminho, entao nao ha o que comparar. " +
+    "Escolhe os clientes por `visibleClientIds()`, que e o mesmo filtro das " +
+    "outras rotas de LISTA — e sem clientes visiveis devolve vazio em vez de tudo.",
   "app/api/base/route.ts": "tabela de aliquotas: referencia global, igual para todos",
   "app/api/base/category/route.ts": "tabela de aliquotas: referencia global",
   "app/api/credit-rules/route.ts": "regras de credito por tipo de negocio: referencia global",

@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { denied, requireClient } from "@/lib/access";
-import { getServerSupabase } from "@/lib/supabase";
+import { enfileirarLeitura } from "@/lib/hr/filaDeHoras";
 import { lerHorasDeTexto } from "@/lib/hr/lerHorasDeTexto";
 
 export const runtime = "nodejs";
@@ -68,67 +68,20 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: "nadaLido", chave: "wa.nadaLido" }, { status: 400 });
   }
 
-  const sb = getServerSupabase();
-
   /*
-   * O casamento com o funcionário é por NOME, e é deliberadamente frouxo aqui:
-   * quem escreve manda "João" e o cadastro diz "João Manuel Silva". Compara-se
-   * sem acentos e sem maiúsculas, e um nome que não casa vai na mesma para a
-   * fila — com `employee_id` nulo e o nome como veio.
-   *
-   * Isto está certo: quem aprova a fila vê o nome e escolhe a pessoa. Adivinhar
-   * o funcionário errado seria pior do que não adivinhar nenhum.
+   * A leitura vai para a fila pelo MESMO caminho que o painel de conversas usa
+   * — ver `lib/hr/filaDeHoras.ts`. Duas cópias da regra de casamento de nomes
+   * divergiriam no dia em que uma fosse corrigida.
    */
-  const { data: emps } = await sb.from("hr_employees")
-    .select("id,first_name,surname").eq("client_id", clientId).eq("active", true);
-
-  const simples = (s: string) =>
-    String(s ?? "").normalize("NFD").replace(/[̀-ͯ]/g, "").toLowerCase().trim();
-
-  const acharEmpregado = (nome: string) => {
-    const n = simples(nome);
-    if (!n) return null;
-    const lista = (emps ?? []) as any[];
-    const inteiro = lista.find((e) => simples(`${e.first_name} ${e.surname}`) === n);
-    if (inteiro) return inteiro;
-    // "João" contra "João Manuel Silva": o primeiro nome basta quando é único.
-    const porPrimeiro = lista.filter((e) => simples(e.first_name) === n);
-    return porPrimeiro.length === 1 ? porPrimeiro[0] : null;
-  };
-
-  const linhas = leitura.linhas.map((l) => {
-    const emp = acharEmpregado(l.nome);
-    return {
-      client_id: clientId,
-      employee_id: emp?.id ?? null,
-      employee_name: emp ? `${emp.first_name} ${emp.surname}`.trim() : l.nome,
-      year: ano,
-      week_no: semana,
-      /*
-       * `horasNormais`, e NÃO o total escrito.
-       *
-       * As colunas somam-se no cálculo do bruto. Gravar aqui o 38 de
-       * `Pedro 38 (4 domingo)` a par das 4 de domingo pagaria 42 horas — ver a
-       * nota em `separarOTotal`.
-       */
-      hours: l.horasNormais,
-      sunday_hours: l.horasDomingo,
-      holiday_hours: l.horasFeriado,
-      week_worked: l.trabalhou,
-      // A linha ORIGINAL viaja com o pedido. Quem aprova compara com o que a
-      // pessoa escreveu, em vez de confiar na nossa leitura.
-      note: l.origem,
-      submitted_by: "whatsapp",
-    };
+  const r = await enfileirarLeitura({
+    clientId, leitura, ano, semana, origem: "whatsapp",
   });
-
-  const { error } = await sb.from("hr_hour_submissions").insert(linhas);
-  if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+  if (r.erro) return NextResponse.json({ error: r.erro }, { status: 500 });
 
   return NextResponse.json({
     ok: true,
-    criadas: linhas.length,
-    semCasar: linhas.filter((l) => !l.employee_id).length,
+    criadas: r.criadas,
+    semCasar: r.semCasar,
     naoLidas: leitura.naoLidas,
     semana,
   });
