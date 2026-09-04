@@ -74,6 +74,37 @@ export function configSmtp(): { ok: true; cfg: ConfigSmtp } | { ok: false; falta
 }
 
 /**
+ * De QUEM sai o recibo de vencimento, e para quem vai a resposta.
+ *
+ * ---------------------------------------------------------------------------
+ * POR QUE NÃO SERVE O REMETENTE DO SMTP
+ *
+ * `MAIL_SMTP_USER` é a conta que AUTENTICA no servidor de correio — muitas
+ * vezes uma caixa técnica (`noreply@`, ou a conta do domínio). Um trabalhador
+ * que recebe o recibo e carrega em responder quer falar com quem trata da
+ * folha, e não com uma caixa que ninguém lê.
+ *
+ * São duas variáveis e não uma porque o escritório são duas pessoas: o Alfredo
+ * e o sócio. Sai de um endereço da casa, e a resposta pode ir para outro — ou
+ * para os dois, que `MAIL_PAYSLIP_REPLY_TO` aceita separados por vírgula, como
+ * qualquer cabeçalho de correio.
+ *
+ * Nenhuma é obrigatória: sem elas o recibo sai do mesmo sítio de que já saíam
+ * as faturas, que é o comportamento que já existia.
+ * ---------------------------------------------------------------------------
+ *
+ *   MAIL_PAYSLIP_FROM      quem aparece como remetente (cai em MAIL_SMTP_FROM)
+ *   MAIL_PAYSLIP_REPLY_TO  para onde vai a resposta   (cai em MAIL_PAYSLIP_FROM)
+ */
+export function enderecosDoRecibo(
+  env: Record<string, string | undefined> = process.env
+): { de: string | null; responderA: string | null } {
+  const de = (env.MAIL_PAYSLIP_FROM || "").trim() || null;
+  const responderA = (env.MAIL_PAYSLIP_REPLY_TO || "").trim() || de;
+  return { de, responderA };
+}
+
+/**
  * Como o ficheiro da fatura se deve chamar.
  *
  * ---------------------------------------------------------------------------

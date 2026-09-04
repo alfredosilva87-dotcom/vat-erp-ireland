@@ -73,7 +73,7 @@ export default function EmployeeForm({
     first_name: "", surname: "", start_date: "", end_date: "",
     freq_type: blocos[0] ?? "weekly", pay_type: "Hourly",
     contract_type: "Full time", data_source: "Client sends information",
-    job_title: "", hourly_rate: "", sunday_rate: "", fixed_amount: "",
+    job_title: "", email: "", iban: "", hourly_rate: "", sunday_rate: "", fixed_amount: "",
     holiday_opening: "", opening_worked: "", bank_holiday_mode: "Paid",
     active: true, notes: "",
     pps_number: "", prsi_class: "A1", tax_basis: "cumulativa", marital_status: "solteiro",
@@ -191,6 +191,18 @@ export default function EmployeeForm({
         {campo("first_name", t("emp.firstName"), "text", "w-full", { obrigatorio: true, maxLength: 80 })}
         {campo("surname", t("emp.surname"), "text", "w-full", { obrigatorio: true, maxLength: 80 })}
         {campo("job_title", t("emp.jobTitle"))}
+        {/*
+          * O E-MAIL e o IBAN vivem AQUI, no bloco de sempre, e não atrás do
+          * separador do imposto.
+          *
+          * São os dois dados que o resto do módulo pede à cabeça: sem e-mail o
+          * recibo só se entrega a mão, e sem IBAN o líquido não tem para onde
+          * ir no dia em que houver ligação ao banco. Escondidos num painel que
+          * abre fechado, ficavam por preencher e o buraco só aparecia na hora
+          * de mandar.
+          */}
+        {campo("email", t("emp.email"), "email", "w-full", { placeholder: "nome@exemplo.ie" })}
+        {campo("iban", t("emp.iban"), "text", "w-full", { placeholder: "IE29 AIBK 9311 5212 3456 78" })}
         {campo("start_date", t("emp.start"), "date", "w-full", { obrigatorio: true })}
         {/* A saída não pode ser anterior à entrada — nada o impedia. */}
         {campo("end_date", t("emp.end"), "date", "w-full", { aviso: avisoSaida })}

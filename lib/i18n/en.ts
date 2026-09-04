@@ -1463,6 +1463,19 @@ const en = {
   "lote.semAcesso": "No access to this client.",
   "lote.naoFechou": "Not finalised: {erro}",
   "lote.erro": "Failed: {erro}",
+  // O recibo por e-mail e o PDF embutido.
+  "run.embutido": "Show payslips on this page",
+  "run.embutidoHelp": "Off, a payslip opens in a new tab — which is what works on a phone. On, it opens below, so checking thirty payslips does not mean thirty tabs.",
+  "run.abrirSeparador": "Open in a new tab",
+  "run.enviarEmail": "e-mail it",
+  "run.enviado": "Payslip for {quem} sent to {para}.",
+  "run.reenviar": "Send it again anyway?",
+  "recibo.semPessoa": "Employee not found on this company.",
+  "recibo.semEmail": "{quem} has no e-mail on file. Add it on the employee's record — the payslip is not sent to an address typed here.",
+  "recibo.semSmtp": "E-mail is not set up: {faltam} missing from the environment variables. Nothing was sent — download the PDF and attach it, or set MAIL_SMTP_HOST, MAIL_SMTP_USER and MAIL_SMTP_PASSWORD (and, to choose who it comes from, MAIL_PAYSLIP_FROM and MAIL_PAYSLIP_REPLY_TO).",
+  "recibo.rascunho": "Finalise the payroll before sending the payslip: a draft carries a do-not-issue stamp and the figures can still change.",
+  "recibo.jaEnviado": "This payslip was already sent on {quando} to {para}.",
+  "recibo.recusado": "The mail server refused: {erro}",
 
   // ------------------------------------------------------------- o recibo
   "payslip.title": "PAYSLIP",
@@ -1539,6 +1552,8 @@ const en = {
   "emp.firstName": "First name *",
   "emp.surname": "Surname",
   "emp.jobTitle": "Job title",
+  "emp.email": "E-mail (payslip)",
+  "emp.iban": "IBAN (net pay)",
   "emp.start": "Start",
   "emp.end": "End",
   "emp.block": "Payslip block",

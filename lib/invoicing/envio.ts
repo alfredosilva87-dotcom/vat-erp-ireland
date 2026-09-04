@@ -82,6 +82,15 @@ export async function enviarPorEmail(d: {
   corpo: string;
   anexo: { nome: string; bytes: Buffer };
   responderA?: string | null;
+  /**
+   * Quem aparece como remetente, quando não é a conta que autentica.
+   *
+   * O recibo de vencimento sai de um endereço da casa e não da caixa técnica do
+   * SMTP — ver `enderecosDoRecibo`. Vazio mantém o remetente de sempre; muitos
+   * servidores recusam um `from` que não seja da conta autenticada, e por isso
+   * isto é opção e não regra.
+   */
+  de?: string | null;
 }): Promise<{ ok: boolean; erro?: string }> {
   const cfg = configSmtp();
   if (!cfg.ok) {
@@ -103,7 +112,7 @@ export async function enviarPorEmail(d: {
 
   try {
     await t.sendMail({
-      from: cfg.cfg.from,
+      from: d.de?.trim() || cfg.cfg.from,
       to: d.para.trim(),
       // A resposta vai para o CLIENTE e não para o escritório: quem recebe a
       // fatura quer falar com quem a emitiu.
@@ -124,4 +133,6 @@ export async function enviarPorEmail(d: {
 // ---------------------------------------------------------------- whatsapp
 
 // As puras vivem em envioPuro.ts, que se compila sozinho para os testes.
-export { telefoneParaWhatsapp, linkDeWhatsapp, configSmtp, type ConfigSmtp } from "./envioPuro";
+export {
+  telefoneParaWhatsapp, linkDeWhatsapp, configSmtp, enderecosDoRecibo, type ConfigSmtp,
+} from "./envioPuro";

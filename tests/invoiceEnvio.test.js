@@ -132,5 +132,30 @@ console.log("\n== e sobrevive ao sistema de ficheiros e ao cabecalho ==");
      "espacos a mais colapsam");
 }
 
+console.log("\n== de quem sai o recibo de vencimento ==");
+{
+  /*
+   * A conta que AUTENTICA no SMTP nao e quem deve aparecer como remetente. Um
+   * trabalhador que carrega em responder tem de chegar a quem trata da folha, e
+   * nao a uma caixa `noreply@` que ninguem le.
+   */
+  const vazio = E.enderecosDoRecibo({});
+  ok(vazio.de === null && vazio.responderA === null,
+    "sem variaveis nao se inventa remetente: o envio fica como sempre foi", vazio);
+
+  const so = E.enderecosDoRecibo({ MAIL_PAYSLIP_FROM: " folha@escritorio.ie " });
+  ok(so.de === "folha@escritorio.ie", "o remetente e aparado dos espacos", so);
+  ok(so.responderA === "folha@escritorio.ie",
+    "sem resposta propria, responde-se a quem enviou — e nao ao SMTP", so);
+
+  // Duas pessoas no escritorio: sai de uma caixa, a resposta vai para as duas.
+  const dois = E.enderecosDoRecibo({
+    MAIL_PAYSLIP_FROM: "folha@escritorio.ie",
+    MAIL_PAYSLIP_REPLY_TO: "alfredo@escritorio.ie, socio@escritorio.ie",
+  });
+  ok(dois.responderA === "alfredo@escritorio.ie, socio@escritorio.ie",
+    "a resposta pode ir para mais do que um endereco", dois);
+}
+
 console.log(`\n=========== ${pass} passaram, ${fail} falharam ===========\n`);
 process.exit(fail ? 1 : 0);

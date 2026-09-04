@@ -91,6 +91,20 @@ export default function PayrollRun({
    * UMA pessoa, que é como a dúvida aparece.
    */
   const [aberta, setAberta] = useState<string | null>(null);
+  /*
+   * VER O RECIBO AQUI, ou num separador — À ESCOLHA.
+   *
+   * O separador novo é o que funciona no telemóvel e é por isso que continua a
+   * ser o normal. Mas quem confere trinta recibos ao computador passa a vida a
+   * saltar entre separadores e a fechá-los, e perde de vista a tabela que está
+   * a conferir. Embutido, o recibo aparece por baixo da linha de que ele é.
+   *
+   * Imposto seria pior do que não existir: um PDF de meio ecrã no telemóvel
+   * empurra a tabela para fora da vista. Por isso é uma caixa, e nasce
+   * desligada.
+   */
+  const [embutido, setEmbutido] = useState(false);
+  const [pdf, setPdf] = useState<{ url: string; quem: string } | null>(null);
 
   /** O endereço do recibo. Sem `employee`, sai a empresa inteira. */
   const linkDoRecibo = (employeeId?: string) =>
@@ -195,6 +209,39 @@ export default function PayrollRun({
     return partes.join(" ");
   }
 
+  /*
+   * MANDAR O RECIBO à pessoa de quem ele é.
+   *
+   * Um de cada vez, e para o e-mail do CADASTRO — nunca para um endereço
+   * escrito aqui. Um campo livre de destinatário num documento com o salário de
+   * alguém é a fuga mais fácil de cometer sem se dar por ela.
+   *
+   * O servidor recusa o segundo envio e diz quando foi o primeiro; repetir é
+   * possível, mas é uma decisão de quem está a olhar, e não um duplo clique.
+   */
+  async function enviarRecibo(l: Linha, reenviar = false) {
+    setOcupado(true); setErro(null); setRecado(null);
+    try {
+      const r = await fetch(`/api/hr/companies/${clientId}/payslips`, {
+        method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          year, period: periodo, freq: freqType, employeeId: l.employeeId, reenviar,
+        }),
+      });
+      const j = await r.json();
+      if (!r.ok) {
+        const texto = j.codigo ? t(j.codigo as TKey, j.params) : (j.error || "Falhou.");
+        if (j.codigo === "recibo.jaEnviado" && window.confirm(`${texto}\n\n${t("run.reenviar")}`)) {
+          setOcupado(false);
+          return enviarRecibo(l, true);
+        }
+        setErro(texto);
+        return;
+      }
+      setRecado(t("run.enviado", { quem: l.nome, para: j.para }));
+    } finally { setOcupado(false); }
+  }
+
   async function acao(acao: "fechar" | "reabrir") {
     setOcupado(true); setErro(null); setRecado(null);
     try {
@@ -244,13 +291,47 @@ export default function PayrollRun({
             onChange={(e) => trocarHoras(e.target.checked)} />
           {t("run.showHours")}
         </label>
+        <label className="flex cursor-pointer items-center gap-2 pb-2 text-[12.5px]"
+          title={t("run.embutidoHelp")}>
+          <input type="checkbox" className="h-4 w-4 cursor-pointer" checked={embutido}
+            onChange={(e) => { setEmbutido(e.target.checked); setPdf(null); }} />
+          {t("run.embutido")}
+        </label>
         {!!(d?.linhas ?? []).length && (
-          <a className="btn-ghost mb-1 h-9 px-4 text-sm" href={linkDoRecibo()}
-            target="_blank" rel="noopener noreferrer">
-            {t("run.payslipsAll")}
-          </a>
+          embutido ? (
+            <button className="btn-ghost mb-1 h-9 px-4 text-sm"
+              onClick={() => setPdf({ url: linkDoRecibo(), quem: t("run.payslipsAll") })}>
+              {t("run.payslipsAll")}
+            </button>
+          ) : (
+            <a className="btn-ghost mb-1 h-9 px-4 text-sm" href={linkDoRecibo()}
+              target="_blank" rel="noopener noreferrer">
+              {t("run.payslipsAll")}
+            </a>
+          )
         )}
       </div>
+
+      {/* ------------------------------------------- o recibo, sem sair daqui */}
+      {pdf && (
+        <div className="mt-3 rounded-xl2 border border-line bg-surface-2/40">
+          <div className="flex flex-wrap items-center gap-3 border-b border-line px-3 py-2">
+            <span className="text-[12.5px] font-medium">{pdf.quem}</span>
+            <a className="ml-auto text-[12px] underline" href={pdf.url}
+              target="_blank" rel="noopener noreferrer">{t("run.abrirSeparador")}</a>
+            <button className="text-[12px] underline" onClick={() => setPdf(null)}>
+              {t("common.close")}
+            </button>
+          </div>
+          {/*
+            `key` no url: sem ele, trocar de pessoa com o painel já aberto
+            deixava o iframe a mostrar o recibo anterior — o navegador reaproveita
+            o elemento e o PDF embutido não recarrega só por mudar o `src`.
+          */}
+          <iframe key={pdf.url} src={pdf.url} title={pdf.quem}
+            className="h-[70vh] w-full rounded-b-xl2 border-0" />
+        </div>
+      )}
 
       {!!avisos.length && (
         <ul className="mt-3 space-y-1 rounded-lg border border-warning/40 bg-warning/10 px-3 py-2 text-[12.5px]">
@@ -333,10 +414,29 @@ export default function PayrollRun({
                     confere quer VER antes de entregar, e no telemóvel um
                     download é um ficheiro que se perde na pasta.
                   */}
-                  <a className="mt-0.5 block text-[11px] underline" href={linkDoRecibo(l.employeeId)}
-                    target="_blank" rel="noopener noreferrer">
-                    {t("run.payslip")}
-                  </a>
+                  {embutido ? (
+                    <button className="mt-0.5 block text-[11px] underline"
+                      onClick={() => setPdf({ url: linkDoRecibo(l.employeeId), quem: l.nome })}>
+                      {t("run.payslip")}
+                    </button>
+                  ) : (
+                    <a className="mt-0.5 block text-[11px] underline" href={linkDoRecibo(l.employeeId)}
+                      target="_blank" rel="noopener noreferrer">
+                      {t("run.payslip")}
+                    </a>
+                  )}
+                  {/*
+                    O botão de e-mail só existe com o recibo FECHADO. Um
+                    rascunho traz o carimbo "não emitir" no próprio PDF, e
+                    oferecer o envio de algo que o servidor vai recusar ensina
+                    a desconfiar do botão.
+                  */}
+                  {l.status === "final" && (
+                    <button className="mt-0.5 block text-[11px] underline" disabled={ocupado}
+                      onClick={() => enviarRecibo(l)}>
+                      {t("run.enviarEmail")}
+                    </button>
+                  )}
                 </td>
               </tr>
 
