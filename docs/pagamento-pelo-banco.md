@@ -406,6 +406,32 @@ razão é boa: *"a baixa é uma decisão contábil, e desfazê-la a partir do ec
 banco escondia dela quem a tomou"*. O `unlinkLine` desfaz só o vínculo e deixa
 o dinheiro lançado, que é o estado verdadeiro.
 
+### A armadilha que só aparece DEPOIS de a Fase 0 existir
+
+Há uma aresta que a recusa do `undoLine` não cobre, e que quem construir isto
+tem de tratar de propósito. **Hoje não é alcançável** — `reconcileLine` nunca
+escreve baixas — e passa a ser no dia em que passar a escrevê-las:
+
+1. Concilia-se a linha da folha contra o título. Nasce a baixa.
+2. **Desconcilia-se** (`unlinkLine`). O vínculo à linha do extracto some, mas a
+   transacção **não é apagada** e a baixa **fica**. O título continua pago —
+   e está certo que continue, porque o dinheiro continua lançado.
+3. A linha volta à fila como se nada fosse.
+4. Concilia-se outra vez contra o mesmo título. Nasce uma **segunda** baixa, a
+   soma passa o original, e o gatilho `ledger_conferir_baixa` da migração 020
+   recusa.
+
+Falhar alto é a preferência escrita do projecto, e aqui funciona. **O problema
+é a mensagem.** O que a pessoa lê é `Baixa de X excede o titulo (original Y, ja
+baixado Z)` — verdade, e inútil: não diz que a causa foi ter desconciliado
+antes, nem o que fazer a seguir. Vai parecer um defeito do sistema no fim de um
+caminho que pareceu normal do princípio ao fim.
+
+> A correcção não é mexer no gatilho, que está certo. É o ecrã de conciliação
+> avisar **antes**: uma linha cujo título já tem baixa não deve voltar à fila
+> em silêncio. Ou não se oferece o título outra vez como candidato, ou
+> pergunta-se — nunca deixar chegar ao gatilho.
+
 Ou seja, quem construir isto **não tem de inventar a reversão** — herda uma
 recusa deliberada. O que tem de aceitar é a consequência: desfazer a
 conciliação de uma folha manda o utilizador para outro ecrã, ao contrário do
