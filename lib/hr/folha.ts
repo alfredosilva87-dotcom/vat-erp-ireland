@@ -410,7 +410,16 @@ export async function fecharFolha(args: {
   clientId: string; year: number; periodNo: number;
   freqType: "weekly" | "fortnightly" | "monthly";
   payDate?: string; userId?: string | null;
-}): Promise<{ ok: boolean; erro?: string; gravados?: number }> {
+  /*
+   * A FOLHA CALCULADA volta junto com o resultado.
+   *
+   * Quem fecha precisa dos totais logo a seguir, para criar os títulos a pagar
+   * (ver `garantirTitulosDaFolha`). Correr `correrFolha` outra vez na rota daria
+   * um segundo cálculo — e um segundo cálculo pode divergir do primeiro, porque
+   * o acumulado que ele lê já inclui os payslips que acabaram de ser gravados.
+   * O título ficaria com um número que o recibo não confirma.
+   */
+}): Promise<{ ok: boolean; erro?: string; gravados?: number; folha?: Folha }> {
   const sb = getServerSupabase();
   const folha = await correrFolha(args);
 
@@ -449,5 +458,5 @@ export async function fecharFolha(args: {
   const { error } = await sb.from("hr_payslip")
     .upsert(linhas, { onConflict: "employee_id,year,period_no,freq_type" });
   if (error) return { ok: false, erro: error.message };
-  return { ok: true, gravados: linhas.length };
+  return { ok: true, gravados: linhas.length, folha };
 }

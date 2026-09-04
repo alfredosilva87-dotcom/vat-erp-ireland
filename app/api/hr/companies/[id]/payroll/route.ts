@@ -3,6 +3,7 @@ import { requireClient, denied } from "@/lib/access";
 import { requireRole, getSessionUser } from "@/lib/auth";
 import { getServerSupabase } from "@/lib/supabase";
 import { correrFolha, fecharFolha } from "@/lib/hr/folha";
+import { garantirTitulosDaFolha, removerTitulosDaFolha } from "@/lib/financial/payrollTitles";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -62,7 +63,21 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
       .eq("period_no", a.periodNo).eq("freq_type", a.freqType)
       .eq("status", "final");
     if (error) return NextResponse.json({ error: error.message }, { status: 500 });
-    return NextResponse.json({ ok: true, reabertos: count ?? 0 });
+
+    /*
+     * Reabrir desfaz os títulos a pagar que o fecho criou.
+     *
+     * Deixá-los para trás punha a empresa a dever duas vezes: os títulos do
+     * período reaberto continuavam na lista, e o fecho seguinte criava outros —
+     * com valores diferentes, porque a folha entretanto mudou, o que é o pior
+     * dos casos porque as duas linhas parecem coisas distintas.
+     *
+     * O que já tem baixa fica: ver `removerTitulosDaFolha`.
+     */
+    const titulos = await removerTitulosDaFolha({
+      clientId: params.id, year: a.year, periodNo: a.periodNo, freqType: a.freqType,
+    });
+    return NextResponse.json({ ok: true, reabertos: count ?? 0, titulos });
   }
 
   /*
@@ -110,5 +125,26 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
 
   const r = await fecharFolha({ clientId: params.id, ...a, userId: user?.id ?? null });
   if (!r.ok) return NextResponse.json({ error: r.erro }, { status: 409 });
-  return NextResponse.json(r);
+
+  /*
+   * O TÍTULO A PAGAR NASCE AQUI, e nasce partido em dois.
+   *
+   * Até agora só o quadro semanal antigo criava título de folha. Fechar a folha
+   * por este ecrã gravava os recibos e mais nada: o dinheiro saía do banco todo
+   * o mês e não havia contra o quê o conciliar. Ver `garantirTitulosDaFolha` e
+   * `lib/hr/titulosDaFolhaPuro.ts`.
+   *
+   * A folha JÁ ESTÁ fechada quando se chega aqui, e continua fechada mesmo que
+   * isto falhe: um erro a criar títulos não pode desfazer recibos já gravados e
+   * já comunicáveis. Por isso o resultado vai na resposta em vez de virar erro —
+   * quem fechou vê o que ficou por fazer, e volta a correr depois.
+   */
+  const titulos = await garantirTitulosDaFolha({
+    clientId: params.id, year: a.year, periodNo: a.periodNo, freqType: a.freqType,
+    payDate: r.folha!.payDate, totais: r.folha!.totais, pessoas: r.folha!.linhas.length,
+  });
+
+  // A folha inteira não volta na resposta: o ecrã recarrega-a a seguir pelo GET,
+  // e mandá-la duas vezes é o dobro do payload por nada.
+  return NextResponse.json({ ok: true, gravados: r.gravados, titulos });
 }

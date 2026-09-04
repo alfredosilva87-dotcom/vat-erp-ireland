@@ -45,6 +45,7 @@ export type ContasPadrao = {
   rounding: string;         // diferenças de arredondamento
   wages: string;            // salários (despesa)
   payrollLiability: string; // folha a pagar (passivo)
+  payeLiability: string;    // PAYE/USC/PRSI a pagar à Revenue (passivo)
 };
 
 /**
@@ -75,6 +76,19 @@ export const CONTAS_PADRAO: ContasPadrao = {
   rounding: "999",        // Balance sheet suspense
   wages: "301",           // Wages and salaries
   payrollLiability: "871",// Wages and salaries control
+  /*
+   * O imposto da folha vai TODO para a 846, e não repartido pela 846 e 848.
+   *
+   * O plano da prática (migração 037) tem duas contas: `846 PAYE control` e
+   * `848 NIC (UK) PRSI (Ireland) control`. Contabilmente seriam duas; do banco,
+   * porém, sai UMA transferência para a Revenue, que cobre PAYE, USC e os dois
+   * PRSI de uma vez. E um título tem uma única conta de controlo.
+   *
+   * Reparti-lo dava dois títulos que nenhum movimento bancário fecha — que é o
+   * mesmo defeito do título de bruto que este trabalho veio corrigir. Fica um
+   * só, na conta que a baixa vai debitar quando o pagamento aparecer no extrato.
+   */
+  payeLiability: "846",   // PAYE control account
 };
 
 /** Dinheiro em cêntimos inteiros — ver `arredondar`. */

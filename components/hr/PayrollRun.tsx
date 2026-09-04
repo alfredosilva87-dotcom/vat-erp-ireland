@@ -151,6 +151,50 @@ export default function PayrollRun({
     } finally { setOcupado(false); }
   }
 
+  /*
+   * O QUE ACONTECEU ÀS CONTAS A PAGAR, dito na mesma frase do fecho.
+   *
+   * Fechar a folha abre dois títulos — o líquido e o imposto. Fazê-lo em
+   * silêncio deixava quem fecha sem saber que a dívida passou a existir, e a
+   * descobri-la por acaso noutro ecrã. Pior: quando NÃO se abre (integração
+   * desligada, ou o quadro semanal já ter criado), o silêncio parecia sucesso.
+   *
+   * O servidor manda CÓDIGO e não frase — ver `RecadoDoTitulo`. A tradução é
+   * aqui, senão o ecrã inglês levava português.
+   */
+  function recadoDosTitulos(x: any): string {
+    if (!x) return "";
+    if (x.ignorado) return t(x.ignorado.codigo as TKey, x.ignorado.params);
+    const nome = (tipo: string) => t(`titulo.${tipo}` as TKey);
+    const feitos = (x.titulos ?? []).filter((u: any) => u.id);
+    const fora = (x.titulos ?? []).filter((u: any) => !u.id && u.ignorado);
+    const partes: string[] = [];
+    if (feitos.length) {
+      partes.push(t("run.titulosCriados", {
+        quais: feitos.map((u: any) => `${nome(u.tipo)} ${eur(u.valorCents)}`).join(", "),
+      }));
+    }
+    for (const u of fora) {
+      partes.push(`${nome(u.tipo)}: ${t(u.ignorado.codigo as TKey, u.ignorado.params)}.`);
+    }
+    return partes.join(" ");
+  }
+
+  function recadoDaRemocao(x: any): string {
+    if (!x) return "";
+    const nome = (tipo: string) => t(`titulo.${tipo}` as TKey);
+    const partes: string[] = [];
+    if (x.removidos) partes.push(t("run.titulosRemovidos", { n: x.removidos }));
+    if (x.mantidos?.length) {
+      partes.push(t("run.titulosMantidos", {
+        quais: x.mantidos
+          .map((m: any) => `${nome(m.tipo)} (${t(m.motivo.codigo as TKey, m.motivo.params)})`)
+          .join(", "),
+      }));
+    }
+    return partes.join(" ");
+  }
+
   async function acao(acao: "fechar" | "reabrir") {
     setOcupado(true); setErro(null); setRecado(null);
     try {
@@ -161,8 +205,10 @@ export default function PayrollRun({
       const j = await r.json();
       if (!r.ok) { setErro(j.error || "Falhou."); return; }
       setRecado(acao === "fechar"
-        ? t("run.finalised", { n: j.gravados })
-        : t("run.reopened", { n: j.reabertos }));
+        ? [t("run.finalised", { n: j.gravados }), recadoDosTitulos(j.titulos)]
+          .filter(Boolean).join(" ")
+        : [t("run.reopened", { n: j.reabertos }), recadoDaRemocao(j.titulos)]
+          .filter(Boolean).join(" "));
       await carregar();
     } finally { setOcupado(false); }
   }

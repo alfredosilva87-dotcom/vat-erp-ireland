@@ -4,6 +4,12 @@ import { integracoesDo } from "@/lib/integrations";
 import { grossFor, isoWeekDay, type Employee, type WeekHours } from "@/lib/hr/payroll";
 import type { ConfigDaEmpresa } from "@/lib/hr/regrasDaEmpresa";
 import { CONTAS_PADRAO } from "@/lib/accounting/post";
+import { semanasDoPeriodo } from "@/lib/hr/folha";
+import {
+  chaveDoTituloDaFolha, partirAFolha, periodoDaSemana, referenciaDoTituloDaFolha,
+  vencimentoDoImpostoDaFolha,
+  type FreqDaFolha, type TipoDeTituloDaFolha, type TotaisDaFolha,
+} from "@/lib/hr/titulosDaFolhaPuro";
 
 /**
  * A folha de pagamento vira conta a pagar.
@@ -93,6 +99,31 @@ export async function garantirTituloDeFolha(
     .select("id").eq("client_id", clientId).eq("document_id", weekId).maybeSingle();
   if (ja) return { id: (ja as any).id, jaExistia: true };
 
+  /*
+   * GUARDA CONTRA DUPLICADO entre os dois caminhos.
+   *
+   * Há dois sítios que criam título de folha: este (marcar o payslip no quadro
+   * semanal antigo, que está em produção e a conciliar) e `garantirTitulosDaFolha`,
+   * que nasce ao fechar a folha no ecrã moderno. O primeiro raciocina por
+   * SEMANA e escreve um título pelo bruto; o segundo raciocina por PERÍODO e
+   * escreve dois, líquido e imposto.
+   *
+   * Nada impede a mesma empresa de usar os dois. Sem esta guarda, a semana 36
+   * marcada no quadro depois de a folha de Setembro estar fechada punha o mesmo
+   * salário a pagar duas vezes na lista — e ninguém repara, porque os valores
+   * são diferentes (um é bruto, o outro é líquido) e parecem coisas distintas.
+   *
+   * Quem já lá está ganha: não se apaga o que existe, recusa-se o que ia
+   * duplicar, e diz-se qual é o título que mandou parar.
+   */
+  const jaPeloPeriodo = await tituloModernoQueCobre(clientId, year, week, freq);
+  if (jaPeloPeriodo) {
+    return {
+      id: null, jaExistia: false,
+      ignorado: `A folha deste periodo ja tem titulo (${jaPeloPeriodo}).`,
+    };
+  }
+
   const integra = await integracoesDo(clientId);
   if (!integra.hr_to_payable) {
     return { id: null, jaExistia: false, ignorado: "Integracao RH->pagar desligada." };
@@ -153,4 +184,219 @@ export async function removerTituloDeFolha(
 
   await sb().from("ledger_items").delete().eq("id", (titulo as any).id);
   return { removido: true };
+}
+
+// =========================================================================
+// O PAR DE TÍTULOS: líquido e imposto
+// =========================================================================
+
+/**
+ * Por que a folha moderna não reaproveita `garantirTituloDeFolha`.
+ *
+ * Aquela função é do quadro semanal: recalcula o bruto a partir das horas, e é
+ * pelo bruto que grava. Aqui os números já vêm CALCULADOS de `correrFolha` —
+ * com imposto, acumulado, cut-off e créditos — e recalcular seria arriscar que
+ * o título dissesse um valor e o recibo dissesse outro.
+ *
+ * Ver `lib/hr/titulosDaFolhaPuro.ts` para o porquê de serem dois, de onde vem a
+ * chave de idempotência e de onde vem o dia 14.
+ */
+
+/**
+ * O que impediu um título de nascer, em CHAVE de tradução e não em prosa.
+ *
+ * O caminho antigo devolve frases em português, e elas acabavam a aparecer
+ * num ecrã inglês. Aqui devolve-se o código e os parâmetros — o mesmo padrão
+ * dos avisos da folha (`Aviso` em `lib/hr/fiscal/motor.ts`) — e quem mostra
+ * traduz. A geração em lote precisa disto na mesma, porque o relatório dela
+ * também é lido por gente que não fala português.
+ */
+export type RecadoDoTitulo = { codigo: string; params?: Record<string, string | number> };
+
+export type TituloDaFolha = {
+  tipo: TipoDeTituloDaFolha;
+  id: string | null;
+  jaExistia: boolean;
+  valorCents: number;
+  ignorado?: RecadoDoTitulo;
+};
+
+/**
+ * O beneficiário, como aparece na lista de contas a pagar.
+ *
+ * Em inglês porque é o idioma por omissão dos ecrãs — e porque estes dois nomes
+ * são quem RECEBE uma transferência real, que ninguém traduz no homebanking.
+ * `Revenue` é o nome da autoridade fiscal irlandesa.
+ */
+const BENEFICIARIO: Record<TipoDeTituloDaFolha, string> = {
+  liquido: "Employees (net pay)",
+  imposto: "Revenue (PAYE/USC/PRSI)",
+};
+
+/** Já existe título do caminho ANTIGO para alguma semana deste período? */
+async function tituloAntigoDoPeriodo(
+  clientId: string, year: number, periodNo: number, freqType: FreqDaFolha
+): Promise<string | null> {
+  const semanas = semanasDoPeriodo(freqType, year, periodNo);
+  if (!semanas.length) return null;
+
+  const { data: linhas } = await sb().from("hr_weeks")
+    .select("id").eq("client_id", clientId).eq("year", year)
+    .eq("freq_type", freqType).in("week_no", semanas);
+  const ids = ((linhas ?? []) as any[]).map((l) => l.id);
+  if (!ids.length) return null;
+
+  const { data: titulo } = await sb().from("ledger_items")
+    .select("document_ref").eq("client_id", clientId)
+    .eq("source_module", "payroll").in("document_id", ids).limit(1);
+  const um = ((titulo ?? []) as any[])[0];
+  return um ? (um.document_ref || "sem referencia") : null;
+}
+
+/** E o contrário: já existe o par moderno que cobre esta semana? */
+async function tituloModernoQueCobre(
+  clientId: string, year: number, week: number, freq: string
+): Promise<string | null> {
+  if (freq !== "weekly" && freq !== "fortnightly" && freq !== "monthly") return null;
+  const periodo = periodoDaSemana(freq, year, week);
+  const chaves = (["liquido", "imposto"] as TipoDeTituloDaFolha[])
+    .map((t) => chaveDoTituloDaFolha(clientId, year, periodo, freq, t));
+
+  const { data } = await sb().from("ledger_items")
+    .select("document_ref").eq("client_id", clientId).in("document_id", chaves).limit(1);
+  const um = ((data ?? []) as any[])[0];
+  return um ? (um.document_ref || "sem referencia") : null;
+}
+
+export async function garantirTitulosDaFolha(args: {
+  clientId: string; year: number; periodNo: number; freqType: FreqDaFolha;
+  payDate: string; totais: TotaisDaFolha; pessoas: number;
+}): Promise<{ titulos: TituloDaFolha[]; ignorado?: RecadoDoTitulo }> {
+  const { clientId, year, periodNo, freqType, payDate } = args;
+
+  const integra = await integracoesDo(clientId);
+  if (!integra.hr_to_payable) {
+    return { titulos: [], ignorado: { codigo: "titulo.integracaoDesligada" } };
+  }
+
+  const antigo = await tituloAntigoDoPeriodo(clientId, year, periodNo, freqType);
+  if (antigo) {
+    return { titulos: [], ignorado: { codigo: "titulo.jaPeloQuadro", params: { ref: antigo } } };
+  }
+
+  const { liquidoCents, impostoCents } = partirAFolha(args.totais);
+
+  const plano: {
+    tipo: TipoDeTituloDaFolha; cents: number; vencimento: string; conta: string;
+  }[] = [
+    { tipo: "liquido", cents: liquidoCents, vencimento: payDate,
+      conta: CONTAS_PADRAO.payrollLiability },
+    { tipo: "imposto", cents: impostoCents, vencimento: vencimentoDoImpostoDaFolha(payDate),
+      conta: CONTAS_PADRAO.payeLiability },
+  ];
+
+  const titulos: TituloDaFolha[] = [];
+  for (const p of plano) {
+    const chave = chaveDoTituloDaFolha(clientId, year, periodNo, freqType, p.tipo);
+    const referencia = referenciaDoTituloDaFolha(year, periodNo, freqType, p.tipo);
+
+    const { data: ja } = await sb().from("ledger_items")
+      .select("id").eq("client_id", clientId).eq("document_id", chave).maybeSingle();
+    if (ja) {
+      titulos.push({ tipo: p.tipo, id: (ja as any).id, jaExistia: true, valorCents: p.cents });
+      continue;
+    }
+
+    /*
+     * Zero ou negativo não vira título.
+     *
+     * `ledger_items` recusa `original_amount <= 0`, e faz bem. Acontece de
+     * verdade no imposto: uma folha em que o cumulativo devolve mais PAYE do
+     * que a soma de USC e PRSI dá um saldo A FAVOR do empregador, que a Revenue
+     * abate no mês seguinte — não é dívida a pagar, é crédito. Dizer aqui que
+     * não se criou, e porquê, vale mais do que uma linha de €0,00 que ninguém
+     * sabe fechar.
+     */
+    if (p.cents <= 0) {
+      titulos.push({
+        tipo: p.tipo, id: null, jaExistia: false, valorCents: p.cents,
+        ignorado: { codigo: p.cents === 0 ? "titulo.semValor" : "titulo.saldoAFavor" },
+      });
+      continue;
+    }
+
+    const { data, error } = await sb().from("ledger_items").insert({
+      client_id: clientId, kind: "payable", source_module: "payroll",
+      document_id: chave, document_ref: referencia,
+      counterparty: BENEFICIARIO[p.tipo],
+      issue_date: payDate, due_date: p.vencimento,
+      original_amount: Math.round(p.cents) / 100,
+      account_code: p.conta,
+      // O que um pagamento vai precisar de saber, para o dia em que houver
+      // ligação ao banco. Ver a migração 062.
+      payment_reference: referencia,
+      notes: p.tipo === "liquido"
+        ? `${args.pessoas} funcionario(s), liquido da folha`
+        : `PAYE+USC+PRSI (empregado e empregador) de ${args.pessoas} funcionario(s)`,
+    }).select("id").single();
+
+    if (error) {
+      /*
+       * `23505` é o índice único de `(client_id, document_id)` — migração 041.
+       *
+       * Chegar aqui significa que outro pedido criou o mesmo título entre o
+       * SELECT acima e este INSERT. Não é erro: é a idempotência a funcionar no
+       * único sítio onde ela tem mesmo de funcionar, que é a corrida entre dois
+       * cliques no botão de fechar.
+       */
+      const corrida = (error as any).code === "23505";
+      titulos.push({
+        tipo: p.tipo, id: null, jaExistia: corrida, valorCents: p.cents,
+        ignorado: corrida ? undefined : { codigo: "titulo.erro", params: { erro: error.message } },
+      });
+      continue;
+    }
+    titulos.push({ tipo: p.tipo, id: (data as any).id, jaExistia: false, valorCents: p.cents });
+  }
+
+  return { titulos };
+}
+
+/**
+ * Reabrir desfaz os títulos — mas só os que ainda não têm baixa.
+ *
+ * Mesma regra de `removerTituloDeFolha`: se o dinheiro já saiu do banco, a
+ * dívida não desaparece porque alguém reabriu o período. Apagá-la deixava a
+ * baixa órfã e o extrato sem contrapartida.
+ *
+ * Reabrir com um dos dois já pago é possível e não é erro: costuma ser o
+ * líquido pago e o imposto ainda por pagar, e é exactamente aí que se descobre
+ * um engano na folha. Remove-se o que dá, mantém-se o que não dá, e devolve-se
+ * a lista para quem reabriu saber o que ficou para trás.
+ */
+export async function removerTitulosDaFolha(args: {
+  clientId: string; year: number; periodNo: number; freqType: FreqDaFolha;
+}): Promise<{ removidos: number; mantidos: { tipo: TipoDeTituloDaFolha; motivo: RecadoDoTitulo }[] }> {
+  const { clientId, year, periodNo, freqType } = args;
+  let removidos = 0;
+  const mantidos: { tipo: TipoDeTituloDaFolha; motivo: RecadoDoTitulo }[] = [];
+
+  for (const tipo of ["liquido", "imposto"] as TipoDeTituloDaFolha[]) {
+    const chave = chaveDoTituloDaFolha(clientId, year, periodNo, freqType, tipo);
+    const { data: titulo } = await sb().from("ledger_items")
+      .select("id").eq("client_id", clientId).eq("document_id", chave).maybeSingle();
+    if (!titulo) continue;
+
+    const { count } = await sb().from("ledger_settlements")
+      .select("id", { count: "exact", head: true }).eq("ledger_item_id", (titulo as any).id);
+    if ((count ?? 0) > 0) { mantidos.push({ tipo, motivo: { codigo: "titulo.temBaixa" } }); continue; }
+
+    const { error } = await sb().from("ledger_items").delete().eq("id", (titulo as any).id);
+    if (error) {
+      mantidos.push({ tipo, motivo: { codigo: "titulo.erro", params: { erro: error.message } } });
+      continue;
+    }
+    removidos++;
+  }
+  return { removidos, mantidos };
 }

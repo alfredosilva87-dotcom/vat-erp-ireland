@@ -1438,7 +1438,19 @@ const en = {
   "run.nobody": "Nobody on this block for this period.",
   "run.finalised": "Payroll finalised: {n} payslip(s). From here the figures feed the following periods.",
   "run.reopened": "{n} payslip(s) reopened.",
-  "run.finaliseHelp": "Finalising makes these figures the year-to-date the next period starts from. After that they cannot be changed — only reopened.",
+  "run.finaliseHelp": "Finalising makes these figures the year-to-date the next period starts from. After that they cannot be changed — only reopened. It also opens two payables: the net wages, due on the pay date, and PAYE/USC/PRSI to Revenue, due on the 14th of the following month.",
+  // Os dois títulos que o fecho da folha abre — ver lib/hr/titulosDaFolhaPuro.ts.
+  "titulo.liquido": "Net wages",
+  "titulo.imposto": "Revenue (PAYE/USC/PRSI)",
+  "titulo.integracaoDesligada": "HR → payables is switched off for this client, so no payable was opened.",
+  "titulo.jaPeloQuadro": "The weekly board already opened a payable for this period ({ref}), so none was opened here — the same wages would be owed twice.",
+  "titulo.semValor": "nothing to pay",
+  "titulo.saldoAFavor": "credit balance — nothing owed to Revenue for this period",
+  "titulo.temBaixa": "already settled, kept",
+  "titulo.erro": "failed: {erro}",
+  "run.titulosCriados": "Payables opened — {quais}.",
+  "run.titulosRemovidos": "{n} payable(s) removed.",
+  "run.titulosMantidos": "Kept: {quais}.",
 
   // ------------------------------------------------------------- o recibo
   "payslip.title": "PAYSLIP",
