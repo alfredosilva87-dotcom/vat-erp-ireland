@@ -1,3 +1,4 @@
+import { regrasPara, brutoDaSemana, type ConfigDaEmpresa } from "./regrasDaEmpresa";
 /**
  * Os cálculos da folha — portados do Payroll Control do Matheus.
  *
@@ -157,7 +158,15 @@ export const SEMANAS_POR_PERIODO: Record<string, number> = {
   "Monthly Fixed": 4.333,
 };
 
-export function grossFor(emp: Employee, h?: WeekHours | null): number {
+/**
+ * O BRUTO DE UMA SEMANA.
+ *
+ * `cfg` são as regras da EMPRESA (domingo, extras) — ver lib/hr/regrasDaEmpresa.ts.
+ * É opcional para não partir os sítios que ainda não a passam, e a ausência dela
+ * dá exactamente o comportamento antigo: o prémio de domingo vem do campo do
+ * funcionário, e não há horas extras.
+ */
+export function grossFor(emp: Employee, h?: WeekHours | null, cfg?: ConfigDaEmpresa | null): number {
   // valor lançado à mão manda no cálculo automático
   if (h && h.gross_override !== null && h.gross_override !== undefined)
     return num(h.gross_override);
@@ -178,7 +187,45 @@ export function grossFor(emp: Employee, h?: WeekHours | null): number {
       ? num(emp.fixed_amount) / SEMANAS_POR_PERIODO[emp.pay_type]
       : 0;
   }
-  return hours * num(emp.hourly_rate) + sunday * num(emp.sunday_rate || emp.hourly_rate);
+  /*
+   * A CONTA MUDOU DE SÍTIO, e não de resultado.
+   *
+   * Era aqui, numa linha: `horas × taxa + domingo × (taxaDomingo || taxa)`. O
+   * problema não era a aritmética — era o `||`: quem não preenchesse a taxa de
+   * domingo na ficha pagava o domingo como uma terça-feira, calado.
+   *
+   * Agora a decisão vive em `regrasPara`, que sabe da regra da EMPRESA, sabe
+   * dizer de onde veio o número, e avisa quando não há prémio nenhum. Sem
+   * configuração, o resultado é o mesmo de sempre.
+   */
+  const regras = regrasPara(cfg ?? null, emp as any);
+  return brutoDaSemana(regras, { normais: hours, domingo: sunday }).total;
+}
+
+/**
+ * O mesmo bruto, mas com a MEMÓRIA DE CÁLCULO.
+ *
+ * Um total sozinho não se confere. Com as parcelas — "32h × 13,00" e
+ * "8h × 26,00" — quem olha vê a conta e percebe num segundo se está certa.
+ * É o que permite corrigir uma taxa errada no ecrã em vez de a descobrir num
+ * recibo.
+ */
+export function grossDetail(emp: Employee, h?: WeekHours | null, cfg?: ConfigDaEmpresa | null) {
+  const regras = regrasPara(cfg ?? null, emp as any);
+  if (h && h.gross_override !== null && h.gross_override !== undefined) {
+    return {
+      total: num(h.gross_override),
+      parcelas: [],
+      avisos: ["parcela.valorForcado"],
+      regras,
+    };
+  }
+  if (SEMANAS_POR_PERIODO[emp.pay_type]) {
+    const total = h && h.week_worked ? num(emp.fixed_amount) / SEMANAS_POR_PERIODO[emp.pay_type] : 0;
+    return { total, parcelas: [], avisos: h?.week_worked ? [] : ["parcela.semanaNaoMarcada"], regras };
+  }
+  const b = brutoDaSemana(regras, { normais: num(h && h.hours), domingo: num(h && h.sunday_hours) });
+  return { ...b, regras };
 }
 
 // ------------------------------------------------------------------ férias
