@@ -14,6 +14,7 @@ import EditorDeHoras from "@/components/hr/EditorDeHoras";
 import RegrasDaEmpresa from "@/components/hr/RegrasDaEmpresa";
 import HistoricoDeRecibos from "@/components/hr/HistoricoDeRecibos";
 import PayrollRun from "@/components/hr/PayrollRun";
+import EnsaioRevenue from "@/components/hr/EnsaioRevenue";
 import ImportEmployees from "@/components/hr/ImportEmployees";
 import RevenueSubmission from "@/components/hr/RevenueSubmission";
 
@@ -297,8 +298,20 @@ export default function CompanyPayroll({ params }: { params: { id: string } }) {
             * que as coisas acontecem: fecha-se e comunica-se no mesmo dia.
             */}
           {aba === "revenue" && (
-            <RevenueSubmission
-              clientId={params.id} year={year} freqType={blocosDaEmpresa[0] ?? "weekly"} />
+            <>
+              <RevenueSubmission
+                clientId={params.id} year={year} freqType={blocosDaEmpresa[0] ?? "weekly"} />
+              {/*
+                * O ENSAIO só se monta em cliente de DEMONSTRAÇÃO.
+                *
+                * O servidor recusa na mesma — uma trava que só existe no ecrã
+                * não é uma trava. Estar nos dois sítios é de propósito: aqui
+                * evita-se a pergunta, lá evita-se o estrago.
+                */}
+              {/^DEMO-/i.test(dados?.client?.client_code ?? "") && (
+                <EnsaioRevenue clientId={params.id} year={year} />
+              )}
+            </>
           )}
 
           {aba === "import" && <ImportEmployees clientId={params.id} year={year} />}

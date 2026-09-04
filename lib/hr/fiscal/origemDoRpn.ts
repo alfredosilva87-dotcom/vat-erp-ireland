@@ -43,6 +43,16 @@ export interface RpnDaRevenue {
   usc_deducted_to_date?: number | string | null;
   lpt_to_deduct?: number | string | null;
   rpn_number?: string | null;
+  /**
+   * Esta linha foi SEMEADA para demonstração, e não veio da Revenue.
+   *
+   * Sem isto, o ensaio (migração 063, `lib/revenue/ensaio.ts`) era
+   * indistinguível de um RPN verdadeiro em tudo menos no prefixo do número — e
+   * um prefixo é uma convenção, que se perde na primeira vez que alguém copiar
+   * a linha. O aviso sai ao lado do nome da pessoa, na folha e no recibo, para
+   * ninguém tomar um número inventado por um número da Revenue.
+   */
+  simulated?: boolean | null;
 }
 
 /** O que o cadastro tem — copiado à mão, ou vazio. */
@@ -121,6 +131,8 @@ export function escolherRpn(
 
   // ---- 1. A Revenue, quando falou.
   if (daRevenue && daRevenue.rpn_number) {
+    // O ensaio anuncia-se antes de qualquer número que dele venha.
+    if (daRevenue.simulated) avisos.push("aviso.rpnDeEnsaio");
     const base = baseDaRevenue(daRevenue.calculation_basis) ?? "emergencia";
     const bruto = num(daRevenue.pay_tax_to_date);
     const paye = num(daRevenue.tax_deducted_to_date);
